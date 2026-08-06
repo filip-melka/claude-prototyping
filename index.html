@@ -1,0 +1,255 @@
+<!doctype html>
+<!--
+  Prototype gallery. Reads ./prototypes.json at load, so adding a prototype means
+  adding a manifest entry — this file never needs to change.
+  Needs to be served over HTTP (GitHub Pages); fetch() is blocked on file://.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Prototypes</title>
+<style>
+  :root {
+    --bg: #f6f6f7;
+    --surface: #ffffff;
+    --surface-2: #efeff1;
+    --text: #17171a;
+    --muted: #6b6b76;
+    --border: #e3e3e8;
+    --accent: #4f46e5;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .05), 0 6px 20px rgba(0, 0, 0, .05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0e11;
+      --surface: #17171c;
+      --surface-2: #22222a;
+      --text: #f2f2f5;
+      --muted: #9a9aa6;
+      --border: #2a2a32;
+      --accent: #7c74ff;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 6px 20px rgba(0, 0, 0, .35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding:
+      calc(env(safe-area-inset-top) + 28px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 40px)
+      calc(env(safe-area-inset-left) + 16px);
+  }
+
+  header { margin-bottom: 22px; }
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 26px;
+    font-weight: 680;
+    letter-spacing: -.02em;
+  }
+
+  .sub {
+    margin: 0;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card {
+    display: block;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+    text-decoration: none;
+    color: inherit;
+    transition: transform .12s ease;
+  }
+
+  .card:active { transform: scale(.985); }
+
+  .card__top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .card__title {
+    font-size: 17px;
+    font-weight: 640;
+    letter-spacing: -.01em;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .badge {
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
+  .card__tagline {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .card__meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .chip {
+    background: var(--surface-2);
+    border-radius: 6px;
+    padding: 2px 7px;
+    font-weight: 500;
+  }
+
+  .dot { opacity: .5; }
+
+  .note {
+    border: 1px dashed var(--border);
+    border-radius: 16px;
+    padding: 28px 20px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .note--error {
+    border-style: solid;
+    border-color: color-mix(in srgb, #e5484d 45%, var(--border));
+    color: #e5484d;
+    text-align: left;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .92em;
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <h1>Prototypes</h1>
+    <p class="sub" id="sub">Loading&hellip;</p>
+  </header>
+  <main class="list" id="list"></main>
+</div>
+
+<script>
+  const listEl = document.getElementById('list');
+  const subEl = document.getElementById('sub');
+
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  };
+
+  const formatDate = (value) => {
+    const date = new Date(value);
+    if (isNaN(date)) return value || '';
+    return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const renderCard = (p) => {
+    const card = el('a', 'card');
+    card.href = p.path;
+
+    const top = el('div', 'card__top');
+    top.append(el('div', 'card__title', p.title || p.id));
+    top.append(el('span', 'badge', 'v' + (p.version ?? 1)));
+    card.append(top);
+
+    if (p.tagline) card.append(el('p', 'card__tagline', p.tagline));
+
+    const meta = el('div', 'card__meta');
+    meta.append(el('span', 'chip', p.id));
+    if (p.kind) {
+      meta.append(el('span', 'dot', '·'));
+      meta.append(el('span', null, p.kind));
+    }
+    if (p.updatedAt) {
+      meta.append(el('span', 'dot', '·'));
+      meta.append(el('span', null, formatDate(p.updatedAt)));
+    }
+    card.append(meta);
+
+    return card;
+  };
+
+  fetch('./prototypes.json', { cache: 'no-store' })
+    .then((res) => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then((data) => {
+      const items = Array.isArray(data.prototypes) ? data.prototypes.slice() : [];
+
+      if (!items.length) {
+        subEl.textContent = 'Nothing here yet';
+        const note = el('div', 'note');
+        note.append(el('div', null, 'No prototypes yet.'));
+        note.append(el('div', null, 'Add an idea to the Plane board and the next scheduled run will build one.'));
+        listEl.append(note);
+        return;
+      }
+
+      // Newest work first — that is what you want to look at on the phone.
+      items.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+
+      subEl.textContent = items.length + (items.length === 1 ? ' prototype' : ' prototypes');
+      items.forEach((p) => listEl.append(renderCard(p)));
+    })
+    .catch((err) => {
+      subEl.textContent = '';
+      const note = el('div', 'note note--error');
+      note.append(el('div', null, 'Could not load prototypes.json — ' + err.message));
+      const hint = el('div');
+      hint.innerHTML = 'If you opened this file directly, serve it over HTTP instead: <code>python3 -m http.server 8000</code>';
+      note.append(hint);
+      listEl.append(note);
+    });
+</script>
+
+</body>
+</html>
