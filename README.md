@@ -18,6 +18,19 @@ saying what you want; the next run picks it up ahead of any new idea.
 The procedure lives in `.claude/commands/prototype.md`; the conventions it relies on are in
 `CLAUDE.md`.
 
+## Capturing ideas
+
+`skills/capture-prototype-idea/` is a Claude skill for turning a conversation about an app or game
+idea into a properly written work item on the board — structured brief, must-have checkboxes,
+`app`/`game` label, straight into Backlog. Upload it on claude.ai (Settings → Capabilities →
+Skills) and it works from phone, desktop, and web.
+
+Rebuild the upload zip after editing it:
+
+```
+rm -f capture-prototype-idea.zip && (cd skills && zip -rX ../capture-prototype-idea.zip capture-prototype-idea -x '.*')
+```
+
 ## Local preview
 
 `index.html` fetches the manifest, so serve it rather than opening the file:
