@@ -79,6 +79,23 @@ identifier `PROTOTYPE`.
 
 Address states by UUID, not by name.
 
+### Description checkboxes
+
+Descriptions are TipTap HTML. A todo looks like this, unchecked:
+
+```html
+<ul data-type="taskList">
+  <li data-checked="false" data-type="taskItem">
+    <label><input type="checkbox"><span></span></label>
+    <div><p>Best score persists across reloads</p></div>
+  </li>
+</ul>
+```
+
+Marking it done means setting **both** `data-checked="true"` on the `<li>` and `checked="checked"`
+on the `<input>`. Ideas are captured with the `capture-prototype-idea` skill (`skills/`), which
+writes this same shape.
+
 ## Commits
 
 A run commits only the prototype directory it touched plus `prototypes.json`, straight to `main`.

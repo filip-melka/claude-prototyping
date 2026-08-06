@@ -66,10 +66,19 @@ screens, real transitions, plausible placeholder content. Not a wireframe, not a
 If `description_html` contains task-list checkboxes, every one of them is a requirement for this
 prototype. Implement them all, then mark them done in Plane:
 
-- Inspect the actual markup you got back rather than assuming a shape. Plane's editor emits
-  `<input type="checkbox">` inside list items and may carry the state on a wrapper attribute
-  such as `data-checked`.
-- Flip only the checked state — leave every other byte of the HTML exactly as it was.
+- Plane's editor (TipTap) stores them like this, with the state in **two** places:
+
+  ```html
+  <li data-checked="false" data-type="taskItem">
+    <label><input type="checkbox"><span></span></label>
+    <div><p>Best score persists across reloads</p></div>
+  </li>
+  ```
+
+  Done means `data-checked="true"` **and** `<input type="checkbox" checked="checked">`. Setting
+  only one of the two leaves the box looking wrong in the UI.
+- Flip only those two attributes — leave every other byte exactly as it was, including the
+  `data-id` UUIDs and utility classes Plane's editor adds.
 - Write it back with `update_work_item`, then `retrieve_work_item` again and confirm the boxes
   actually came back checked.
 
