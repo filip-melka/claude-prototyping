@@ -1,0 +1,27 @@
+name: Notify Telegram
+
+# Fires when the manifest changes — that is the only thing that moves when a
+# prototype is created or refined. Inert until the two secrets are set.
+on:
+  push:
+    branches: [main]
+    paths:
+      - prototypes.json
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # needed to diff against HEAD~1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Post to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node .github/scripts/notify-telegram.mjs
