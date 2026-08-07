@@ -1,3 +1,16 @@
 {
-  "prototypes": []
+  "prototypes": [
+    {
+      "id": "PROTOTYPE-2",
+      "workItemId": "2f760971-d87f-416d-bfd1-89bad0fe6b8e",
+      "title": "Word Rush",
+      "tagline": "Read the definition, type the word — every answer buys you five more seconds.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-2/index.html",
+      "version": 1,
+      "createdAt": "2026-08-07",
+      "updatedAt": "2026-08-07",
+      "changelog": ["v1 — initial prototype"]
+    }
+  ]
 }

@@ -1,0 +1,1153 @@
+<!doctype html>
+<!--
+  PROTOTYPE-2 — Word Rush
+  Timed definition-to-word game. Self-contained: no network, no build step.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Word Rush</title>
+<style>
+  :root {
+    --bg: #f3f3f7;
+    --surface: #ffffff;
+    --surface-2: #eaeaf0;
+    --text: #101018;
+    --muted: #6a6a78;
+    --border: #e0e0e8;
+    --accent: #4f39f6;
+    --accent-text: #ffffff;
+    --good: #12a150;
+    --warn: #d97706;
+    --bad: #dc2626;
+    --coin: #b45309;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 8px 24px rgba(0, 0, 0, .07);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #07070d;
+      --surface: #14141f;
+      --surface-2: #1e1e2c;
+      --text: #f4f4f9;
+      --muted: #9494a8;
+      --border: #282838;
+      --accent: #8f7dff;
+      --accent-text: #07070d;
+      --good: #22c55e;
+      --warn: #f59e0b;
+      --bad: #fb3b5c;
+      --coin: #fbbf24;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 8px 24px rgba(0, 0, 0, .45);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 12px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 16px)
+      calc(env(safe-area-inset-left) + 16px);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .app__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    flex: 1;
+  }
+
+  .app__body { flex: 1; display: flex; flex-direction: column; }
+
+  /* Wallet ------------------------------------------------------------- */
+  .coins {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--coin);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 11px;
+    white-space: nowrap;
+  }
+
+  .coins__mark { font-size: 11px; transform: translateY(-.5px); }
+
+  /* Screens ------------------------------------------------------------ */
+  .screen { display: none; flex: 1; flex-direction: column; }
+  .screen.is-active { display: flex; }
+
+  /* Home --------------------------------------------------------------- */
+  .hero {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    padding: 8px 0 4px;
+  }
+
+  .hero__mark {
+    font-size: clamp(38px, 12vw, 52px);
+    font-weight: 800;
+    letter-spacing: -.03em;
+    line-height: 1.02;
+  }
+
+  .hero__mark em { font-style: normal; color: var(--accent); }
+
+  .hero__sub {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 22em;
+  }
+
+  .label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .segment {
+    display: flex;
+    gap: 8px;
+    background: var(--surface-2);
+    border-radius: 999px;
+    padding: 4px;
+  }
+
+  .segment__btn {
+    appearance: none;
+    border: 0;
+    flex: 1;
+    min-height: 44px;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-weight: 650;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  .segment__btn[aria-pressed="true"] {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow);
+  }
+
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 16px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: 700;
+    font-size: 18px;
+    min-height: 56px;
+    padding: 0 20px;
+    cursor: pointer;
+    letter-spacing: .01em;
+  }
+
+  .btn:active { transform: scale(.985); }
+  .btn--ghost {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+    font-size: 16px;
+    min-height: 48px;
+  }
+  .btn[disabled] { opacity: .45; cursor: default; }
+
+  .linkish {
+    appearance: none;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 44px;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* Session ------------------------------------------------------------ */
+  .timer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 2px;
+  }
+
+  .timer__track {
+    flex: 1;
+    height: 10px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+
+  .timer__fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 999px;
+    background: var(--good);
+    transform-origin: left center;
+    transition: background-color .2s linear;
+  }
+
+  .timer__fill.is-warn { background: var(--warn); }
+  .timer__fill.is-bad { background: var(--bad); }
+
+  .timer__read {
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    min-width: 3.2em;
+    text-align: right;
+  }
+
+  .session__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    height: 26px;
+  }
+
+  .bump {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--good);
+    opacity: 0;
+  }
+
+  .bump.is-on { animation: bump .7s ease-out; }
+
+  @keyframes bump {
+    0% { opacity: 0; transform: translateY(4px); }
+    18% { opacity: 1; transform: translateY(0); }
+    70% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-6px); }
+  }
+
+  .clue {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 8px 2px;
+  }
+
+  .clue__text {
+    font-size: clamp(21px, 6.2vw, 29px);
+    font-weight: 750;
+    line-height: 1.24;
+    letter-spacing: -.015em;
+    text-wrap: balance;
+  }
+
+  .tiles {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin-bottom: 10px;
+  }
+
+  .tile {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 44px;
+    aspect-ratio: 1 / 1.18;
+    border-radius: 8px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(15px, 4.6vw, 22px);
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+
+  .tile.is-filled { border-color: var(--text); }
+  .tile.is-revealed { border-color: var(--accent); color: var(--accent); }
+  .tiles.is-good .tile { border-color: var(--good); color: var(--good); animation: pop .16s ease-out; }
+  .tiles.is-bad { animation: shake .22s ease-in-out; }
+  .tiles.is-bad .tile { border-color: var(--bad); }
+
+  @keyframes pop {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.07); }
+    100% { transform: scale(1); }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+
+  .reveals {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    overflow-x: auto;
+    padding-bottom: 8px;
+    margin-bottom: 4px;
+    min-height: 50px;
+    scrollbar-width: none;
+  }
+
+  .reveals::-webkit-scrollbar { display: none; }
+
+  .reveal {
+    appearance: none;
+    flex: none;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0 7px;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--coin);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1.05;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .reveal__pos { font-size: 9px; color: var(--muted); letter-spacing: .04em; }
+  .reveal:active { transform: scale(.94); }
+  .reveal[disabled] { opacity: .4; cursor: default; }
+
+  .reveals__hint {
+    align-self: center;
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Keyboard ----------------------------------------------------------- */
+  .kb { display: flex; flex-direction: column; gap: 6px; }
+  .kb__row { display: flex; gap: 5px; justify-content: center; }
+
+  .key {
+    appearance: none;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 48px;
+    border-radius: 8px;
+    border: 0;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font: inherit;
+    font-size: 17px;
+    font-weight: 650;
+    cursor: pointer;
+    text-transform: uppercase;
+  }
+
+  .key:active { transform: translateY(1px); background: var(--surface-2); }
+  .key--wide { flex: 1.6 1 0; font-size: 15px; }
+  .kb__row--indent { padding: 0 5%; }
+
+  /* Results ------------------------------------------------------------ */
+  .result {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+  }
+
+  .result__num {
+    font-size: clamp(64px, 22vw, 92px);
+    font-weight: 850;
+    line-height: 1;
+    letter-spacing: -.04em;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .result__cards {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    margin-top: 20px;
+  }
+
+  .card {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 12px;
+    text-align: left;
+  }
+
+  .card__k { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+  .card__v { font-size: 19px; font-weight: 750; margin-top: 3px; word-break: break-word; }
+  .card__v small { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .card__v .mark { color: var(--coin); font-size: 13px; }
+
+  /* Packs -------------------------------------------------------------- */
+  .packs { display: flex; flex-direction: column; gap: 10px; }
+
+  .pack {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 12px 14px;
+  }
+
+  .pack.is-active { border-color: var(--accent); }
+  .pack__main { flex: 1; min-width: 0; }
+  .pack__name { font-weight: 700; font-size: 16px; }
+  .pack__blurb { font-size: 13px; color: var(--muted); }
+
+  .pack__btn {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    border-radius: 999px;
+    min-height: 44px;
+    padding: 0 15px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pack__btn--buy { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .pack__btn--on { background: transparent; border-color: var(--accent); color: var(--accent); }
+  .pack__btn[disabled] { opacity: .45; cursor: default; }
+
+  .note { font-size: 12px; color: var(--muted); text-align: center; margin-top: 14px; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom) + 22px);
+    transform: translateX(-50%) translateY(8px);
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 650;
+    padding: 9px 15px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s, transform .18s;
+  }
+
+  .toast.is-on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="app__header" id="chrome">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="app__title" id="chromeTitle">Word Rush</h1>
+    <span class="coins"><span class="coins__mark">&#9670;</span><span id="walletHome">0</span></span>
+  </header>
+
+  <main class="app__body">
+
+    <!-- Home ---------------------------------------------------------- -->
+    <section class="screen is-active" id="screen-home">
+      <div class="hero">
+        <div class="hero__mark">WORD<br><em>RUSH</em></div>
+        <p class="hero__sub">Read the definition, type the word. Every answer buys you five more seconds.</p>
+      </div>
+      <div class="stack">
+        <div class="label">Difficulty</div>
+        <div class="segment" role="group" aria-label="Difficulty">
+          <button class="segment__btn" id="diffEasy" aria-pressed="true">Default</button>
+          <button class="segment__btn" id="diffHard" aria-pressed="false">Hard</button>
+        </div>
+        <button class="btn" id="playBtn">Play</button>
+        <button class="linkish" id="packsBtn">Word Packs &middot; <span id="activePackName">Core</span></button>
+      </div>
+    </section>
+
+    <!-- Session ------------------------------------------------------- -->
+    <section class="screen" id="screen-session">
+      <div class="timer">
+        <div class="timer__track"><div class="timer__fill" id="timerFill"></div></div>
+        <div class="timer__read" id="timerRead">20.0s</div>
+      </div>
+      <div class="session__top">
+        <span class="bump" id="bump">+5s</span>
+        <span class="coins"><span class="coins__mark">&#9670;</span><span id="walletGame">0</span></span>
+      </div>
+
+      <div class="clue"><p class="clue__text" id="clue">&nbsp;</p></div>
+
+      <div class="tiles" id="tiles"></div>
+      <div class="reveals" id="reveals"></div>
+
+      <div class="kb" id="kb"></div>
+    </section>
+
+    <!-- Results ------------------------------------------------------- -->
+    <section class="screen" id="screen-results">
+      <div class="result">
+        <div class="label">Words solved</div>
+        <div class="result__num" id="resSolved">0</div>
+        <div class="result__cards">
+          <div class="card">
+            <div class="card__k">Earned</div>
+            <div class="card__v" id="resEarned"><span class="mark">&#9670;</span> 0</div>
+          </div>
+          <div class="card">
+            <div class="card__k">Best word</div>
+            <div class="card__v" id="resBest">&mdash;</div>
+          </div>
+        </div>
+      </div>
+      <div class="stack">
+        <button class="btn" id="againBtn">Play Again</button>
+        <button class="btn btn--ghost" id="homeBtn">Home</button>
+      </div>
+    </section>
+
+    <!-- Packs --------------------------------------------------------- -->
+    <section class="screen" id="screen-packs">
+      <div class="packs" id="packList"></div>
+      <p class="note">Coins are only earned by playing. Spend them on letter reveals or new packs.</p>
+      <div style="flex:1"></div>
+      <button class="btn btn--ghost" id="packsBack">Back</button>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- data */
+
+  var PACKS = [
+    {
+      id: 'core', name: 'Core', blurb: 'Everyday words, always yours', cost: 0,
+      easy: [
+        ['ANCHOR', 'Heavy hook dropped to hold a boat in place'],
+        ['BRIDGE', 'Structure that carries a road over water'],
+        ['CANDLE', 'Wax stick with a wick you light'],
+        ['DESERT', 'Dry region where rain almost never falls'],
+        ['ENGINE', 'Machine that turns fuel into motion'],
+        ['FOREST', 'Large area thickly covered in trees'],
+        ['HARBOR', 'Sheltered water where ships can dock'],
+        ['ISLAND', 'Land with water all the way around it'],
+        ['MARKET', 'Place where people gather to buy and sell'],
+        ['TUNNEL', 'Passage dug through a hill or under a river'],
+        ['PUZZLE', 'Game that teases your brain into a solution'],
+        ['LANTERN', 'Portable case that shelters a flame']
+      ],
+      hard: [
+        ['ECLIPSE', "When one body slides in front of another's light"],
+        ['GRAVITY', 'Force that pulls everything toward the ground'],
+        ['HORIZON', 'Line where the earth appears to meet the sky'],
+        ['ORCHARD', 'Field planted with neat rows of fruit trees'],
+        ['PENDULUM', 'Swinging weight that keeps a clock honest'],
+        ['QUARREL', 'Angry disagreement between two people'],
+        ['TREASURE', 'Hoard of gold and jewels worth digging for'],
+        ['VOLCANO', 'Mountain that erupts with molten rock'],
+        ['WHISPER', 'To speak so softly it is barely heard'],
+        ['CRIMSON', 'Deep, rich shade of red'],
+        ['LABYRINTH', 'Maze so tangled it is easy to get lost'],
+        ['MERIDIAN', 'Imaginary line running from pole to pole']
+      ]
+    },
+    {
+      id: 'slang', name: 'Slang', blurb: 'How the internet actually talks', cost: 40,
+      easy: [
+        ['MEME', 'Joke image that spreads across the internet'],
+        ['VIBE', 'Overall feeling a place or person gives off'],
+        ['FLEX', 'To show off something you have'],
+        ['SALTY', 'Bitter and annoyed about losing'],
+        ['GHOST', 'To vanish from a chat without a word'],
+        ['HYPE', 'Loud excitement built up around something'],
+        ['CLOUT', 'Influence you carry online'],
+        ['STAN', 'To be an intensely devoted fan'],
+        ['CRINGE', 'So awkward it makes you wince'],
+        ['LOWKEY', 'Quietly, only a little bit'],
+        ['RIZZ', 'Effortless charm that wins someone over']
+      ],
+      hard: [
+        ['GATEKEEP', 'To hoard access to something niche'],
+        ['RECEIPTS', 'Screenshots kept as proof of what was said'],
+        ['BRAINROT', 'Mush left by hours of low-quality content'],
+        ['DELULU', 'Cheerfully deluded about your chances'],
+        ['GOBLINMODE', 'Gleefully unkempt, zero-effort living'],
+        ['DOOMSCROLL', 'To keep reading bad news past all reason'],
+        ['SIDEEYE', 'Skeptical glance thrown without turning your head'],
+        ['CHEUGY', 'Trying to be trendy, one wave too late'],
+        ['SNATCHED', 'Sharply, flawlessly put together'],
+        ['FINSTA', 'Second, private account for close friends']
+      ]
+    },
+    {
+      id: 'science', name: 'Science', blurb: 'Lab bench to deep space', cost: 60,
+      easy: [
+        ['ATOM', 'Smallest unit of an element'],
+        ['ORBIT', 'Curved path one body takes around another'],
+        ['COMET', 'Icy wanderer that grows a tail near the sun'],
+        ['FOSSIL', 'Shape of ancient life pressed into rock'],
+        ['MAGNET', 'Object that pulls iron toward itself'],
+        ['NEURON', 'Cell that carries signals through the brain'],
+        ['ENZYME', 'Protein that speeds a reaction in the body'],
+        ['PHOTON', 'Single particle of light'],
+        ['PLASMA', 'Fourth state of matter, a soup of charged gas'],
+        ['ALLOY', 'Metal made by blending two others'],
+        ['GLACIER', 'River of ice grinding slowly downhill']
+      ],
+      hard: [
+        ['ENTROPY', 'Measure of disorder in a system'],
+        ['ISOTOPE', 'Same element, different neutron count'],
+        ['CATALYST', 'Speeds a reaction without being used up'],
+        ['MITOSIS', 'Cell division that yields identical copies'],
+        ['NEBULA', 'Vast cloud of gas where stars are born'],
+        ['QUANTUM', 'Smallest possible packet of energy'],
+        ['OSMOSIS', 'Water drifting across a membrane'],
+        ['PARALLAX', 'Apparent shift when you change viewpoint'],
+        ['VISCOSITY', 'How stubbornly a liquid resists flowing'],
+        ['AMPLITUDE', 'Height of a wave above its resting line'],
+        ['ELECTRON', 'Negatively charged speck around a nucleus']
+      ]
+    },
+    {
+      id: 'sat', name: 'SAT', blurb: 'Words that show up on the test', cost: 80,
+      easy: [
+        ['CANDID', 'Frank and honest, without polish'],
+        ['PRUDENT', 'Careful and sensible about the future'],
+        ['LUCID', 'Clear and easy to follow'],
+        ['NOVICE', 'Someone brand new to a skill'],
+        ['FRUGAL', 'Careful never to waste money'],
+        ['AMPLE', 'More than enough'],
+        ['DEFER', 'To put off until later'],
+        ['ADEPT', 'Highly skilled at something'],
+        ['BENIGN', 'Gentle and harmless'],
+        ['CANDOR', 'Honesty that spares no feelings']
+      ],
+      hard: [
+        ['EPHEMERAL', 'Lasting only a very short time'],
+        ['UBIQUITOUS', 'Seemingly present everywhere at once'],
+        ['LACONIC', 'Using remarkably few words'],
+        ['OBSTINATE', 'Stubbornly refusing to budge'],
+        ['PLACATE', 'To calm someone with concessions'],
+        ['GARRULOUS', 'Talking far more than anyone needs'],
+        ['PRAGMATIC', 'Focused on what actually works'],
+        ['ESOTERIC', 'Understood by only a small few'],
+        ['INDELIBLE', 'Impossible to erase or forget'],
+        ['QUIXOTIC', 'Wildly idealistic and impractical']
+      ]
+    }
+  ];
+
+  var START_TIME = 20;      // seconds on the clock when a session begins
+  var TIME_BONUS = 5;       // seconds added per correct word
+  var BAR_FULL = 30;        // seconds that fill the whole timer bar
+
+  /* --------------------------------------------------------------- state */
+
+  var KEY = 'wordrush.v1';
+
+  var save = {
+    coins: 0,
+    owned: ['core'],
+    active: 'core',
+    difficulty: 'easy'
+  };
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var got = JSON.parse(raw);
+      if (typeof got.coins === 'number' && isFinite(got.coins)) save.coins = Math.max(0, Math.floor(got.coins));
+      if (Array.isArray(got.owned)) {
+        save.owned = got.owned.filter(function (id) { return packById(id); });
+        if (save.owned.indexOf('core') < 0) save.owned.push('core');
+      }
+      if (packById(got.active) && save.owned.indexOf(got.active) >= 0) save.active = got.active;
+      if (got.difficulty === 'easy' || got.difficulty === 'hard') save.difficulty = got.difficulty;
+    } catch (e) { /* private mode or no storage: play with a fresh wallet */ }
+  }
+
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(save)); } catch (e) {}
+  }
+
+  function packById(id) {
+    for (var i = 0; i < PACKS.length; i++) if (PACKS[i].id === id) return PACKS[i];
+    return null;
+  }
+
+  var game = null;   // live session, null between sessions
+
+  /* ------------------------------------------------------------------ ui */
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var el = {
+    chrome: $('chrome'), chromeTitle: $('chromeTitle'),
+    walletHome: $('walletHome'), walletGame: $('walletGame'),
+    diffEasy: $('diffEasy'), diffHard: $('diffHard'),
+    playBtn: $('playBtn'), packsBtn: $('packsBtn'), activePackName: $('activePackName'),
+    timerFill: $('timerFill'), timerRead: $('timerRead'), bump: $('bump'),
+    clue: $('clue'), tiles: $('tiles'), reveals: $('reveals'), kb: $('kb'),
+    resSolved: $('resSolved'), resEarned: $('resEarned'), resBest: $('resBest'),
+    againBtn: $('againBtn'), homeBtn: $('homeBtn'),
+    packList: $('packList'), packsBack: $('packsBack'), toast: $('toast')
+  };
+
+  var screen = 'home';
+
+  function show(name) {
+    screen = name;
+    ['home', 'session', 'results', 'packs'].forEach(function (s) {
+      $('screen-' + s).classList.toggle('is-active', s === name);
+    });
+    // No chrome during a session — just timer, definition and input.
+    el.chrome.style.display = name === 'session' ? 'none' : 'flex';
+    el.chromeTitle.textContent = name === 'packs' ? 'Word Packs' : 'Word Rush';
+    paintWallet();
+  }
+
+  function paintWallet() {
+    el.walletHome.textContent = save.coins;
+    el.walletGame.textContent = save.coins;
+  }
+
+  var toastTimer = 0;
+  function toast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.toast.classList.remove('is-on'); }, 1400);
+  }
+
+  /* -------------------------------------------------------------- pricing */
+
+  // First letter is cheapest, the last one costs the most.
+  function revealCost(i) { return 2 + i * 2; }
+
+  function wordValue(word) {
+    return 3 + (save.difficulty === 'hard' ? 2 : 0) + Math.max(0, word.length - 6);
+  }
+
+  /* -------------------------------------------------------------- session */
+
+  function newDeck() {
+    var pack = packById(save.active) || PACKS[0];
+    var list = (save.difficulty === 'hard' ? pack.hard : pack.easy).slice();
+    for (var i = list.length - 1; i > 0; i--) {   // Fisher-Yates
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = list[i]; list[i] = list[j]; list[j] = t;
+    }
+    return list;
+  }
+
+  function startSession() {
+    game = {
+      time: START_TIME,
+      deck: newDeck(),
+      at: 0,
+      solved: 0,
+      earned: 0,
+      best: '',
+      word: '',
+      clue: '',
+      slots: [],
+      last: 0,
+      raf: 0,
+      over: false
+    };
+    show('session');
+    nextWord();
+    game.last = now();
+    game.raf = requestAnimationFrame(tick);
+  }
+
+  function now() {
+    return (window.performance && performance.now) ? performance.now() : Date.now();
+  }
+
+  function nextWord() {
+    if (game.at >= game.deck.length) { game.deck = newDeck(); game.at = 0; }
+    var entry = game.deck[game.at++];
+    game.word = entry[0];
+    game.clue = entry[1];
+    game.slots = [];
+    for (var i = 0; i < game.word.length; i++) game.slots.push({ ch: '', revealed: false });
+    el.clue.textContent = game.clue;
+    paintTiles();
+    paintReveals();
+  }
+
+  function paintTiles(mood) {
+    el.tiles.className = 'tiles' + (mood ? ' is-' + mood : '');
+    var html = '';
+    for (var i = 0; i < game.slots.length; i++) {
+      var s = game.slots[i];
+      var cls = 'tile' + (s.revealed ? ' is-revealed' : (s.ch ? ' is-filled' : ''));
+      html += '<div class="' + cls + '">' + (s.ch || '') + '</div>';
+    }
+    el.tiles.innerHTML = html;
+  }
+
+  function paintReveals() {
+    var html = '';
+    var any = false;
+    for (var i = 0; i < game.slots.length; i++) {
+      if (game.slots[i].revealed) continue;
+      any = true;
+      var cost = revealCost(i);
+      html += '<button class="reveal" data-i="' + i + '"' + (save.coins < cost ? ' disabled' : '') +
+        '><span class="reveal__pos">' + (i + 1) + '</span><span>&#9670;' + cost + '</span></button>';
+    }
+    if (!any) html = '<span class="reveals__hint">Whole word revealed &mdash; tap it in.</span>';
+    el.reveals.innerHTML = html;
+  }
+
+  function buyReveal(i) {
+    var s = game.slots[i];
+    if (!s || s.revealed) return;
+    var cost = revealCost(i);
+    if (save.coins < cost) { toast('Not enough coins'); return; }
+    save.coins -= cost;
+    persist();
+    paintWallet();
+    // A revealed letter overwrites whatever was typed there and locks the slot.
+    s.ch = game.word.charAt(i);
+    s.revealed = true;
+    compact();
+    paintTiles();
+    paintReveals();
+    if (isFull()) submit();
+  }
+
+  // Typed letters always sit in the leftmost open slots, so a mid-word reveal
+  // never leaves a hole with letters stranded on the wrong side of it.
+  function compact() {
+    var typed = [];
+    for (var i = 0; i < game.slots.length; i++) {
+      if (!game.slots[i].revealed && game.slots[i].ch) typed.push(game.slots[i].ch);
+    }
+    for (var j = 0; j < game.slots.length; j++) {
+      if (game.slots[j].revealed) continue;
+      game.slots[j].ch = typed.length ? typed.shift() : '';
+    }
+  }
+
+  function isFull() {
+    for (var i = 0; i < game.slots.length; i++) if (!game.slots[i].ch) return false;
+    return true;
+  }
+
+  function typeLetter(ch) {
+    for (var i = 0; i < game.slots.length; i++) {
+      if (!game.slots[i].revealed && !game.slots[i].ch) {
+        game.slots[i].ch = ch;
+        paintTiles();
+        if (isFull()) submit();
+        return;
+      }
+    }
+  }
+
+  function backspace() {
+    for (var i = game.slots.length - 1; i >= 0; i--) {
+      if (!game.slots[i].revealed && game.slots[i].ch) {
+        game.slots[i].ch = '';
+        paintTiles();
+        return;
+      }
+    }
+  }
+
+  function guess() {
+    var out = '';
+    for (var i = 0; i < game.slots.length; i++) out += game.slots[i].ch;
+    return out;
+  }
+
+  function submit() {
+    if (guess() !== game.word) {
+      paintTiles('bad');
+      setTimeout(function () {              // wrong costs nothing but the clock
+        if (!game || game.over) return;
+        for (var i = 0; i < game.slots.length; i++) {
+          if (!game.slots[i].revealed) game.slots[i].ch = '';
+        }
+        paintTiles();
+      }, 240);
+      return;
+    }
+
+    var value = wordValue(game.word);
+    game.solved++;
+    game.earned += value;
+    game.time += TIME_BONUS;
+    if (game.word.length > game.best.length) game.best = game.word;
+    save.coins += value;
+    persist();                              // banked immediately, survives a reload
+    paintWallet();
+    paintTiles('good');
+    paintTimer();
+
+    el.bump.textContent = '+' + TIME_BONUS + 's  ◆' + value;
+    el.bump.classList.remove('is-on');
+    void el.bump.offsetWidth;
+    el.bump.classList.add('is-on');
+
+    setTimeout(function () {
+      if (!game || game.over) return;
+      nextWord();
+    }, 170);
+  }
+
+  function paintTimer() {
+    var t = Math.max(0, game.time);
+    var pct = Math.min(1, t / BAR_FULL);
+    el.timerFill.style.width = (pct * 100).toFixed(2) + '%';
+    el.timerFill.className = 'timer__fill' + (t < 7 ? ' is-bad' : (t < 14 ? ' is-warn' : ''));
+    el.timerRead.textContent = t.toFixed(1) + 's';
+  }
+
+  function tick() {
+    if (!game || game.over) return;
+    var n = now();
+    game.time -= (n - game.last) / 1000;
+    game.last = n;
+    if (game.time <= 0) { game.time = 0; paintTimer(); endSession(); return; }
+    paintTimer();
+    game.raf = requestAnimationFrame(tick);
+  }
+
+  function endSession() {
+    game.over = true;
+    cancelAnimationFrame(game.raf);
+    el.resSolved.textContent = game.solved;
+    el.resEarned.innerHTML = '<span class="mark">&#9670;</span> ' + game.earned;
+    el.resBest.innerHTML = game.best
+      ? game.best.charAt(0) + game.best.slice(1).toLowerCase() + ' <small>' + game.best.length + ' letters</small>'
+      : '&mdash;';
+    show('results');
+  }
+
+  /* ---------------------------------------------------------------- packs */
+
+  function paintPacks() {
+    var html = '';
+    for (var i = 0; i < PACKS.length; i++) {
+      var p = PACKS[i];
+      var owned = save.owned.indexOf(p.id) >= 0;
+      var active = save.active === p.id;
+      var btn;
+      if (active) {
+        btn = '<button class="pack__btn pack__btn--on" disabled>Active</button>';
+      } else if (owned) {
+        btn = '<button class="pack__btn" data-use="' + p.id + '">Use</button>';
+      } else {
+        btn = '<button class="pack__btn pack__btn--buy" data-buy="' + p.id + '"' +
+          (save.coins < p.cost ? ' disabled' : '') + '>&#9670; ' + p.cost + '</button>';
+      }
+      html += '<div class="pack' + (active ? ' is-active' : '') + '">' +
+        '<div class="pack__main"><div class="pack__name">' + p.name + '</div>' +
+        '<div class="pack__blurb">' + p.blurb + '</div></div>' + btn + '</div>';
+    }
+    el.packList.innerHTML = html;
+    el.activePackName.textContent = (packById(save.active) || PACKS[0]).name;
+  }
+
+  function buyPack(id) {
+    var p = packById(id);
+    if (!p || save.owned.indexOf(id) >= 0) return;
+    if (save.coins < p.cost) { toast('Not enough coins'); return; }
+    save.coins -= p.cost;
+    save.owned.push(id);
+    save.active = id;
+    persist();
+    paintWallet();
+    paintPacks();
+    toast(p.name + ' unlocked');
+  }
+
+  function usePack(id) {
+    if (save.owned.indexOf(id) < 0) return;
+    save.active = id;
+    persist();
+    paintPacks();
+  }
+
+  /* ----------------------------------------------------------- keyboard */
+
+  var ROWS = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+
+  function buildKeyboard() {
+    var html = '';
+    for (var r = 0; r < ROWS.length; r++) {
+      html += '<div class="kb__row' + (r === 1 ? ' kb__row--indent' : '') + '">';
+      for (var c = 0; c < ROWS[r].length; c++) {
+        var ch = ROWS[r].charAt(c);
+        html += '<button class="key" data-k="' + ch + '">' + ch + '</button>';
+      }
+      if (r === 2) html += '<button class="key key--wide" data-k="DEL" aria-label="Backspace">&#9003;</button>';
+      html += '</div>';
+    }
+    el.kb.innerHTML = html;
+  }
+
+  /* ------------------------------------------------------------- wiring */
+
+  function setDifficulty(d) {
+    save.difficulty = d;
+    persist();
+    el.diffEasy.setAttribute('aria-pressed', String(d === 'easy'));
+    el.diffHard.setAttribute('aria-pressed', String(d === 'hard'));
+  }
+
+  el.diffEasy.addEventListener('click', function () { setDifficulty('easy'); });
+  el.diffHard.addEventListener('click', function () { setDifficulty('hard'); });
+  el.playBtn.addEventListener('click', startSession);
+  el.againBtn.addEventListener('click', startSession);
+  el.homeBtn.addEventListener('click', function () { show('home'); });
+  el.packsBtn.addEventListener('click', function () { paintPacks(); show('packs'); });
+  el.packsBack.addEventListener('click', function () { show('home'); });
+
+  el.packList.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null;
+    if (!b) return;
+    if (b.dataset.buy) buyPack(b.dataset.buy);
+    else if (b.dataset.use) usePack(b.dataset.use);
+  });
+
+  el.kb.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null;
+    if (!b || !game || game.over) return;
+    if (b.dataset.k === 'DEL') backspace();
+    else typeLetter(b.dataset.k);
+  });
+
+  el.reveals.addEventListener('click', function (e) {
+    var b = e.target.closest ? e.target.closest('button') : null;
+    if (!b || !game || game.over || b.disabled) return;
+    buyReveal(Number(b.dataset.i));
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (screen !== 'session' || !game || game.over) return;
+    if (e.key === 'Backspace') { e.preventDefault(); backspace(); return; }
+    if (/^[a-zA-Z]$/.test(e.key)) { e.preventDefault(); typeLetter(e.key.toUpperCase()); }
+  });
+
+  /* --------------------------------------------------------------- start */
+
+  load();
+  buildKeyboard();
+  setDifficulty(save.difficulty);
+  paintPacks();
+  paintWallet();
+  show('home');
+})();
+</script>
+
+</body>
+</html>
