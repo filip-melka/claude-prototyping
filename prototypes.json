@@ -11,6 +11,18 @@
       "createdAt": "2026-08-07",
       "updatedAt": "2026-08-07",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-3",
+      "workItemId": "51ca86ce-4ccf-4de8-affa-b591b0cde85a",
+      "title": "Koch Code",
+      "tagline": "Learn Morse the Koch way — full speed from the first tone, typing or tapping your answer.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-3/index.html",
+      "version": 1,
+      "createdAt": "2026-08-08",
+      "updatedAt": "2026-08-08",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
