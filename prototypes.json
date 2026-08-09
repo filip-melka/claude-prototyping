@@ -23,6 +23,18 @@
       "createdAt": "2026-08-08",
       "updatedAt": "2026-08-08",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-5",
+      "workItemId": "0021c49f-29ea-493a-81d5-39eb312e8ea1",
+      "title": "Letter Lockout",
+      "tagline": "Chain words letter to letter while the alphabet locks out under your feet.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-5/index.html",
+      "version": 1,
+      "createdAt": "2026-08-09",
+      "updatedAt": "2026-08-09",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }

@@ -1,0 +1,885 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Letter Lockout</title>
+<style>
+  :root {
+    --bg: #111827;
+    --surface: #1a2233;
+    --text: #f3f4f6;
+    --muted: #8b93a3;
+    --dim: #5c6474;
+    --border: #263149;
+    --accent: #fbbf24;
+    --accent-soft: rgba(251, 191, 36, .14);
+    --danger: #ef4444;
+    --danger-soft: rgba(239, 68, 68, .16);
+    --good: #34d399;
+    --key-bg: #1f2937;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f5f8;
+      --surface: #ffffff;
+      --text: #161920;
+      --muted: #626a7a;
+      --dim: #98a0b0;
+      --border: #e2e5ec;
+      --accent: #b57d05;
+      --accent-soft: rgba(251, 191, 36, .22);
+      --danger: #d92d2d;
+      --danger-soft: rgba(239, 68, 68, .13);
+      --good: #0e9f6e;
+      --key-bg: #eceff4;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 10px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 14px)
+      calc(env(safe-area-inset-left) + 16px);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .back {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 10px);
+    left: calc(env(safe-area-inset-left) + 12px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    color: var(--dim);
+    text-decoration: none;
+    font-size: 17px;
+    line-height: 1;
+    z-index: 5;
+  }
+
+  .back:active { transform: scale(.92); }
+
+  .screen {
+    flex: 1;
+    display: none;
+    flex-direction: column;
+  }
+
+  .screen.is-on { display: flex; }
+
+  /* ---------------------------------------------------------------- home */
+
+  #home {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+  }
+
+  .brand {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -.03em;
+    line-height: 1.05;
+    margin: 0;
+  }
+
+  .brand em {
+    font-style: normal;
+    color: var(--accent);
+  }
+
+  .brand .strike {
+    color: var(--danger);
+    text-decoration: line-through;
+    text-decoration-thickness: 3px;
+  }
+
+  .rules {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 19em;
+    margin: 10px 0 26px;
+  }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 16px;
+    background: var(--accent);
+    color: #111827;
+    font: inherit;
+    font-weight: 800;
+    font-size: 18px;
+    letter-spacing: .01em;
+    min-height: 56px;
+    padding: 0 46px;
+    cursor: pointer;
+  }
+
+  .btn:active { transform: scale(.97); }
+
+  .stats {
+    display: flex;
+    gap: 28px;
+    margin-top: 28px;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat b {
+    display: block;
+    font-size: 26px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat span {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .09em;
+    color: var(--dim);
+  }
+
+  /* ---------------------------------------------------------------- game */
+
+  #game { gap: 0; }
+
+  .hud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 44px;
+    padding-left: 44px;
+    position: relative;
+  }
+
+  .lives { display: flex; gap: 5px; font-size: 17px; line-height: 1; }
+
+  .heart { color: var(--danger); transition: transform .18s, opacity .18s; }
+  .heart.is-lost { color: var(--dim); opacity: .35; transform: scale(.8); }
+
+  .score {
+    font-size: 27px;
+    font-weight: 800;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+  }
+
+  .toasts {
+    position: absolute;
+    right: 0;
+    top: 40px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    pointer-events: none;
+    z-index: 4;
+  }
+
+  .toast {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-size: 13px;
+    font-weight: 700;
+    white-space: nowrap;
+    animation: toast 1.4s ease forwards;
+  }
+
+  .toast.plain { background: transparent; color: var(--muted); }
+
+  @keyframes toast {
+    0%   { opacity: 0; transform: translateY(6px) scale(.9); }
+    18%  { opacity: 1; transform: translateY(0) scale(1); }
+    72%  { opacity: 1; transform: translateY(0); }
+    100% { opacity: 0; transform: translateY(-14px); }
+  }
+
+  .prompt {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+  }
+
+  .prompt__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .11em;
+    color: var(--dim);
+  }
+
+  .letter {
+    font-size: clamp(72px, 20vh, 118px);
+    line-height: 1.02;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -.04em;
+  }
+
+  .letter.pop { animation: pop .15s ease; }
+  @keyframes pop { 0% { transform: scale(.72); } 60% { transform: scale(1.08); } 100% { transform: scale(1); } }
+
+  .timer {
+    width: 190px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--border);
+    overflow: hidden;
+    margin-top: 10px;
+  }
+
+  .timer__fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transform-origin: left center;
+  }
+
+  .timer.is-low .timer__fill { background: var(--danger); animation: pulse .6s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  /* mini A–Z strip */
+  .keys {
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+    gap: 4px;
+    margin: 4px 0 12px;
+  }
+
+  .key {
+    height: 26px;
+    border-radius: 6px;
+    background: var(--key-bg);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  .key.is-blocked {
+    color: var(--danger);
+    background: var(--danger-soft);
+    text-decoration: line-through;
+    text-decoration-thickness: 2px;
+  }
+
+  .key.is-start {
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  /* chain */
+  .chain {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    min-height: 34px;
+    margin-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .chain::-webkit-scrollbar { display: none; }
+
+  .chain__empty {
+    color: var(--dim);
+    font-size: 13px;
+  }
+
+  .pill {
+    flex: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .pill.is-new {
+    color: var(--text);
+    border-color: var(--accent);
+    animation: slide .25s ease;
+  }
+
+  @keyframes slide {
+    from { opacity: 0; transform: translateX(14px) scale(.9); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .link {
+    flex: none;
+    width: 18px;
+    height: 1px;
+    background: var(--border);
+    position: relative;
+  }
+
+  .link::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: -2.5px;
+    width: 5px;
+    height: 5px;
+    border-top: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    transform: rotate(45deg);
+  }
+
+  /* input row */
+  .entry {
+    display: flex;
+    gap: 8px;
+  }
+
+  .entry.shake { animation: shake .3s ease; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); }
+    45% { transform: translateX(6px); }
+    70% { transform: translateX(-3px); }
+  }
+
+  .input {
+    flex: 1;
+    min-width: 0;
+    height: 54px;
+    border-radius: 15px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 19px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    padding: 0 16px;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .input::placeholder { color: var(--dim); font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .input:focus { outline: none; border-color: var(--accent); }
+  .entry.bad .input { border-color: var(--danger); background: var(--danger-soft); }
+
+  .submit {
+    flex: none;
+    height: 54px;
+    min-width: 96px;
+    border: 0;
+    border-radius: 15px;
+    background: var(--accent);
+    color: #111827;
+    font: inherit;
+    font-weight: 800;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .submit:active { transform: scale(.97); }
+
+  .hint {
+    height: 18px;
+    margin: 6px 2px 0;
+    font-size: 12.5px;
+    color: var(--dim);
+    text-align: center;
+  }
+
+  .hint.bad { color: var(--danger); }
+
+  /* ------------------------------------------------------------ game over */
+
+  #over {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+
+  .over__label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .11em;
+    color: var(--dim);
+  }
+
+  .over__score {
+    font-size: 96px;
+    line-height: 1.05;
+    font-weight: 800;
+    color: var(--accent);
+    letter-spacing: -.045em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .badge {
+    display: none;
+    background: var(--accent);
+    color: #111827;
+    border-radius: 999px;
+    padding: 5px 14px;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .02em;
+    margin-top: 4px;
+  }
+
+  .badge.is-on { display: inline-block; animation: pop .3s ease; }
+
+  .recap {
+    display: flex;
+    gap: 26px;
+    margin: 26px 0 30px;
+  }
+</style>
+</head>
+<body>
+
+<a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+
+<div class="app">
+
+  <!-- APP MARKUP -->
+
+  <section class="screen is-on" id="home">
+    <h1 class="brand">Letter<br><em>Lock</em><span class="strike">out</span></h1>
+    <p class="rules">Chain words: each one starts with the last letter of the one before. Every turn locks out more letters — and they can't appear anywhere in your word.</p>
+    <button class="btn" id="play">Play</button>
+    <div class="stats">
+      <div class="stat"><b id="homeBest">0</b><span>Best score</span></div>
+      <div class="stat"><b id="homeChain">0</b><span>Longest chain</span></div>
+    </div>
+  </section>
+
+  <section class="screen" id="game">
+    <div class="hud">
+      <div class="lives" id="lives" aria-label="Lives"></div>
+      <div class="score" id="score">0</div>
+      <div class="toasts" id="toasts" aria-live="polite"></div>
+    </div>
+
+    <div class="prompt">
+      <div class="prompt__label">Starts with</div>
+      <div class="letter" id="letter">A</div>
+      <div class="timer" id="timer"><div class="timer__fill" id="timerFill"></div></div>
+    </div>
+
+    <div class="keys" id="keys"></div>
+
+    <div class="chain" id="chain"></div>
+
+    <form class="entry" id="entry">
+      <input class="input" id="word" type="text" placeholder="your word"
+             autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+             enterkeyhint="send" maxlength="9" aria-label="Type your word">
+      <button class="submit" type="submit">Submit</button>
+    </form>
+    <div class="hint" id="hint"></div>
+  </section>
+
+  <section class="screen" id="over">
+    <div class="over__label">Final score</div>
+    <div class="over__score" id="finalScore">0</div>
+    <div class="badge" id="badge">New Best!</div>
+    <div class="recap">
+      <div class="stat"><b id="finalLongest">—</b><span>Longest word</span></div>
+      <div class="stat"><b id="finalChain">0</b><span>Chain length</span></div>
+    </div>
+    <button class="btn" id="again">Play Again</button>
+  </section>
+
+  <!-- /APP MARKUP -->
+
+</div>
+
+<script>
+// APP LOGIC
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------ data
+     ~16k common English words (3–9 letters), front-coded: each entry is an
+     uppercase marker giving how many leading characters it shares with the
+     previous word, followed by the rest. Keeps the payload at a third of a
+     plain list while staying a plain string — no network, no build step. */
+
+  var PACKED = 'AaacCliyahCronBbaDndonHedDtementCbaDeyDottDyCcCdominalDulCeDrdeenCiDdeDgailDlitiesGyDtCleCnDormalCoardDrtionDutDveCrahamEmoffDoadCsDenceFtDoluteErbGedGingDtractIsDurdCtCuDndanceHtDseFdFsEiveBcaDdEemiaHcIsHesGyDpulcoCcDentGsEptGedGingGsEssGedHsGingHonGoryDidentIsDlaimHedDoladesEmpanyErdGingEuntHedHsDruedDtDuracyGteEsedCdblineCeDrDsDtateChieveHdHsGingCidEsCkClDuCmDeCneCornDusticIsCpCquireHdHsGingCreEageEsDobatEnymHsEssDylicCsCtDaDedDingEonGsEvateIdFeGlyGxFismHtIsGtyDorFsDressHesDsDualGlyFrialCuraDteCxiomBdaDmEsDptFecGdGrHsFiveForHsCcCdDedEndumDictGedGionHveEngEsonEtionIsGveIsDrEessHedIsDsCelaideDquacyGteChdDereGnceEsionGveIsCidasDpexCjDacentDoiningEurnedDunctEstGedGingClerCmDinFsEralFeEssionEtFsFtedCobeDptFedFingGonDrableCpCrDianCsDenseDlCultFsCvDanceHdHsGingFtageDentGureErseHlyFtGiseGsDiceEseGdGrHsGsFingForHsHyDocacyGteIsCwareBerialDoEbicEsmithFolFpaceCsDtEheticBfbCcCfDairGsDectGedGingHonGsDidavitEliateEnityErmGedDordGedCghanClCpCraidDicaGnDoCtDerFmathFnoonBgainFstCeDdDingDnciesFyEdaGsEtFsDsCgregateCileEityDngCnesCoCpCreeFdFingFmentFsDiCuileraBheadCmadDedBidDeEdEsDsCmedDingDsCrDborneDcraftDedEsDfareHsDlineHsDmailDplaneIsEortHsDsoftDwaysCsleCxBjaxBkinConCronBlabamaDddinDinDmedaEoDnDrmFsDsEkaGnCbaEniaHnFyDeitErtGaGoDionDumFsCcatelDhemyDoholHicCeDcDrtFsDxEaFnderHraIeEisCfaDredCgaeDebraHicEriaDorithmCiDasFesDbabaErisDcanteEeEiaDenFsFwareDgnFedFmentDkeDsonDtoDveCkalineClDaEhEnDeEgedHlyFraGoEnErgicHesGyEviateEyDianceIsEedFsEsonDocateIdEwFableGnceFedFingFsEyFsDyCmaEnacDightyDondEstCoeDhaDneEgFsideDtDudCphaFbetDineDsCrDeadyDightCsDoCtDaErEvistaDerFedFingFnateDhoughDitudeDoEnCuminiumGumEniCvinCwaysCzheimerBmaDndaDrilloDteurHsEuerFreDzedEingHlyEonCberDienGtEguousEtionHusDulanceCcCdCeliaDnEdFedFingFmentEitiesDrEicaHnIaIsHsDsDthystDxCgCherstCiDdDgaDnoCmoEniaCnestyCongFstDrDsDuntGsCpDlandEeEifiedIrFtudeDsCsDterdamCtCusementEingCyBnaDbolicDheimDlEogGousGueGyEyseHdHsGisGtHsFticIsFzeHdHrHsGingDrchyDtomyCcestorIsGryDhorGageGsDientEllaryCdDaleDersGenGonDorraEverDreFaGsFwGsDyCemiaCgDelFaFesFinaFoFsErDieDleFsEicanEoDolaDryDuillaElarEsCimalGsHexFtedGionEeDstonDtaCkleCnDaElsEpolisDeEtteExDieDotateIdEunceIdIsEyedFingDualGlyEityEmComaliesGyDnEymousDtherCsDiDwerGedGingGsCtDarcticDeEnnaHsEriorDhemEologyFnyEraxDiEbodyEgenHsFuaEllesEqueHsEtrustEvirusDonFioFyDsCxietyEousCyDbodyDmoreDoneDthingEimeDwayGsEhereBpaDcheDrtFmentCcCeDrtureDxChroditeCiDsCnicCoDlloEogiesHzeGyDptosisDstleHsCpDaratusFelGntDealGedGingGsFrGedGingGsEllantHteEndGixEtiteDlEauseEeFgateFsFtGonGsEianceFcantFedGsEyFingDointHedDraisalHerEoachFvalIsGeHdHsGingFxDsCrilDonCsCtBquaEriumEticDeousBrabEiaGnFcEsDfatCbitraryDorCcDadeFiaDhEerGyEitectFvalGeHdHsGingDticCdenCeDaEsDnaDsCgDentinaIeDosDsDuablyEeFdFsEingEmentIsEsDvCiDaElDdDelEsDnDseFsEingEtotleDzonaCkDansasClingtonCmDadaEniDedEniaHnDiesDorFedEurDsEtrongDyCnoldComaFticDseDundCpCrDangeHdGingEyFsDestGedGsDivalHsFeGdGsFingDowFsCsDenalFicCtDeErialGesFyDhritisEurDicleHsEfactsElleryEsanFtGicGsDsDworkCubaCxivBsaDpCbestosCcDendingFsionErtainDiiCeanCfChDamedEntiDcroftDesEvilleDfordDlandEeeFyDtonCiDaEnFsDdeCkDedDingDsCleepCmCnDblockCpectGsEnDhaltDireFinCsDaultEyFsDembleIdIrHyErtGedGionGsEsFsGedGingGorEtFsDholeDignGedGingGsEstGantGedGingGsDocFiateErtedDtDumeGdGsFingEranceFeGdCtDeriskDhmaDmDonEriaDraEoFlogyFnomyFsCuDsCylumBtaDriCcCeCheistEnaFsDleteHsGicIsEonCiDvanCkDinsGonClDantaGicHsEsComEicEsCpCreyuCsCtDachGedFkGedHrGingGsEinGedDemptHedHsEndGantGedHesGingFtionDicEtudeIsDnDorneyIsDrEactHedHsEibuteCvCxBuburnCchDklandDtionHsCdDiEbleEenceIsEoFvoxEtFedFingGonIsForHsHyFsDreyDubonCfCgustGaGineGusCntCraDoraCsDsieDtEinEraliaFiaHnCtDhEenticEorGedGingHtyHzeGsDismDoEcadEdeskEgraphEmateIdHicEnomyEsDumnCxDiliaryBvailFableDlancheEonDntDtarGsDyaCecDnueGsDrageHdHsGingEyCgCianEtionDdDsDvCoidFanceFedFingFsDnCrDilCsBwaitFedFingDkeFningDrdFedFsEeFnessDyCeDsomeCfulChileCkwardBxeDlDsCialDsCleByeAbabeEsDiesDyElonCcDcaratDhEelorDkEboneEdropEedFndEingEpackIsEsFtageEupGsEwardIsEyardDonDteriaIlCdDgeFrFsDlyDmintonCgDgageDhdadDsChamasDrainDtCilEeyDtCjaCkeEdErFyDingClDanceHdHsGingDconyDdEwinDiDlEadFrdEetEisticEoonHsFtGsEroomEsDmDticFmoreCmDbooCnDanaGsDdEsEwidthDffDgEaloreEbusEkokEorDjoDkEerGsEingEsDnedFrGsEingDquetDsCptismGtCrDbEadosFraEecueFrEieEudaDcelonaEodeDdDeEfootElyDgainHsDkEerEingDleyDnEesFttFyDonEqueDrEeFdFlGsFttEieGrHsEonFwEyDsDtElettEonCsDalDeEballEdElFineEmentEnameEsDhDicFallyFsElEnFsEsDketGsDqueDsDtardCtDchDesDhEingEroomIsEsDmanDonDsDtalionEerGiesGyEingEleGsCuerCxterCyDerDlorDsCzaarBbbonlineBeaDchFesEonDdEedEsDmEsDnEieEsDrEdEingHsEsDstFsDtEenEingElesEsDuEmontEtifulFyDverGsCcameEuseDkEerEyDomeGsFingCdDdingDfordDroomHsDsCeDchDfDnDrEsDsDthovenEleCforeCgDanDinFnerIsGingFsDunChalfEveFiorIsHurDindDoldCiDgeDjingDngFsDrutClDarusDfastDgianFumEradeDiefGsFveHdHrIsHsGingEzeDkinDlEaEeFvueEsFouthEyDmontDongGedGingGsEvedEwDtEsCnDchFesFmarkDdEerEingDeathEdictEfitHedHsDgalDignEnDjaminDnettEyDqDsonDtEleyEonDzCrDgEenFrDkeleyEshireDlinFosDmudaDnEardEieEsteinDriesEyDtCsideGsDtCtDaDhEanyEelFsdaElehemDsEyDterEingEyDweenCverageIsFlyCwareCyonceFdCzelBhutanBiasEedCbDleFsEicalDtexCcycleHsCdDderGsEingDsCenCgDgerFstCkeErEsDingFiClateralDdEerDingualDlEboardEedEiardIsFeFngHsFonHsEsEyDoxiCnDariesFyDdEerEingHsEsDgoDsCoDchemDgraphyDlEogyDmassDpsyDsDtechCpolarCrchDdEingEsDthFdayIsFsCsDcuitHsDexualDhopGsDonDsauDtroCtDchFesDeEsDingDmapDpipeDsDterCzDarreDkitDrateBlackFburnFjackFpoolFsFwellDdderEeFsDhDirDkeDmeFdDncFaFoEdEkFetHsFsDstFerDzeFrCeedFingDndFedGrFingFsDssFedFingIsDwCindFnessFsEgEkDssDtzDzzardCocEkFedGrFingFsDgEgerHsFingElinesErollEsEthisDndFeGsDodFyEmFbergFsDssomDwEerEingEjobHsEnEoutEsCuDeEgrassEprintEsEtoothDffDntDrDshBmiBnetBoaDrdFingFsDstsDtEingEsCbDbyCcDaCdDiesElyDyCeingCgusChemianCilEedFrEingDngDseCldDiviaDlywoodDognaDtEonEsCmbEayEerGsEingHsEsCnDdEageEedEingEsDeEsDnEieDoDsaiDtrilDusFesCoDbEsDgieDkEedEingHsEletEmarkIsEsFhelfGopFtoreDlEeanDmDneDstFerDtEhEsFtrapEyCpCrdeauxFrGsDeEdFomDingEsDlandDnEeDoughDrowGedHrIsGingCsDchDeDniaDsEesDtonCtDanicalFyDhEerGedDsEwanaDtleGdGsEomGsCughtDlderEevardDnceFingEdFaryFedFsEtyDquetHsDtEiqueDvetCvineCwDelEnDieDlEingEsDmanDsCxDedErEsDingCyDcottDdDfriendDleDsDzBraDceFletIsFsEketHsDdEfordEleyEyDilleEnFsDkeFsDnchGesEdFedFingFonFsFyEsonDsEilEsDunDveFsEoDzilGianCeachEdFthEkFdownFerHsFfastFingFoutFsEstGsEthGeGingDdDedFerHsFingFsEzeDmenDndaGnEnanEtFwoodDthrenEtDwEerGsGyEingCianDckFsDdalEeFsEgeGsGtFingDefFcaseFingIsFlyFsDgadeEgsEhtGerGonDlliantDngFingFsDsbaneEtolDtEainEishEneyEtanyCoDadFbandFcastFerFlyFwayDccoliEhureIsEkDkeFbackFnFrGageGsDncosExEzeDokFeFlynFsDsDtherHsDughtDwnFeFingFsEseGrHsFingCuceDinsDnchEeiFtteEoEswickDshFedGsEselsDtalCyanFtDceBseBubbleGsCchananDkEetEleGyEsCdDapestDdhaFismHtEiesEyDgetGaryGingGsDsCenaEosCfDfEaloEerGsFtEyDingCgDgyDsDzillaCickDldFerHsFingIsFsEtCkkakeClbEsDgariaInDkDlEdogHsEetGinIsGsEockEsFhitEyingCmpEerCnchDdleGdGsDgalowDkEerDnyCrDbankEerryDdenDeauDgerGsFssEundyDialEedDkeEinaDmaDnEedFrGsFttEingEsEtDrDstDtEonDundiDyCsDchDesDhDinessDtEedFrEyDyCtDcherDlerDtEeFrGflyEonGsEsCyDerFsDingDsCzzByeClawsCpassCrneDonCteEsAcaaCbDaretDbageDernetDinFetHsFsDleFsEingDoCcDheFdEingDtusCdDetDillacCesarCfeEsEteriaDfeineCgeEsCicosDnDrnsEoCjunCkeEsClDcEiumEulateGusFttaDdwellDedoniaEndarIsDfDgaryDhounDiberDlEawayEbackEedFrEingEsDmDorieHsDvinCmDaroDbodiaEridgeDcorderDdenDeElFtoeEraGsFonGonDinoDpEaignIsEbellEerGsEingEsEusGesDsCnDadaFianIsElEryDberraDcelGedGledFrGsEunDdidGateEleGsEyDeDineDnabisEedFsEonDoeFingEnFicalEpyDsDtEonDvasDyonCoCpDableEcitorHyDeDitaGlHsFolDpedDriDsEuleHsDtainEionFveEureHdHsGingCrDatEvanDbEonGateEsDcinomaDdEboardEiacFffFnalIsFoEsDeEdEerGsEfulHlyErsEsEyDgoDibbeanEngDlEaEetonEisleEoFsEsbadFonEtonDmelFnDnegieEivalDolFeFinaHeFynDpEenterFtGsDrEeraEiageFeGdGrHsGsEollFtGsEyFingDsEonDtEeFrEierEonFonHsEridgeEsDvedFrEingDyCsDaDcadeDeEsEyDhEierHsEmereDinoGsEoDperDsEeroleFtteIsEidyDtEingEleGsEroEsDualGtyCtDalanFogHsHueFystGticDchFerGsFingFmentDegoryErFingDhedralFrineEolicIsEyDionDsDtleCucasianEusDghtDsalEeFdFsEingDtionGusCvalierIsFryDeEsDityCymanBcaBdmaCromBeaseFdCcilCdarCilingHsClebFrateGexGityFsEronEstialExaDineDlEarEoEphoneEsEularDticCmentEteryCnDsusDtEerGedGsEralHlyFeGdGsFicFoEsEuriesGyCoCramicHsDealEbralEmonyDnDtEainHlyHtyEifiedGyDvicalCsDsationDtCtteBfaCoBhaDdDinFsErFedFmanFsDletEkElengeDmberHsEpFagneGignFionIsFsDnEceGsEdlerEelEgFeGdGlogGrGsFingEnelHsDosEticDpEelEmanEterHsDrEacterEcoalEgeGdGrHsGsFingEitiesGyElesFieFotteFtonEmFedFingFsEsFetEtFerHedHsFsDseFrEingEsisDtEeauEhamEsEterFingDvezCeDapFerGstEtFingFsDckFedGrFingFlistFoutFsGumDekFsErFfulFsEseDfEsDlseaDmEicalIsFstHryDnEeyEgEnaiDqueGsDrEokeeEriesFyEylDshireEsEtFerFnutDvelleEroletEyDwDyenneCiDangDcEagoEkFenHsFsEoDefFsDldFcareFhoodFrenIsFsEeFanEiElDmneyDnEaFtownEeseEgDpEsFetDtCloeErideGneCoDcolateDiceGsErDoseGsFingDpEpedGrDralEdFsEusDseFnDwCrisFtGiHanHeHnaIeGmasGyDomeFiumEnicHleDyslerCuDbbyDckDngEkDrchGesGillBiaDlisDoDraCdDerCgarFetteFsCmelCndyDemaGsDgularDnamonCoCrDcaEleGsEuitHsFlarFsCsDcoCtDationIsDeEdEsDiesEngEzenHsDrixEoenEusDyCvicElFianIsBladDimFantFedFingFsErFeDmEpFsDnEcyDptonDraEeFmontFnceGdonEifiedGyFnetFonFtyEkFeFsonDshEsFesFicHalHsGfyFroomFyDudeFiaEsFeGsDwDyEtonCeDanFedGrHsFingFsingFupErFanceFedGrFingFlyFsEvageDmentEsonDrgyEicalEkFsDvelandFrCiDcEkFedFingFsDentGsDffFordFsEtonDmateFxEbFedFingDnEicGalGsEtFonDpEartEboardEpersEsDtDveCockFsDneFsEingDseFdFlyFoutIsFrFsGtFtEingEureHsDthFesFingDudFsFyDverDwnCubEhouseEsDeEsDsterHsDtchEterCydeBmeCosBnetBoaDchFesFingDlEitionDrseDstFalFerFlineDtEedEingHsEsDxialCbaltDbDraCcaEineDkEpitEsEtailIsDoEaEnutEsCdDeEcEdEsDingDyCeDdCffeeEinCgnitionHveChenErenceHtDortCilDnEsCkeClDaDdEplayDeEmanDiEnDlEageHnFpseIdFrGsEeagueFctHedHorHsFenFgeHsEierFnsFsionDogneEmbiaInEnFelFialGesFyErFadoFedFfulFingFsEurGedGsDtEsDumbiaGusFnGistGsCmDaDbEatEineHdHsGingEoDcastDeEbackEdiesFyEsEtDfortHerDicFsEngDmEaFndHedIrHsEenceIdGtHedHsFrceEitGsGtedIeEodityGoreFnGlyGsEunalGionHsmItHtyFteHrDoErosDpEactFniesHonGyFqFreHdHsGingFssEelledFteHntGingEileHdHrIsGingElainItFeteIdIsGxHesFiantGedHsFyGingEonentFseHdHrIsGiteGtFundIsEressFiseIdIsEtonEuteHdHrIsGingDstockCnDanDcealedFivedFptHsFrnHedHsGtHoHsEiergeFseEludeIdIsEordHiaEreteDdEemnedFnsedEitionEoFmGsFsEuctHedHorHsFitDeDfEerredFssEidentFgGureFnedFrmHedHsElictIsEormErontEtestEusedGingHonDgoEratsFessDnEectHedHorHsEieEorDquerGstDradDsEciousEensusGtFrvHeIdEiderIsFstHedHsEoleHsEtFantIsFrGuctHedEulateGtHedFmeHdHrIsGingDtEactHedHsFinHedIrHsEemptFntHsFstHedHsFxtHsEinentGualHeIdIsHumEourEraGctIsGryGstFibFolHsDverseGtHedIrHsFxFyEictedFnceIdDwayCokEbookIsEeFdFrGsEieGsFngEsEwareDlEedFrGsFstEingEpixDpEerGateCpDeDiedFrGsFsEngDperDsDyEingErightCrDalDbaDdElessEsDeElEsEyDkDnEellFrGsEingEwallDonaGryDpEorateEsFeEusDrEectHedHlyEidorIsEosionEuptHedDsairDtexDvetteDyCsDmeticIsEicEosDtEaEelloEingElyEsEumeHsCtDeDtageHsEonCuchDghDldDncilHsEselHorEtFdownFedGrHsFiesGngFlessFriesGyFsFyDpEeEleGdGsFingEonGsDrageEierEseGsEtFesyFneyFroomFsFyardDsinGsDtureCveEnantFtryErFageFedFingFsFtDingtonCwDardDboyGsDsCxCyoteCzyBpaDnCeCiCusBrabDckFedGrHsFingFsDdleDftFedFsGmanDigDmerDnberryEeEkDpEsDshFedGsFingDteFrDwfordElDzyCeDamFpieFyEteGdGsFineHgGonIsGveForHsFureIsDdibleFtGedGorIsGsDedEkEpFyDmeDoleDscentEtDteDwEsCibDcketDedEsDmeFsEinalIsEsonDsesEisEpDteriaHonEicGalGismGsFqueIsCoatiaHnDchetEodileDixDnDokedDpEsDsbyEsFeGdGsFingFoverFwordDwEdFedFsEnFeDydonCucialDdeDelFtyDiseGrGsFingDnchDsadeEhFedEtDzCyingDptoDstalHsBsaCiCuBubDaEnDeEsDicDsCcumberCeDsCffCisineClinaryDtEuralGeHdHsCmDbriaDfiestaDmingHsDshotHsCntCpDsCrDbDeEdDiosityFusDlEingEyDrencyGtHlyHsEiculaEyDseFdEorDtainHsEisDveFdFsCshionHsDtodianGyFmGaryGerIsGiseHzeGsCtDeDieDleryDsDterGsEingCzBvsrootByanCberCcleFsEicFngEoneCgwinClinderIsCmruCnthiaCpressEusCrusBzechAdabCcCdDdyDeDsCemonDwooCgCilyDryDsyCkotaClDeDlasDtonDyCmDageGdGsFingDeDienDnEedDonDpDsCnDaDceFrGsFsEingDeDgerGousGsDielGleGsEshDnyDsEkDteDvilleCrDbyDeDfurDingDkEerEnessDlingDnDrenDtEhEmouthEsDwinCsDhEboardEedCtDaEbaseIsEsetHsFheetEtypeDeEdEsDingDumCuDghterIsCveEnportDidFsonEesEsCwnDsonCyDcareDlightDsDtimeEonGaBbaBeaDdElineIsFyDfDlEerGsEingHsEsEtFimeDnDrDthFsCbDateGsDbieDianEtDorahDraEisDtEorEsDugFgerGingFinfoEtCcDadeGsElFsEturEyDeasedEmberEntEptionDideGdGsFingEmalEsionIsGveDkEerEsDlareHdHsGingEineHdHsGingDoEderFingErFateIdDreaseIdIsFeCdicatedDuctedGionCeDdEsDmedDpEerFstElyDrEeCfDaultHsDeatGedEctGiveGsEnceFdGantGedHrIsGingFseHsGiveErredDicientGtHsEneGdGsFingGteCgDreeGsCiClDawareEyFedFsDegateIdIsEteGdFingGonDhiDiEcateFiousEghtHedHsEverHedHsHyDlEaEeDphiDtaDuxeCmDandGedGingGsDentiaDiDoEcracyHtIsEnFsEsDsDuxCnDialEedFsEmEsFeDmarkDnisEyDonEteGdGsDseEitiesGyDtEalEistHryHsEonDverDyEingCpDartGedGingGureDecheEndGentGingGsDictedDletionEoyGedGingDositHedHsEtDressedEivedDtEhFsDutyCrDbyDekDiveGdCsDcEentEribeIdIsDertFveHdHsDignGateGedHrIsGingGsErableFeGdGsDkEjetEsEtopHsDpairEerateEiteDsertHsDtinedGyEroyHedCtDachedEilGedGingGsFnedHesDectGedGingHonHveGorIsGsEntionErFmineDoxDroitCutschHeCvDelFopHedIrHsDiantFtionEceGsElFsEsedDonEtedFionCwDaltDeyCxDterBiaDbetesGicEloDgnoseIdHisEonalEramHsDlEingEogGueEupEysisDmeterEondHsDnaEeDperGsDriesErheaEyDzEepamCceDkEeFnsEinsonEsFonCdDntDrexCeDcastDdDgoDsEelDtEaryEsCffEerGentGingGsEicultEsEuseGionCgDestGionHveDgEingEsDiEmonEtFalHlyFsDnityCldoFsDemmaDigenceDlonDutedCmDageDeEnsionDmCnDarDeErFsDgDingDnerGsDoEsaurIsCoceseDdeDnDrDxideCpDlomaHcyCrDeEctGedGingHonHveGlyGorIsIyGsGvGxDkDtEyCsDableHdEgreeEppearEsterIsDcEardHedEhargeEiplesElaimsFoseIdEoFuntIsGrseFverIsIyEreetGteEsEussHedIsDeaseHsDhEesDkEsDlikeDmissHalHedDneyDorderIsDpatchEenserFrsedElacedGyHedHsEosalGeHdEuteHdHsDregardDsentEolvedDtEanceIsGtEinctEortedEressFictIsEurbedCtDchCvDaDeErFsGeGionHtyDideGdGndIsFingEneFgEsionIsDorceHdDxCxieDonCyBjiboutiBmaCozBnaBocDbookDkEetEingDsDtorGalHteGsErineDumeGntIsCdDgeFrsCeDsEntCgDgDsCiDngClbyDceDlEarGsEsEyDphinHsCmDainGsDeEsticDinanceHtGteIdFicHaInGonFoCnDaldEteGdFionIsDcasterDeDgDkeyDnaDorFsEvanDtCoDmEedDrEsDyooCpplerCraEdoDisDmDothyDsetCsDageDeEsCtDsDtedCubleGdGsEtFsDgEhFtyElasCveErCwDnEhillEingEloadIsEsEtimeFownEwardCyleCzenFsBpiBraftFedFingFsDgEgedFingEonGflyGsDinFageFedDkeDmEaFsFticDnkDperDwEerGsEingHsEnEsCeadEmFcastFedFingFsFyDsdenEsFedGrGsFingDwCiedDftDllFedFingFsDnkFingFsDpDveFnFrGsFsFwayEingCopEpedFingEsDughtDveDwningCugEsDmEmerEsDnkFenDpalCyerFsDingBsaBualDneCbDaiDbedDlinCckEsDtCdeDleyCeDlDsCffCgCiCkeEsCllDuthDyCmbDmiesEyDpEedEingCnDcanDdeeDeEsDgeonHsDlopDnEoCoCplexEicateDontCrableEngoEtionDbanDhamDingCskDtEinEyCtchDiesDyBviBwarfCellFingIsCiDghtByeDrDsCingCkeClanCnamicHsGteEstyCsonAeachCgerDleFsCnCrDlEierGstEyDnEedFstEingHsEsDringHsDsDthCsDeDierFstElyDtEerGnEmanEonDyEshareCtDenErDingDonDsCuBbayConyDokFsCusinessBcardFsCcChoEesClecticDipseCoDlogyDmmerceDnEoFmicIsHesHstGyDsystemCsDtasyCuadorBddieDyCenCgarDeEsCiDbleDnburghDsonDtEedEhEingFonHsEorGialGsEsCmontonDundCsCtCuDcEateHdGingHonGorIsCwardGsDinBenBffDectGedGiveGsDicacyFientDluentDortGsBggDsCoCyptFianBiaCghtFeenFhFyCleenCnDeDsteinCsCtherBlaborateDineDpsedDsticCbowCderFlyFsCeanorDcEtFedFionIsGveIsForalFraGicGoHdeHnIsDganceGtDmEentHalHsDnaDphantIsDvatedGionGorEenCfCginCiDgibleDjahDminateDotDsaFbethDteDzaFbethCkClaDeEnDiotGtEsCmCseEvierEwhereCtonCvisBmacsDilFedFsCbassyDeddedErDlEemDraceHdEyoGnicGsCcCeraldEgeGdGnceIyGsFingEitusEsonCiDlyDnemFntDratesDssionIsCmaEnuelCoDryDticonsFonHalHsCpDerorDhasisHzeDireGsFicalDloyGedHeIsHrIsGingGsDoriumEwerHedDtyCsCuDlationGorEeBnableGdGsFingDctedFmentDmelCbCcartaDhantedDlosedGureDodeGdGrFingEreEunterFrageDryptedCdDeavorHurEdDifEngDlessDocrineErseHdEwmentDpointDsDuranceFeFingCemiesEyDrgeticFiesFyCfieldDorceHdGingCgDadgetEgeGdFingDineGerIsGsDlEandEewoodEishDravedGingChanceHdHsGingCjoyFableFedFingFmentFsClargeHdDistedComDrmousDughCquireGiesGyCrichedDollGedFmentEnCsembleDureGsFingCtDerFedFingFsFtainDireGlyGtyEtiesFledFyDranceEeEiesEopyEyCumCvDelopeIsDironDyCyaCzymeGsBpaCicDdemicDlepsyDnionsDscopalEodeHsCochDxyCsDilonDonDteinBqualFityFlyFsEtionIsDineEpFmentFpedEtableFiesFyBraDseCectFedFileGonCgonomicCicEaEksonEssonDeDkDnDtreaCnestDieDstCosionDticGaFkCpCrDoneousErFsCsBsaCcDapeGdGsDortGsDrowCdClCpDanolDnDressoCqCsDayFsDenceFtialExCtDaEblishEteGsDeEemDherDimateIdIsDoniaHnDrogenBtaCcCernalFityChanFolDerFealFnetDicalFsEopiaInDnicGityCiologyDquetteBugeneCrekaDoEpaFeGanIsEsBvaDlEuateIdIsDnEsCeDlynDnEingHsElyEtFsFualDrEestFttEgreenEquestEyFbodyFdayFoneFtimeCidenceIdGtHlyDlDteCoDlutionEveGdFingBxactFlyDmEineHdHrIsHsGingEpleHsEsCcDaliburDeedGedGingGsElFlentEptGionErptHsEssGiveDhangeIdIsDiseEteGdFingDlEudeHdHsGingFsionHveDursionEseGsCeDcEuteHdGingHonHveDmplaryFtGionDrciseIdIsDterChaustHedDibitHedHorHsCifDleDmDstFedGnceFingFsDtEsCodusDticCpDandGedGingGsFsionGysEsyEtDectGedGingGsEdiaGtedEnseHsGiveErtGiseGsDireGdGsFyDlainHedHsEicitEodeHdFitHedHsFreHdHrIsHsGingFsionHveDoErtGedHrIsGingGsEseGdFingFureIsDressHedIsHlyCquisiteCtDendGedGingGsFsionHveFtEriorFnGalDraFctHedHorHsFsEemeHlyHsByeDdDsDwearBzekielCineCraAfaaCbDleDricGsDulousCcDeEdEsDialGsElityEngDsimileDtEionEorGiesHngGsGyEsEualDultiesGyCdeEdDingCilEedEingEsEureHsDntFerDrEbanksEeEfaxFieldEiesElyEmontEnessEsEviewEyDthFfulCkeEsClconGsDklandDlEenEingEsDseCmDeDiliarGesFyDousCnDcyDsDtasiesGticGyCoCqfaqCrDeEsEwellDgoDmEerGsEhouseEingEsDoeDrellDtherCsDhionHedHsDoDtEenersFrFstCtDalDeDherGsDigueDsDtyCucetGsDltFsFyDnaDxCvDeDorFableFedFiteIsFsEurGiteCxDesCyetteBbiBdaBearEedEsDsibleEtDtEherHsEureHdHsGingCbruaryCdDeralHlyGtedExDoraCeDdEbackEerGsEingEsDlEingHsEsDsDtClixDlEowGsDonyDtCmaEleGsDdomDinineGsmHtDmeCnceFsEingDderDgCofCrdinandDgusonDnEandezHoDrariEiesFsEyDtileGityCstEivalIsGeCtalDchDischFhDusCverCwDerBfiBgetsBhaBiatCberFsDreCctionHalCddleDelityCeldFingFsDrceEyDstaCfaDeDteenEhEyCgDhtFerHsFingFsDsDureGdGsFineIsCjiCleEdEmakerEnameEsFizeDingGsEpinoDlEedFrEingEsDmEeFdEingEsDterGedGingGsEhFyCnDalFeFlyFsEnceHdHsGialHngDchDdEerEingHsElawEsDeEdElyEpixEsFtDgerGingGsDishGedHsGingEteDlandDnEishDsConaDricetCrDeEarmHsEdEflyFoxEplaceEsEwallIsFireForksDingDmElyEsEwareDstFgovFlyCscalEherDhEerGiesGmanHenGyFsEingDtEingCtDnessDsDtedEingHsCveCxDedEsDingDtureHsBlaDgEsFhipFtaffDirDmeFsEingHoDpDreDshFersGsFingDtEbedEsDvorGedGsFurDwEedEsCeaDdDeEceEtDmingDshDtcherDwDxEibleCickFrDesDghtGsDntDpDrtCoatFingDckDodFedFingFsErFingFsDpEpyDraFlEenceFsEidaFstHsDurDwEerGingGsEingEnEsDydCuDffyDidFsDshFingDteDxCyerFsDingBnoBoamCbCcalDusFedGsFingCgCiaDlCldEedFrGsEingEsDeyDiageEoDkEloreEsDlowGedHrsGingGsGupCmitCndDtEsCoDdEsDlEishEsDtEageEballEerEjobEnoteIsEprintEwearCrDbesEiddenDceFdFsEingDdDeEachEcastIsEfrontEgoingEheadEignEmanFostEnsicEstGryGsEverEwordExDgeFdFtEiveEotGtenDkEsDmEaFlGlyFtGionGsGtedEedFrGlyEingEsEulaHsHteDrestHerDtEeEhEranFessEunateGeEyDumFsDwardHedHsCssilGsDterGingCtoEsCughtDlDndFedGrHsFingFryEtainIsDrEierEteenFhCwlerCxBpoCrintfBraDctionIsFureIsDgileEmentIsEranceDmeFdFsFworkEingDnEcFaisIeFeGsHcoFhiseFisHcoFoGisFsEkFfurtFieFlinGyEzDserDuEdEenCeDadEkFsDdEdieEericIkDeEbiesFsdEdFomHsElanceFistsFyEmanEportEstyleEwareGyEzeGrHsFingDightDmontDnchEzyDqEuencyHtDshFlyFmanGenEnoDyCictionDdayGsEgeDedFmanFrichEndGlyGsEsDngeDtzCogEsDmDntFalFgateFierIsFlineFpageFsDstDzenCuitFsBsaBtaCeBuckEedFrsEinGgEsCdgeCelEsCjiEfilmEtsuClfilGlHedDlEerGtonEyDtonCnDcEtionIsDdEedEingEsDeralDgalEiDkEyDnyCrDiousDnaceEishHedFtureDryDtherDyCseDionCtunaEreGsCzzyByiAgabonDrielCdgetGsCelicCgDeDgedCilDnEedEingEsClDaEcticExiesFyDeErieDileoDlagherEeriesGyEonGsFwayDoreDsDvestonDwayCmDbiaEleFingDeEboyEcubeEfaqsEplayErFsEsFpotGyDingDmaCnDdhiDgEbangEsDnettCoCpDsCrageGsDbageDciaDdeFnGerGingGsEnerDfieldDlandEicDmentHsEinDnerFtDrettEisonDthEnerDyCsDesDketDolineDtricCteEsEwayHsDherGedGingDwickCugeFsDssianDtengCveDinCyDsCzaDeEtteBbaBcseBearEedEsCdCeDkEsCforceCileDshaClCmDiniDsEtoneIsCnDbankDderDeEalogyEralHlyHsGteIdIsHorFicFousEsFisEticHsEvaDieEtalEusDocideEmeFicHsDreFsDtleGmanHenFyEooDuineHlyEsCoDffFreyDgraphyDlogyDmetricHyDrgFeGsFiaHnCrDaldErdDmanGsGyDryCstureCtDawayHsDsDtingEyCvBhanaCettoCostFsBiaDntFsCbbsDraltarDsonCcleeCfsDtEedEsCgDabitFyteEnticDsClDbertDesDlDmoreCmpCnDaDgerCorgioDvanniCrlEsCsCveEnEsDingBlacierDdElyDmourDnceEdDsgowEsFesFwareDzedEingCenEdaleEnCibcDdeDmpseDtterCobalGlyEeFsDriaFousEyFholeDssFaryFyDveFsDwEingCuDcoseDeBmailBnomeBoaDlEsDtEsCbletCdDdessDfatherDsEmackCesCgglesCinEgCldEbergEenEmanEsteinDfEersEingCmezCneDgDnaDzalesHzCoDdEbyeEiesEmanEnessEsEwillGnDgleDseCpCrdonDeDgeFousDillaHzCspelDsipCtDhEicDoDtaEenCuldDrmetCvDernGedGingGorIsDtCwnEsBpaCoBrabEbedEsDceFfulDdEeFdFrsFsEientFngEualHlyGteIdIsDffitiEtonDhamDinFsDmEmarEsDnEadaEdFeFmaEgeEiteEnyEtFedFingFsDpeFsEhFicHalHsGteFsDsEpEsDtefulEisFtudeEuitHeDveFlFsEityDyDzingCeDaseEtFerGstFlyDeceEdFyEkFsEnFbergFeFlandFsFwichGoodEtFedFingIsDgEgEoryDnadaDpDwDyEhoundCidDefEvanceDffinGthDllFeGdFsDmDnEdFerFingDpEsDzzlyCoceriesGyDomFingEveFyDssDundGedGsEpFedFingFsDveDwEerGsEingEnEsEthBsaBtaBuamDranteeEdFianIsFsDtemalaCcciCernseyDssFingEtFbookFsCiDanaDdanceEeFbookFdFlineFsEingDldEtFyDneaEnessDtarGistGsClfDlCmCnDdamDsCptaCruCsCtDenbergDsCyDanaDsBwenBzipAhaasCbitFatHsFsCckEedFrGsEingEsCdCgueChaDnCiDlDrEedEyDtiFanClDeDfEwayDifaxDlEmarkEoweenEsDoEgenDtCmDaEsDburgDiltonDletDmerEondDpshireEtonCnDcockDdEbagHsFookEedFlEfulEheldIsEicapEjobHsEleGdGrHsGsFingEmadeEoutsEsFetHsFfreeFomeEyDgEerEingEsDkDnaFhEoverDoiEverDsEardEenEonCppenGedGingGsEierFlyFnessEyCrDborFurDdEbackEcoreGverEerFstEingElyEshipEwareFoodEyDeDlemFyDmEanEfulElessEonicGyDnessDoldDpEerDrietFsGonEyDshDtEfordEleyDvardEestHedFyCsDbroDhDsleDtEingsCtDchFbackDeEdEsDhDredDsCulDntedDteCvanaDeEnDingDocCwaiiGanDkEinsEsDthorneCyDdenDesDnesDsDwardCzardGousGsDeElBboBeadEacheIsEedFrGsEingHsElineIsEphoneEsFetHsDlEingEthGierGyDpDrEdEingHsEsEtFbeatFedFlandFsDtEedFrGsEhFerFrowEingDvenGlyGsEierFlyEyCbrewGsCckDtaresEorCdgeCeDlEsChDeCidiDghtGsDnzCldDenFaDiumExDlEoDmEetGsDpEdeskEedFrGsEfulEingElessFineEsDsinkiCmDpCnDceDdersonErixDriEyDtaiCpDatitisCrDaldDbEalEertEsDculesDdDeEafterEbyEfordEinDitageDmanDnandezDoEesEicFnDpesDringDsEelfEheyDtzCsDitateDsCtCwittDlettCxCyBickoryEsCdDdenDeEsDingCerEarchyCfiCgginsDhEbeamEerFstElandIsFightFyEsEwayHsCkeDingClariousFyDfigerDlEaryEsFideDtonCmDselfCndiEuDgeFsDtEsCpDaaDsCreEdEsDingCsDpanicDtEorianHcHesGyCtDachiDchFcockDlerDsDtingCvBobartDbiesEsEyCcDkeyCffmanCgDanDtiedCldEemFnFrGsEingHsEsDeEsDidayHsEsticDlandEowGayEyFwoodDmesDocaustDsterDtDyCmeElandFessEmadeEownerEpageIsErEsFteadEtownEworkDicideDmeDoCnDdaEurasDestGlyGyEyFmoonDgDoluluErFableGryFedFsEurGsCodEedEiaFeEsDkEedFrEsDpEsDverCpDeEdEfulHlyEsDingDkinsDperCrdeDizonHsDmoneHsDnEsEyDoscopeDribleEorDseFbackFsDtonCseDpiceFtalIsDtEageEedFlGsEileFngEnameEsCtDelFesFsDjobsDlineDmailDspotHsDtestEieDwireCughtonDndDrElyEsDseFdFholdFsFwifeEingEtonCwDardDeEllEverBpaBrefBtdocsBuaDngCbDbardDsCdDsonCgDeDhEesDoDsChClkDlCmDanFeFityFsDbleEoldtDidityDmerDorFousEurDphreyCnDdredHsDgEarianGyEerEryDkEsDsDtEerGsEingCrleyDonDricaneEyDtEingEsCsbandHsDhDkiesEyDseinDtleGrCtBvacByattCbridCdeErabadDraulicEoFgenCgieneCpeErFlinkFmailFtextDnosisCundaiAianBbidDsDzaCmCnCookBcannCcCeDlandHicChConEsCqCsCtBdaDhoCcCeDaElFlyFsEsDnticalGfyGtyDologyCgCiotFsCleColCsBecCeeCtfBfdefCsBglooCnDitionDoranceHtFeGdFingCorBiiCsBleClDegalHlyDicitEnoisDnessHesDusionIsCoCugBmacDgeFryFsEinaryGeHdGgDpCcCdbCfCgCitationCmediateEnseErsionDigrantEnentDortalDuneFityCoCpDactGedGsEiredErtialDedanceErialDlantHsEementEicitFedGsEyDortGantGedHrIsGingGsEseGdFingEtenceDressHedHumEintEoperFveHdHsGingDulseCsBnabilityDctiveDuguralCboundExCcenseFtiveEptionEstDhEesDidenceHtIsDlEinedEudeHdHsGingFsionHveDomeGsFingErrectDreaseIdIsFmentDubusEmbentErFredCdDeedEmnityExFedGsFingDiEaFnGaGsEcateIdIsHorFesEeFsEgoErectDoEnesiaEorGsDuceGdFtionEstryDyEmediaCfDamousEntGryGsDectGedGionErenceFiorDiniteHiHyDlationEuenceHzaDoEcusErmGalGedGingGsEsFpaceEusaEworldDraredDusionCgDramCherentFitedDibitHorCitEialHlyHsGteIdCjectedGionDuredFiesFyEsticeCkDjetDsClandDetDineDogCmateGsCnDerDingGsDocenceHtDsCorganicCpatientDutFsCquireGiesGyCsDaneFityDectGsErtGedGingHonGsEstDideGrEghtHsEstGedGsDomniaDpectHedHorEireHdGingGonDtEallHedIrHsFnceIsGtHlyEeadEinctFtutIeEructDulatedFinFtEranceFeGdGrHsCtDactEkeDegerHsFralHteGityElFlectEndGedGsFseGityHveFtGionErFactFceptFestIsFfaceGereFimGorIsFnGalGetFpretHoFruptFvalIsGeneGiewDimateDlDoDraFnetEinsicEoFduceEusionDuitionHveCuyashaCvalidEriantEsionGveDentedGionGorIyErnessFseFtedHrEstGedGingGorIsDisibleGonEteGdGsFingDoiceHsEkeGdElveHdHsGingCwardBomegaCnDaminDicDsCsCwaBpbCcCoDdsCsDecDwichCtablesBraDnEianDqEiFsCcCeDlandDneCisEhDverConEicFngEsEyCqCregularCsCvineFgCwinBsaDacDbelGlaDiahCbnCdDnChCisClDamFicEndGerIsGsDeEsCntCoDlateHdHsGionCpsCraelGiHsCsDnDuanceEeFdFrFsEingCtDanbulCuzuBtaDliaGnHoFcEyCcCemEsDrationChacaCineraryCkCsDelfCuDnesCyBvanCeCoireDryCtoolsCyAjabberCckEalEetGsEieFngEpotEsFonDobFsDquesDuzziCdeCguarCilCkartaDeCmDaicaDesFonFtownDieDsCneEiroEtDiceEsDuaryCpanFeseCrDedDgonDsDvisCsmineDonDperCvaCwDsCyDsCzzBbossBealousDnEneEsCdiCepDvesCffEersonEreyCllyDsoftCnDkinsDnaEiferFngsEyDsenCremiahFyDkEingDomeDryDseyGsDusalemCssEeEicaFeDusCtDsCuxCwDelFleryFryFsDishDsBigsawChadCllCmDiDmyCnDgleCraCveBoanEnaFeDquinCbDsCckeyCeDlDyChanFnGesDnEnyEsFonFtonCinEedEingEsEtFlyFsCjoCkeEsClieDlaEyCnDahEsEthanDesDgComlaCplinCrdanDgeCseEfEphGineDhEuaCurEnalHsFeyHsCviCyDceDstickBuanCbileeCdaismDdDeDgeFdFmentFsEingEmentIsDicialHryEthDyCiceFsEyCkeboxClDesDiaFnEeFtEoEusDyCmboDpEedFrEingEsCnctionDeDgEleDiorGsEperDkCpiterCryCstEiceFfiedGyFnCvenileAkaiDserClamazooCnDeDgarooDsasDyeCplanDpaCraEokeEteDenDlDmaDtCshmirCtDeDherineEleenErynEyDieDrinaDyDzCuaiDfmanCwasakiCyDakFingCzaaBbytesBdeBeelingDnDpEerEingEsCithClkooDlerFyEoggEyCnDdallDnedyFlFthEyDoDtEuckyDwoodDyaCptCralaDnEelGsDrEyCtchupDtleCvDinCyDboardIsDgenDnesEoteDpadDsEtoneDwordHsBhanBiaCckEedEingEsCdDdingDneyDsCevCjijiCllEedFrGsEingEsCmDberlyCnDaseDdEaElyEnessEsDeticHsDgEdomEsFtonDkyCoskCrbyDibatiDkDstenCssEedFsEimmeeFngCtDchenHsDeDsDtenGsEsEyCwiBlausCeinBneeElEsDwCifeDghtGsDtEtingDvesCobEsDckFedFingDtEsDwEingHlyEledgeGsEnEsDxEvilleBoalaCbeCchCdakChCnaDgDicaDtaktColCreaFnDnCsDherDovoBraftDmerCisEhnaEtenFinCugerBualaCdozCmarCngCrdishDtCwaitByleDieCoceraDtoAlabDelFedFingFledGingFsDorEurDradorDsCcDeDkEedEingEsDrosseCdDderGsDenDiesDyEboyHsCfayetteCgDoonDunaCiDdCkeElandErsEsFideEwoodCmDaErDbEdaEertDeDinateIdDpEsCnDcasterEeDdEedEfillEingElordIsEmarkIsEsFcapeDeEsDgEeEleyEuageIsDkaDsingDternCoDsCpDsDtopGsCraDgeFlyFrFstEoDryDsEenEonDvaeCsDerFjetFsDikDtEedEingElyEsCtDchDeElyEncyFtErFalEstExDinFaGsFoEtudeDterEiceDviaGnCughFedFingFsFterDnchGedHsGingEdryDraEelFnGceGtEieCvaDenderDigneCwDfulDmakersDnDrenceDsEonEuitHsDyerGsCxCyDerFedFsDingDoutGsDsDupCzyBdapBeaDdEerGsEingEsDfEletDgueGsDhDkEageEsDnEingDpDrnFedGrHsFingFsFtDseFdFsEingEtDtherDveFsEingCbaneseFonCcDtureHrHsCdDgerDsCeDdsCftCgDacyElFlyDendGaryGsDionDoDsChighCiDcaEesterDghDpzigDsureCmmaDonCnDaDdEerGsEingDgthGsGyDnonEyDoxDsEesDtCoDnEardHoEeDpardCroyCsDbianHasHsEoFsDionsDlieDothoDsEerEonGsDtEerCtDhalDrasDsDtEerGingGsEingEuceCuDkemiaCvDelFsErFageDiEnFeEtraDyCwisCxDarDiconEngtonDmarkDusBiabilityEleDisonDmDrCbDbyDcDdevelDeralHsFiaFtiesGyDrarianHesGyDsEtdcDtoolDyaFnCcDenceHsFseHdHeIsHsGingGorsGureDkEingCdCeDdDnEsDsDuCfeEcycleElongEstyleEtimeDtEedEingEsCgandDhtFboxFedGrFingFlyFningFsCkeEdElyEsEwiseDingClDacDiesDlianEyDyCmDaDbEsDeErickEstoneDitFedFingFsDoEusineDpCnDcolnDdaEenEsayFeyDeEageFrEdEnFsErFsEsEupDgEereGieDingDkEageHsEedFrEinGgEsFysDnDusExConEelEsCpDidEtorDsEtickCquidGityGsEorCraCsDaDbonDpDtEedFnGedHrIsGingFrEingHsEmaniaEpriceEsFervCtDeErFacyGlHlyGryDhiumEuaniaDreFsDterEleCuCveEcamEdElyErFpoolEsFexFtockDingCzDardBloydBoadEedFrEingEsDnEsCbDbyFingDsterCcDalFeFhostFityGzedFlyFsEteGdFingGonIsForDhDkEeFdFrEingEsDusCdgeFdFsEingCftCgDanDgedFrEingDicFalEnEsticsEtechDoEnEsEutDsChanCisClDaDitaGsCnDdonDeElyDgEerFstFvityEhornEitudeCokEedEingEoutEsFmartEupDpEsDseFlyCpezCrdEsDeEnFzoDiDraineDtabCsDeErFsEsDingDsEesDtCtDionDsDteryEoDusCuDdDisFeFianaDngeCveEdElyErFsEsDingCwDeEllErFedFingEstDsCyalFtyDolaBsuBubbockCcDasDentDiaDkEilyEyDyCdwigCgDgageCisCkeCluCmberDpEurCnaErDchFeonDdDgEsCreCshDtCtherGanDonCvCxDuriousFyBycosCdiaCingCmeDphomaCnneConEsCricFsAmacDauDdonaldDedoniaDhEineHryHsGingDintoshDkEayEenzieDmillanDonEsDquarieDroFsDsDworldDyCdDamFeDdenDeDisonDnessDonnaDridDthumbsCeDstroCfiaCgDazineIsDeEllanEntaDgieDicFalFianDnaEesiumFtGicGsEitudeEoliaEumDsChDoganyCiDdEenDlEboxEedFrEingEmanEsEtoDnEeEframeElandFyEsEtainIsDsDzeCjesticGyDorFdomoFityFsCkeEfileEoverErFsEsEupDingClDagaEriaEwiEyFsiaInDcolmDdivesDeEsDiEbuEciousEgnantDlEorcaEsDoneDtaEeseDwareCmaDboDmalianGsEothCnDaEgeGdGrHsGsFingDdarinFteHdHsGoryErakeEyDgaEoDhattanDiaEcuresEfestIoFoldElaEtobaDkindDnEerGsEingDorDpowerDsEfieldEionEonDtleDualGlyGsEelEreDyCoDriCpDleDpedEingDquestDsCraEthonDbleDcEelEhFingEiaEoFsEusDdiDeDgaretEinGalGsDiaFhFnGaGneEeFttaEjuanaElynEnFaFeGrHsGsFoEoFnEtalFimeDkEedFrGsFtGedHrsGingGsEingHsEsEupFsDlboroEeyEinDoonDquetteFisDriageIsFedFottEowEyDsEhFalHlDtEhaEialFnGezGiEyDvelGousEinDxDyElandCsDeratiDkEsDonFryDsEacreFgeEesFyEiveDtEerGingGsGyCtDchFedGsFingDeEoErialIsFnalGityEsDhEsDingDlabDricesFxDsDtEeFrGsEhewHsFiasEressDureFityCuiDreenEiceFtiusCvenErickCxDiEmFalFizeFumDtorDwellCyDaDbeDenErDhemDoErEtteCzdaDeBbaBcaDfeeCbrideCcainErthyGneyDormickEyCdonaldEwellCgeeDillDrawEegorDuireCiCkenzieDinneyClarenDeanCmahonCseBdaBeadEeEowGsDlEsDnEingHsEsEtFimeEwhileDsureHdHsGingDtEsCchanicIsHsmCdDalFsDfordDiaFnFtedGionGorFwikiEcaidGlHlyGreFinalHeIsEevalEnaEumDleyEineDsCetEingHsEsEupCgDaEnEpixelChrClDanieFomaDbourneDindaEssaDlonDodiesFyDtEedEingDvinCmDberGsEraneIsDoEirGsErableFialIsGesFyDphisCnDaceDopauseDsDtEalGlyEionHedHsEorGingGsEsDuEsCrDcedesFrEhantIsEkEuryEyDeEdithElyDgeFdFrGsEingDidiaHnEtFsDlinDmaidDriamFllEyCsDaDhDsEageHsGingEengerEiahEyCtDaEbolicEdataElFlicIaFsEphorDerFingFsDhEaneEodGistGsEylDreFsEicGsEoDsCvCxicanFoCyerBiaDmiCbCcDahDeDhaelHsEelGeGleEiganDkEeyDroFbialFnFsoftFwaveCdDdleGsexGtonEotDgetDiDlandHsDnightDstDtownDwayEestCfflinCghtFyDraineFntHsFteGingHonDuelCkeEsClDanFoDdDeEageEsFtoneDfEordEsDitaryFiaDkDlEeniumFrEingFonHsEsDtonDwaukeeCmeDiCnDdEedElessEsDeErFalHsFsEsDgDhDiEatureEmalFizeFumEngEsterIsGryDnesotaEieDoltaErFityFsDsDtDusEteGsCoCpsCquelonCrDaEcleHsEgeEndaDiamDrorGsCsDcDerableFyDplaceDsEedFsEileHsFngFonHsEouriEyDtEakeHnHsEerEressEyDuseCtDchFellDigateCxDedErFsEsDingDtureHsBlaBobDilFeGsFityDyCcDkCdDalDeElFedFingFlingFsEmFsErateIdHorFnEsFtDifiedFyGingDsDularFeGsCeChammedCiDnesDstFureCjoClDdEedEingEovaDeEcularHeIsDlyCmDentGsGumDmaEyDsCnaEcoErchEsteryDdayGsEeEoDetaryEyDgoliaDicaEesEtorHedHsDkEeyGsEsDmouthDoEgramEpolyDroeDsterHsDtEanaEeFreyEhFlyFsErealEyDumentIsCoDdEyDnElightDreDseCpCralFeGsFityEnDeEoverDganDmonDningHsDoccanGoDrisGonEowDseDtalGityFrEgageIsEonCsDaicDcowDesDqueFitoDsDtElyCtDelFsDherGsDifEonGsEvateIdFeGsDleyDoErFingGzedFolaFsDtoCundEtFainIsFedFingFsDrningDseDthCvDableDeEdEmentIsErFsEsDieFsEngCzartDillaBpaCegsCiBriCnaBsaCgidCiDeCoCuBtaBuchCdDdyDvayneCellerCgDsChammadCleDlerDtiFcastFpleHyFtudeCmDbaiDmyCndoDichFipalCrakamiDderGedGsDphyDrayCsDcleGsEularDeEumGsDhroomIsDicFaGlHsFianIsEkEngsDlimGsDtEangFrdCtantGsEtionIsDeDualGlyCzeByanmarCersCriadDtleCselfDimonDpaceDteriesGyEicGalCthologyAnabbleCchDionalCdDuCilEsDrobiDveCkedCmDeEdElyEsFpaceDibiaEngCnDcyDnyDoComiCpDaDlesDoleonDsterCrniaDrativeGorEowCsDaElDcarDdaqDhEvilleDsauDtyCtDalFieEshaDeDhanGielDionGalIsGsEveGsDlDoDuralHlyHsFeCughtyDruDseaDticalCvDajoElDigateHorDyCyCziEsBcbiBealDrEbyEestElyDtCbraskaCcessaryGityDkElaceIsCdDerlandCedEedEingEleGsHsEsEyCgativeDlectHedDotiateDroCighborIsHurDlDtherClDlyDsonCmoCoDnEatalDplasmsCpalDhewDtuneCrdDoDveFsEousCsDsDtEedEingCtDbsdDgearDsEcapeDwareEorkHedHsCuDralEologyFnsDtralFonCvadaDerDilleEsCwDarkDbieGsEornEuryDcastleEomersDerEstDlyDmanDportDsEfeedEgatorFroupEpaperEroomEweekFireDtonCxtEagEelDusBgoDsCuyenBiagaraCbCcDaraguaDeElyDheEolasGsHonEtDkEelEnameDolasFeEtineCeDlsenCftyCgelErFiaHnDhtFclubFlifeGyFmareFsFwishChCkeDkiDonClDeCmhCnaDeEtyDjaDtendoEhCpDpleGsCrvanaCsDsanDtCteDrateEoFgenCueCxonBoaaDhCbelDleDodyCdDdedDeEsCelCirDseEyCkDiaClanCmDinalGteIdFeeHsCnDeDlinearDprofitDsenseCodlesDnCpeCrDaDdEicDfolkDmEaFlGlyFnEsDrisDtelEhFeastGrnFwestEonDwayEegianEichEoodCsDeDtalgiaCtDableGyEtionDchDeEbookIsEdEsDhingDiceGdGsEfiedFyEngEonGsDoriousDreCunDsDveauCvaDelFlFsFtiesGyEmberDiceDoCwDadaysDhereCxCzzleBsaCuBuclearFiGcFusCdeEsDistGsEtyCevoCggetsCisanceCkeCllCmDberGedGingGsDericHalFousCnavutCrDseFryFsEingCtDrientIsFtionDsDtenBvidiaBylonFsCseAoahuCkDlandEeyDsDwoodCsisCthBbedienceDseEityDyCituaryCjDectGionHveGsCligatedFedEqueCsDceneEureDerveHdHrIsGingEssedGionDoleteDtacleIsCtainGedGingCviousHlyBccDasionIsDultEpancyFiedFyErFredGingFsCeanFiaGcFsChClcCrCtaveDetDoberBdbcCdDsCeDrDssaCorCysseyBecdCmBffDenceHsFdedHrIsFseHsGiveErFedFingIsFsDiceGrHsGsFialIsDlineDsEetEhoreEpringCtenBgdenCgBhmBilDsBkayCiClahomaBldDerEstDhamDiesDsCeCiveFrEiaFerCsenDonCympiaGcHsFusBmahaDnDrCbDudsmanCegaCgCissionIsDtEtedCniBnboardCceDologyCeDsEelfCgoingCionFsClineDyCsDetDiteCtDarioDoElogyCwardsCyxBohCoCpsBpalDqueCenEbsdEedFrEglEidFngHsElyEnessEsDraFteHdHsGingHonHveGorIsCinionHsCpDonentIsEseGdFingGteCrahCsCtDedEronDicFalFsEmalFismGzeIdFumEonGalGsCusBraDcleDlDngeCbDitFalFzCchardEestraEidCdDerFedFingFsDinanceGryGtorCeDgonCfCgDanFicGseIdHmIsGzeIdIrFsEsmGsDiesDyCientGalGedDgEinGalIsGsDolesEnClandoDeansCnamentIsCoCphanCsCthoFdoxBsakaDmaCborneCcarChaCloCsCtgCuCxBtcCherFsFwiseCisCtawaDerDoEmanBughtCnceFsCrDsEelvesCtDbackEoundEreakDcomeHsDdatedEoorHsDerFwearDfitGsDgoingDingDkastDlawEetGsEineHdHsEookEyingDpostEutGsDreachEightDsEideDwardBvalDrianCenEsDrEallEcastFomeEdoseFriveEflowEhaulFeadElandGpGyFoadFyEnightErideEseasGeFightGzedFtockEtimeFureEviewBweDdDnEsCingClDsCnDedErFsGhipDingDsBxfordCidationEeCleyCygenBysterBzoneApabloCcDeEdDificDkEageHdHsGingFrdEedFrsFtGsEingEsDtCdDdedEingEleEyDresDsCganDeErFankEsDinaFgCidDgeDnEfulEsEtFballFedGrHsFingIsFsDrEedEsCkDistanIiClDaceEuDeEstineEtteDletDmEaEerEoneEsDoDsCmDelaCnDamaEsonicDdaEemicDeElFsDicDoramaHicDsDtEeraEherHsEieGsEsEyFhoseColoCpDaDerFbackFsFworkDuaCrDaEdeFigmGseFoxEgonFraphFuayElegalFlelEmFeterFountEnoidDcelGsDdonDentGalGingGsDfumDisFhEtyDkEedFrEingGsonEsEwayDodyEleDrotDseFrEingEonsDtEialHlyFcleIsFesFsanFtionElyEnerHsEsEyCsDadenaDcalDoDsEageHsEedFngerFsEingFonHsFveEportEwordIsDtEaEeFlEorGalEryEureCtDagoniaDchFesDentGedGsErsonDhEeticEogensFlogyEsEwayHsDienceGtHsEoDriciaGkFotHicHsEolFnGsDternHsGsonEiEonEyCulEaEineEoDseCvedEmentDilionEngCwCxDilCyDableDdayDingDloadDmentHsDneDoutGsDpalDrollDsCzBciCmciaCosBdaDsBeaDceFfulEhEockDkEsDnutGsDrEceElFsEsonDsCbbleCckDuliarCdalFsDestalDiatricEgreeDroCeDingDkDlDrEsCgDasusDgyCiClicanCmbrokeCnDaltiesGyDcilGsDdantHsEingDguinHsDinsulaEsDnEyDsEacolaEionHsDtagonFxEhouseEiumCopleGsDriaCpDperGsDsiDtideHsCrDceiveIdFntEyDennialEzDfectHlyEormHedIrHsEumeHsDhapsDimeterEodGicGsDkinsDlDmalinkFnentEitGsGtedDpetualDryDsEiaGnFstEonGalIsGnelGsEuadeDthEinentDuEvianDvasiveCsoEsDtEicideEsCtDeErFsGenGonDitFeFionIsDrolGeumDsDtyCugeotCwterBfizerBgaBhantomDrmaGcyDseFsDtCeDlpsDnomenaFtypeCiDlEipGpeGsEliesGpHsFyDshingCoenixDneFsDsphateDtoFnFsGhopCraseGsCuketCyllisDsicalGianGsFolBianistEoDzzaCcDassoDhunterDkEedEingEsEupDnicDtorialEureHdHsCdCeDceFsDdmontDrEceGdFingEreDsCgDeonDmentDsCkeClatesDeEsDgrimDlEarGsEowGsEsDotFsCmDpCnDballDchDeEappleEsDgDkEworldDnacleDsDtConeerHsCpeElineIsErEsDingCracyEteGsCssEedEingDtolGsFnGsCtDbullDcairnEhFedGrFingDsDtDyCvotCxDarDelFsDmaniaCzzaBlaceFboFdFmentFsEingDgueDidEnFsFtiffDnEarEeFsFtGaryGsEnedGrHsFingEoEsEtFedFingFsDqueGsDsmaEterFicHsDtEeFauFdFsEformIsEinumEoDusibleDyEaEbackFoyEedFrGsEfulEhouseEingElistIsEoffHsEsDzaCeaEsantFeGdFingFureIsDdgeGdDnaryEtyConeDtEsEtingCugEgedEinGsEsDmEbersFingEpDngeDralDsEhDtoCymouthBneumaticFoniaBocketGpcGsCdDcastHsCeDmEsDtEicEryEsCgoCintFeGdGrHsFingFlessFsDsedEonGingCkemonErClDandErFizedFoidDeEsDiceFiesGngFyEshGedGingEteFicalHsDkDlEenEingEsEutantGionEyDoDskiDyEesterEmerHsEnesiaCndEsDgDtiacDyCohDlEeEsDrEestElyCpDcornDeDpedEyDsDularGtedEpCrDcelainEhDkDnEoEstarIsDscheDtEableFgeFlGsEerEfolioEionHsElandEoEraitIsGyedEsEugalCsDeEdEsDingEtionIsGveIsExDsessHedIsEibleHyDtEageFlEcardIsFodeEedFrGiorGsEfixEingHsEnukeEponedEsEureCtDassiumEtoGesDentGialDsDterGyCuchDltryDndFingFsDrEedEingCvertyCwDderDellErFbookFedFfulFpcFsGhotCyBracEticalHeIdIsGseDdaEeshDgmaticEueDirieEseGdDttDyEerGsEingCeDacherGingDcededHntGingEinctFousFseHlyGionEursorDdatorIsEicateGtHedHsDfaceEerGredGsEixDgnancyHtDjudiceDludeDmatureEierHeFseHsFumHsDnatalEticeDpEaidFreHdHsGingDsEarioEchoolFottFribeEenceGtHedIrHlyHsFrveIdIsFtEidentGingEleyEsFedGsFingFureIsEtigeFonEumedDteenFndEoriaEtyDvEailFlentEentHedHsEiewHsFousDyCiDceFdFsFtoolEingDdeDestGsDmaFrilyGyEeFrEitiveDnceGsHsGtonFipalHeHleEtFableFedGrHsFfFingFsDorFityDsmEonGerIsGsEtineDvacyFtGeHlyEilegeDxDzeFsCoDactiveDbEableHyFteGionEeFsEingElemHsDcEedureFedHedHsFssHedIsHorDdEuceHdHrIsHsGingGtHsDfEessorEileHsGingFtGsEoundDgEnosisEramHmeHsFessDhibitIsDjectHedHorHsDliantEongedEyteDmEinentFseHdHsGingEoFteHdHrIsHsGingHonEptGedGlyGsDneDofFsDpEaneEeciaFrGlyGtyEhecyGtHsEosalIsGeHdHsGingEsDquestDsEeEpectIsEtateForesDtEectHedHorHsFinHsFstHsEoFcolIsFnFtypeDudFlyDvEeFdFnGceFrbsFsEideHdHrIsHsGingFnceIsGgFsionEostDximityEyDzacCudentCwebBsaDlmFsCeudoCiCuCychicFoBtaCeBubDlEicGityGlyFshHedIrIsDmedDsCddingCebloDrtoCffEyCllEedEingEsDmonaryDpDseFsCmaDpEedEingEkinEsCnchDditDishGedDjabDkDtEaCpilFsDpetGsEiesEyCrchaseIdIrIsDdueDeElyDifiedHrEtyDpleEoseHsDseFsEuantFeGdFingGtCshEedFsEingDsiesEyFcatCtDativeDinDnamDsDtingCzzleGsByramidCthonAqaedaCtarBosBuadDilEntDkeDlifiedIrIsGyFtiesGyDnEtityFumDrkEryEtFerHlyHsGtFzDsiDyCeDbecDenFsErDnchDriesEyDstFionIsDueCiDckFerFlyFtimeDetFlyDltFingFsDncyEnEtaDrkDtEeDverDzEzesCoDrumDtEaFtionEeFdFsEingBwestArabbiFtGsCcDeErEsDhelDialEngEsmFtDkEsCdDarDeonDialFntFtionGorEcalEoFheadFlogyFsEssonEusCeCfDaelDtingCgDeDingCiDdEerGsDlEroadEsEwayHsDnEbowEfallEsEyDseFdFsEingCjasthanCkeCleighDlyDphCmDaEdaDblingsDmsteinDonFesDpEsDsEeyCnDchFoDdEallEolphFmGlyEyDgEeFdFrGsFsEingDkEedEingHsEsDtEsCoCpDeEdDhaelDidFlyFsCreElyCsDhDpberryCtDeEdEsDherDingGsEoFnalIeFsDonDsCveEnFsCwCyDmondDsCzorDrBbiBcaBeaDchFedGsFingEtFionIsGveForDdEableEerGsEilyFnessGgHsEmeEsEyDganDlEiseHdGmGticFtiesGyFzeHdGingElyEmFsEtimeFonesGrHsFyDpDrDsonGingGsCbateGsDeccaElFlionFsDootEundHsDuildGtCcDallGedGsEpDeiptHsFveHdHrIsHsGingEntGlyEptionGorIsEssGionDhargeEercheDipeGsFientDogniseHzeEmmendEnErdGedHrIsGingGsEverHedHyDruitHedIrHsDtalFngleDurrentGingFsiveDycleHdGingCdDeemEsignDhatEeadDirectDmondDsEkinsDuceGdGsFingFtionEndantDwoodCebokDdDfDlEsDseDvesCfDerFeeGnceFralIsGedGingFsDillGsEnanceFeGdFingDlectHedHorHsFxDormGedGsDrainEeshDugeGeHsEndGsEsalFeGdGsFingCgDainElErdGedGingGsDedEncyFtGsDgaeDimeGnHtGsEnaEonGalGsEsFterIsGrarHyDretDsDularHlyGteIdHorChabDearsalCiDchDdDgnDkiDllyDnforceDtsCjectGedGionGsClDateGdGsFingGonIsGveIsExFedFingEyFsDeaseHdHsGingEvanceHtDiableHyFnceEedFfFsFveHdEgionIsHusDoadEcateDuctantDyEingCmDainGderGedGingGsEkeErkGedGsDedialGesFyEmberIsDindGedHrIsGsFgtonExDoteGlyEvableGlFeGdGrGsFingCnDalEmeGdEultDderGedGingGsDeEeEwFableGlFedDoEvatedEwnedDtEalGsEedEingEsCpDairGedGingGsEyFmentDealGedFtGedGingGsEcDlaceHdHsGingFyEicaFedGsEyDortGedHrIsGingGsDresentEintHedHsEoduceDsDtilesDublicEtableCqDuestHedHsEireHdHsGingFsiteCsDaleDcueGdDearchEllerIsEmbleErveHdHsGoirEtFsDideGnceIyHtIsGsFingFualGeHsEgnGedEnEstGantGorEzeDolveHdGingEnanceErtGsEurceIsDpEectHedHsEondHedHsGseIsDtEartEingElessEoreHdGingEraintFictEsDultGedGingGsEmeGdGsCtDailGerIsGingFnGedGingGsDentionDireGdFingDreatHsEievalHeIdIrEoDurnGedGingGsCunionDsableEeDtersCvDealGedGingGsEngeFueHsErendFsalGeHdFtedDiewGedHrIsGingGsEseGdFionIsGtedEvalDokedEltFvingCwardGedGingGsDriteGtenCxCyDesDnoldsBfidBhapsodyCetoricCinoCodeFsCymesBibDbonGsDosomalDsCcDaEnErdoDeDhEardHsEerFsGtEieElandEmondEterDkEyDoEhCdDdleDeErFsEsDgeDingCfleFsCgDhtFeousFlyFsDidDorousChannaCleyCmDsCngEerEingEsEtoneIsDseCoDtCpDeEnccDleyDpedFrEleCseEnEsDingDkEsEyCtaDchieDeDualGsDzCvalFsDerFaFsGideDieraBnaBoachDdEmapEsFideEwayDmingDnokeDstFedCbDberyEieFnsDeErtGoGsHonDinFsonDotFicHsFsDustCcDheFsterDkEerFtGsEfordEiesFnGgEportEsEvilleEwellEyCdDeEoDgersDneyDriguezDsCeCgerFsDueCiClandDeEsExDlEedFrGsEingEoverEsCmDaEnFceFiaHnFsFticDeEoDsCnDaldDnieCofEingDkieDmEmateIsEsDseveltDtEedEsCpeEsCsDaDeEmaryEnFbergEsDieDsEiDterDwellCtDaryEteFingGonDhDorDtenFrdamCugeEhFlyDletteDndFedFingFsFupDteFdFrGsFsEineHlyHsGgCveErCwDanDeDingDlingDsCxyCyDalFeFsFtiesGyDceBsaBubDberEingFshDinDyCdeDolphDyCeCgDbyDgedDsCinEedEsCleEdErFsEsDingGsCmDbleDorFsDsfeldCnDawayDnerGsEingDoffDsDtimeDwayCpeeErtCralCsDhEedEingDsEellEiaGnHsDtEicEyCtgersDhDlandBwandaByanCderCeAsaabCbbathCcDkEsDredEificeCdDdamEleDlyDnessCfariGsDeEguardElyErEtyCgaDeEmCharaCidDlEingEorGsDntFsCkaiDeClDadFsEriesFyDeEmEsDineEsburyDlyDmonDomonEnFsEonDsaDtEsEwaterDuteDvadorFgeFtionDzburgCmDanthaDbaDeDmyDoaDpleGdGrGsFingDsonEungDuelEraiCnDchezEtionIsFuaryDdEalGsEboxEerGsEiskEraEsEwichEyDeDfordDgDitaryFyDsDtaFnaEiagoEoFsDyoCoCpDiensDphireCrDaEhEsotaEtogaDbanesDsCsDkatoonDsyCtaEnDelliteDinEreEsfiedIsGyDuratedFdayIsFnCuceFsDdiDlDnaEdersDsageDvignonCvageEnnaHhDeEdErFsEsFaveDingGsEorDvyCwDsDyerCxDonEphoneCyDingDsBbaCinBcaDlableFrEeFdFsEingDmEsDnEdalEnedGrHsFingEsDrEceEeFdEfFaceEletEsEvesEyDtEteredCenarioIsEeFryFsEicEtFedCheduleIdIrIsEmaGticFeGsDmidtDneiderDolarHlyHsEolGingGsDultzDwartzCiDenceHsFtistDonDssorsClerosisCoDobyEpEterHsDpeFsDreFcardFdFsEingEpioDtchEiaElandEsEtFishDutFingFsCrabbleEpFbookFsEtchHesDeamGingEenGedGingGsEwFedFsDiptGingGsGureDollGingGsDubEtinyCsiCubaDlptureBdramBeaDfoodDgateDhawksDlEedEingEsDmElessDnDrchGedHsGingEsDsEideEonGalGedGsDtEedEingEsEtleCbastianCcDondGaryGedGlyGsDrecyFtGaryGionGlyGsDsEgDtEionHalHsEorGsDularEniaEreGdGlyFingGtyCdDanDimentIsDonaCeDdEsDingDkEerGsEingEsDmEedEinglyEsDnDsDtherCgaDmentHsCikoDsmicDteDzeFdEureHsCkCldomDectGedGingHonHveGorGsDfEishDlEerGsEingEsCmDanticIsDesterDiEnarHsHyCnDateForHsDdEerEingEmailEoEsDecaEgalDiorGsDsationEeFsEibleFngFtiveEorGsGyEualDtEenceIdIsEimentFnelCoDulCparateIdIsHorDerateDtEemberEicCqDuelFnceIsCrDbiaGnDenaFityDgeantEioDialGsEeFsEfEousHlyDmonGsDpentDumDvEantHsEeFdFrGsFsEiceHdHsGingFngHsEletCsDameDsionHsEoCtDhDsDtingHsEleGdGrsFingDupCvenFteenGhGyEralFeGlyFityDilleCwDageDerDingCxDcamDeEsDoDualGityGlyDyCymourBgiBhaDckDdeFdFsEowGsEyDftDhDkeFrFsEingFraDllFowEtDmeEpooDneEghaiEiaEnonDpeFdFsEingFroDreFdFsFwareEingEkFsEonEpFerFlyDtteredDunDveFdEingDwEnCeDaErDdEsDehanEpErEtFsDffieldDikhElaDlbyEdonEfElFeyFfishFsEterHsFonEvesFingDmaleHsDnzhenDpherdDratonEidanFffEmanEryEwoodCiDeldGsDftFedFingFsDllingDmanoDnEeFdownFsEingEyDpEmentIsEpedFingEsDreEleyEtFsDtCockFedFingFsFwaveDeEsDokEtFerFingFsDpEpeGrHsFingFyEsEzillaDreFlineFsEtFageIsFcutIsFerGstFlistGyFsDtEgunEsDuldGerIsEtFedFingFsDwEcaseEdownEedFrGsEingEnEroomEsEtimesCrekDimpEneFkDubsCuffleDiDtEdownEterFleBiamCberianDlingHsCcDhDilyDkEnessCdDeEbarEdEsEwalkDingDneyCeDgeDmensDnaDrraCgDhEtFsDmaDnEageFlGingGsFtureEedEifiesFngEsEupClenceFtGlyDicaFonHeDkEyDlyDvaEerCmDilarHlyDmonsDonFeDpleGrGstFifyFyEsonHsDsDulateIdHorCnDatraDceFreHlyElairDdDgEaporeEerGsEhEingEleGdGsEsEularDisterDkEingEsDsDusConDuxCpCrDeDiusCsDterGsCtDeEsDhDsDtingDuEatedGionCxDteenEhEyCyabonaCzeEdEofEsDingBkaDteFsEingCeletalGonDpticalDtchGesCiDesDingDllFedFsDnEcareEnerFyEsDpEpedFingDrtFsDsCullCyeDlineDpeBlabDcEkDmDngDpDshFdotDteFrDughterDveFryFsDyerCeDekEpFerFingFsFyEveGsDnderDptCiDceFdFsEkDdeFrFsGhowEingDghtGlyDmDngDpEknotEpedGrsHyEsCoanDganDpeFsDtEsDvakGiaEeniaInDwEedFrEingElyCudgeDgDtEsBmallFerGstDrtFerDshFingCeDllFsDsCileFdFsFyEiesFngDthCokeFdFrGsEingEyDothGlyCugmugBnackFsDkeFsDpEshotIsDtchCeakCiperEpetsCookerEpDwEboardEyCyderBoaDkDpEsDrEingCberDreCcDcerDialGismItGlyEetalGiesGyEoFlogyDkEetGsEsCdaDiumCfaEsDiaDtEballEcoverElyEwareChoCilEsClDarFisDdEerEierHsDeEilElyDicitorEdFsEtaireGryDoEmonDubleEtionIsDveFdFntEingCmDaEliaDeEbodyEdayEhowEoneErsetEthingFimeIsEwhatGereCnDataDgEsDiaEcDnyDomaDsDtDyCoDnEerFstDthingCphiaFeEomoreDranoCreDorityDrowEyDtEedEingEsCsCughtDlEsDndFedFingFsDpEsDrEceGsFingDthFeastGrnFwestDvenirIsCvereignDietCxCyDbeanBpaDceFdFsEingFousDdesDghettiDinDmEmersDnEishEkFingEningEsDrcEeFsEkFleGingFsErowEseDsDtialDwnCeakFerHsFingFsErFsDcEialHlyHsHtyFesFficIsHedIsGyFmenIsEsEtatorFraHlGumDechGesEdFingFsFwayFyDllFedFingFsDncerEdFingFsEtDrmChereGsFicalCiDceFsEyDderGmanGsDesDkeFsDllDnEachFlEdleEeEningDralEesEitGedGsGualDtEeClashDendidDinterEtFsFterGingCoilerHsDkaneEeFnFsmanDngeGbobEsorHedHsDonDrtFingFsDtElightEsEtedFingDuseGsCrayDeadGingGsDingGerGsFtDuceCunDrEsCyingDwareBquadFronEreGdGsEshDeezeDidErrelFtGingBriBsaCiBtaDaDbEilityEleDceyEkFedFsEyDdiumDffFingFordDgEeFdFsEingDinFdFedFingFlessFsErFsDkeFsDllFsDmfordEpFedFingFsDnEceEdFardIsFbyFingIsFsEfordEleyEtonDpleGsDrEbucksEchEeFdEgateEingEkErFingEsEtFedGrHsFingFsFupDtEeFdFmentFnFsGmanFwideEicFngFonHsFsticEsEueGsFsFteHsGoryDyEedEingEsCderrCeDadilyFyEkFsElFingFsFthEmDelFeGrsEpErFingDfanGiDinFerDllaGrDmEsDpEhanHieFenHsEpedFingEsDreoEileElingEnEoidHsDveFnGsHonEieDwEartCiDckFerHsFingFsFyDffDllFsDmulateGiGusDngDrElingEringDtchCoDckFedFholmFingIsFsFtonDkeFsDleFnDmachDneFsEyDodElFsDpEpedFingEsDrageEeFdFsFyEiesFngEmFsEyDutDveFsCraightFnGsFtEndGedGsFgeHrIsEpFonFsEtegicHyFfordEussEwEyDeakFmGingGsEetGsEngthIsEssGedHsEtchHedIsDictGlyEkeGsFingEngGentGsEpFeGdGsFpedHrIsGingFsEveFingDokeGsEllGerIsEngGerHstGlyDuckFtGureEggleIdIsEtsCuDartDbDckDdEentHsEiedGsFoGsEsEyFingDffFedFingDnningEtDpidDrdyDttgartCyleFdFsEingFshEusBubDaruDclassDgroupDjectHedHsDlimeDmarineEitGsGtedDpartDsEcribeEetEidiesGyEtanceFrateEystemDtitleIsEleEotalDunitErbGanGsDwayEooferCcceedHedFssHesHorDhEeDkEedEingEsDtionCdanDburyDdenGlyDokuCeDdEeCfferGedGingGsEixEolkCgababesErDgestHedHsCicideDtEableEeFdFsEsClfateEurDlivanDphurCmDmariesHzeGyEerGsEitDsCndanceFyGsDflowerDgDlightDnyDriseDsEetEhineDyCpDerFbFiorFmanFstarFviseDpEerElFiedHrIsHsFyGingEortHedIrHsFseHdEressDraEemeCrDchargeDeElyDfEaceHsEerGsEingDgeFonHsFryEicalDinameDnameHsDplusEriseIdIsDrenderFyEoundIsDveyGedGingGorIsGsEivalGeHdGingGorIsCsDanDeDhiDieDpectHedHsFndHedGseEicionDsexDtainHedCttonCvDsCzanneDukiBvalbardCenEskaBwallowDmpDnEseaDpEpingDrovskiDzilandCearEtFerHsDdenEishDeneyEpFingEtFsDllFingDptCiftDmEmingEsuitEwearDndonEgFerHsFingFsDssDtchGedHsGingDvelCordFsEnBybaseCdneyCllabusDviaCmantecDbianEolGicGsDmetricHyDpathyEhonyEosiumEtomHsCndicateEromeDergyDonymHsEpsisDtaxEhaseFesisGticCracuseDiaFnDupCstemGicGsAtabDleFsFtGopGsFwareDooDsCcDkEleGsFingDoEmaDticGalGsCdCgDgedEingDsChitiDoeCiDlEedEorGedEsDpeiDwanCjCkeEnEoverEsDingClDbotDeEntGedGsEsDibanDkEbackEedEingEsDlEyCmDifluElDmyDpaCnDdemDgEibleEoDkEsDnedFrEingDyaDzaniaCoCpDeEsFtryDpedEingDsCrDaDgetGedGingGsEusDiffGsDotCsDkEsDmaniaDteFsEingEyCtaDeDtooGsCuDghtDrusCvernCwneeCxDableEtionDesDiEsDonomyDpayerIsCylorBbaBeaDchFerHsGsFingIsDkDlDmEedEsEworkDpotDrEsDsEeEpoonCcDhEnicalHsGqueFoEsCdDdyCeDnEageHrIsEsDsDthChDranCkClDeEcomHsEfloraEgraphEphoneIyEscopeDlEerEingEsDnetDstraCmDpEeFrElateIsFeGsEoFralHryEsEtedCnDaciousEntGsDdEedFncyFrGsEsDerifeDnesseeEisDorDsEeEionHsDtEativeEhEsDureCrDesaDmEedEinalIsHteEsDraFceFinEeEiFbleHyFerFficFtoryEorGismItEyDtiaryCsDcoDtEamentEedFrGsEifiedGyFmonyFngEsCtrisCxDansEsDtEbookIsEileHsEsEualFreHdHsBhaDiElandDmesDnEkFedFfulFsExDtEsCeDaterHsFreHsDeDftDhunDirFsDmEaticEeFdFsDnEceDoEdoreElogyEremFiesFyDrEapiesHstGyEeFbyFforeFinFofGnFsGaFtoEmalDsaurusEeFsEisDtaDyCickFnessDefEvesDghFsDnEgFsEkFingFpadFsDrdFsEteenFyDsEtleCoDmasEpsonEsonDngFsDrEntonEoughDseDuEghGtHsEsandIsCreadGedGsFtGenIsGsEeFsomeEsholdEwDiceEllGedHrIsEveDoatEneEttleEughEwFingFnFsDuEstCugDmbFnailFsDnderDrsFdayIsDsCyroidBiaDvaCbetFanCcDkEboxesEerFtGsElingCdalDeEsDyCeDdDrDsCffEanyCgerFsDhtFlyFsCkiClDeEsDlDtCmDberDeEdElessFineFyEoutErFsEsFhareFtampEtableEzoneDingDorEthyCnDaDyConEalEsCpDpingDsCreEdEsCsDsueGsCtDanFicGumFsDleFdFsDsDtenGsDusCveDoEliBoastFerCbaccoEgoDyCdayFsDdElerHsDoEsCeDsCgetherDgleDoCiletGsGteCkelauEnFsDyoCldDedoEranceHtGteIdDkienDlCmDatoGesDbDcatDeDmyDorrowDtomCnDeErEsDgaEueDiEghtDnesDsDyCoDkDlEbarFoxEkitEsDnEsDthCpDazDekaDicFalFsDlessDologyDpedEsDsCrDahDchDiEnoDnEadoDontoDqueDrentFsDsoDtEureHdDyCsDhibaDsEedCtDalFingFlyFsDeCuchFdownFedGsFingDghDlouseDrEingFsmGtHsEsDsDtCwDardGsDelFsErFsDingDnEhouseEsFendFhipCxicFityEnsCyDotaDsBraDcEeFdFsFyEingEkFbackFedGrFingFsEtFionForHsEyDdeFdFmarkFrGsFsEingFtionDfficDgedyEicDilFerHsFingFsEnFedGeHsGrHsFingFsEtFsDmadolDnEceEnyEsFcendFferIsGormFientGtFlateFmitFportDpEpedEsDshDumaGticDvelGedHrIsGingGledIrGsFrseFstiIsEisDyEsCeadFmillEsureIrIsHyEtFedFiesGngFmentFsFyDeEsDkEkingDmblDnchEdFsFyEtFonDoDsDvorCiDalFsEngleEthlonDbalEeFsEunalGeFteDckFsFyDedEsDggerHedHsDllionEogyDmEmedDnaEidadFtyDoDpEleEodEsDshEtanDumphDviaGlFumCojanGsDllFeyDngDopFsDphyEicalDubleHdHsEsersEtDyCuckFingFsDeDlyDmanEpFetDnkDstFeGdGeHsFpassFsDthFsCyingBsunamiBubDeEsDingDsDularCckEerDsonCesEdayHsCitionClipDsaCmbleDmyDorFsCnaDeEdErFsEsDgstenDingEsiaDnelGsCrbineEoDfDinEsmoDkeyEishEsDnEedFrEingEoutFverEsDquoiseDtleGsCscanyCtorFialIsGngFsCvaluBwainCeakDedDlveDntiethFyCiceDkiDlightDnEkFsEsDstFedDztidCoBycoonCingClerCneCpeEdFefEkeyEpadEsDicalHlyEngDoCrannyDeEsDosineCsonAuaeBbcCerCuntuBclaBdderCpBefaBfoBgandaClyBidBkraineGianBlsterCtimaGteDraFmBmaCbrellaCdClBnaDbleDnimousDwareCbiasedCcDertainDhangedDleFarDommonEverHedDutCdDefFinedErFageFgoFlineFmineFoathFtakeFwayGearGoodDoDpCeDscoCfairChappyCiDcefEodeFrnDfiedEormHlyHsDnstallFuredDonFsDprotkbDqueGlyDsexDtEeFdEsEyDvEersalHeDxCknownClawfulDeashedEssDikeGlyEmitedDockGedGingCnamedCoCpaidCratedDeadFlElatedCsafeDecuredEenDignedDtableDureCtilEtledDoCusedEualHlyCveiledGsCwantedDillingEndDrapBpcDomingCdateGdGsFingCgradeHdHsGingChillCloadGedGingGsConCperCrightCsDcaleDetDideDkirtHsDtairsEreamCtakeDimeDoEwnCwardGsBraniumCbanFaCgeEdEncyFtEsDingCiDnaryEeClsCnCologyCuguayCwBsabilityEleDgeDidCdDaCeDdDfulDlessDnetDrEnameEpicEsDsCgsCherCingCpsCrCsDrCualFlyBtahCensilHsCfCilEitiesGyFzeHdHsGingEsCmostCopiaCpCterFlyAvacDanciesGyFtEtionIsDcineHsDuumCginaGlGsDueCilDnDoClDeEnciaFtineIoErieEtDidFateIdFityEumDlartaEeyGsDuableFtionEeFdFsDveFsCmpireHsCnDceEouverDessaDguardDillaEtyDsDtageDuatuCporCrDiableIsFnceGtHsFtionEedFsFtiesGyEousDsityDyEingCscularDeEsDtCtDicanCughanFnDltFsDxhallBbulletinBdataBectorGsCgaEnEsDetableChicleHsCilDnEsClDcroDocityDvetCndingEorGsDetianEzuelaDgeanceDiceDomDtEuraGeHsDueFsEsCrDaDbEalFtimEsDdeEictDifiedFyGingEsignEtasEzonDlagDmontDnonDonaFicaDsaFceFtileEeFsEionHsEusDtexEicalGesDyCsselGsDtEedEsCtDeranHsDoDsBgaCroupBiaDbilityEleDgraCbeDrantFtingHonGorIsCcDeDinityEousDkiDodinDtimGsEorGiaInHesGyCdDaDeoFsFtapeDsCeDnnaDtEnamDwEedFrGsEingEpointEsFonicCgorousCiDiCkingGsCllaFgeHrsHsFsEeCnDceFntEiDeEgarEsEyardIsDtageDylColaFteHdHsGingHonEenceGtFtEinDxxCpDerCralDginGiaGsDtualHlyFeGsDusFesCsDaEsDibleEonGaryGsEtFedFingForHsFsDorDtaDualGlyCtaEeElFityEminHsDroCvaDianEdDoCzBladimirDnBocDalFsCdafoneDkaCgueCiceFmailFsDdDpClatileDcanicGoDsDtEageEsDumeGsEntaryGeerDvoCmitingCnDageCodooDrCrDtexCsCteEdErFsEsDingCucherHsDsCwsCxCyageGrDerEurGwebDuerBsnetBuittonCltureAwacDkyDoCdeCffleCgeEringEsDnerDonCiDstDtEedEingEsDveFdFrCkeEfieldDingClDdenDesDkEedFrEingEmanEsDlEaceEetGsEisEpaperEsDmartDnutDrusDshDtEerGsEhamEonEzCnDdEerGingDgDnaDtEedEingEsCpCrDcraftDdErobeEsDeEhouseEzDfareDmEerEingEthDnEedFrEingHsEsDpDrantHedHsHyEenEiorHsDsEawDwickCsDhEableEedFrGsEingDteFdFsEingCtDchFdogFedGrsGsFingFlistDerFfallGordFingFlooFsGhedFtownFwaysDkinsDsonDtEsCvDeEformEsCxCyDneDsBeakEerEnessDlthGyDponGsDrEingEsEyDtherDveFrEingCbDbDcamGsFstHsDdesignDerDinarDlogGicGsDmailFsterEdEinDpageDringDsEhotsEiteHsEphereEterCddingHsDgeDnesdayCeDdEsDkEdayEendHsElyEsDzerCiDghFedFingFsFtGedGingGsDrEdDssClchEomeHdHsGingDdEingDfareDlEnessEsDshCnDdyDtCreDnerCsDleyGanDtEernHsEfieldEinElifeEonEportEwoodCtDlandHsCymouthBhaleFsDrfDtEeverEsCeatFonDelFedGrFsDnEeverDreFasFbyFinFverDtherCichFeverDleEstDpEpedFingDrlpoolDskeyFyEperHedEtleHrDteFsEmanEneyCoDeverDisDleFsaleElyDmDreFsDseBichitaDkedFrCdeElyEningErEstDgetGsDowDthCeDnCfeDiCgDanDhtDsCkiEmediaEpediaClDcoxDdEcatsEeFrElifeDeyDhelmDkesEinsHonDlEardEiamHsFeFngFsEowEsEyDsonDtonEshireCmbledonCnDampDdEingEowGsEsForEyDeEryEsDgEedEsDkDmeDnerGsEieFngFpegEtDsEtonDterGsDxpCpeCreEdElessEsDingCsconsinDdomDeElyDhEedFsEingElistCtDchFesDhEdrawInEheldEinEoutEstandDnessHedIsDtyCvesCzardGsBlanBmaBnbaBoesCkeClfEeEgangDvesCmanDenFsCnDderGedGfulGingGsDgDtCoDdEenElandIsEsFtockEwardEyDlCrcesterDdEingEpressEsDeDkEbookEedFrGsEflowForceEgroupEingEloadEoutEplaceEsFheetGopIsFpaceDldFcatFsGexFwideDmEsDnDriedGsEyFingDseEhipEtDthFyCuldDndFedFsCvenCwBrapEpedGrFingEsDthCeckDnchDstlingDtchCightDstDtEeFrGsFsEingHsEtenCongFfulDteDughtBsopBtoBweCiiByattCndhamComingAxanaxCvierBboxBdaBemacsCnicalDonConCroxBiiDiCvBlibsBmasBoopsBpressBtremeBviDdBylophoneAyachtFsChooCkimaCleCmahaCnDgDkeeGsCrdEsDnCtesCwnCyBeahDrEbookElyEnEsDstCllEowCmenCnCpCrCsDterdayCtDiBieldFedFingFsCnBmcaBodelCgaDurtClkCnderCrkEerEshireCsemiteCuDngFerGstDrEsFelfDthFsBuanCgoslavCkonCmDmyCpBvesAzachCireCmbiaBealandEousCbraCldaCnDithCphyrDpelinCroCtaBhangBiffCgzagCmbabweCncDeConCpDperCrconiaBodiacCeCloftCmbieCneEsDingCoDfiliaDlogyDmDphiliaBshopsBucchiniCmCrDichCsByban';
+
+  var WORDS = [], MASKS = [], INDEX = Object.create(null), BY_START = Object.create(null);
+
+  (function decode() {
+    var prev = '', start = 0, i, chunk, w;
+    for (i = 1; i <= PACKED.length; i++) {
+      if (i < PACKED.length && (PACKED.charCodeAt(i) < 65 || PACKED.charCodeAt(i) > 90)) continue;
+      chunk = PACKED.slice(start, i);
+      start = i;
+      w = prev.slice(0, chunk.charCodeAt(0) - 65) + chunk.slice(1);
+      prev = w;
+      var mask = 0;
+      for (var c = 0; c < w.length; c++) mask |= 1 << (w.charCodeAt(c) - 97);
+      INDEX[w] = WORDS.length;
+      MASKS.push(mask);
+      WORDS.push(w);
+      (BY_START[w.charAt(0)] || (BY_START[w.charAt(0)] = [])).push(WORDS.length - 1);
+    }
+  })();
+
+  /* ------------------------------------------------------------------ tune */
+
+  var LIVES = 3;
+  var MIN_OPTIONS = 8;      // a turn is only locked in if this many words still work
+  var BASE_TIME = 22000;    // ms on the clock at chain length 0
+  var TIME_STEP = 500;      // shaved off per word played
+  var MIN_TIME = 12000;
+  var LOW_TIME = 5000;      // timer turns red and pulses below this
+  var MAX_BLOCKED = 13;
+  var SIXER = 5, A_GANG = 3;
+  var OPENERS = 'abcdefghijklmnoprstuvw';  // sane first letters (skips q/x/y/z)
+  var STORE = 'letterlockout.v1';
+
+  /* ------------------------------------------------------------------ state */
+
+  var best = { score: 0, chain: 0 };
+  var S = null;
+  var raf = 0;
+
+  var el = {};
+  ['play', 'again', 'home', 'game', 'over', 'lives', 'score', 'toasts', 'letter', 'timer',
+   'timerFill', 'keys', 'chain', 'entry', 'word', 'hint', 'homeBest', 'homeChain',
+   'finalScore', 'finalLongest', 'finalChain', 'badge'].forEach(function (id) {
+    el[id] = document.getElementById(id);
+  });
+
+  /* ------------------------------------------------------------------ store */
+
+  function loadBest() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(STORE) || '{}');
+      best.score = raw.score > 0 ? raw.score | 0 : 0;
+      best.chain = raw.chain > 0 ? raw.chain | 0 : 0;
+    } catch (e) { /* private mode, first run — defaults are fine */ }
+    el.homeBest.textContent = best.score;
+    el.homeChain.textContent = best.chain;
+  }
+
+  function saveBest() {
+    try { localStorage.setItem(STORE, JSON.stringify(best)); } catch (e) {}
+  }
+
+  /* ------------------------------------------------------------------ turns */
+
+  function maskOf(letters) {
+    var m = 0;
+    for (var i = 0; i < letters.length; i++) m |= 1 << (letters[i].charCodeAt(0) - 97);
+    return m;
+  }
+
+  // How many words still playable for this start letter under a blocked mask.
+  function countPlayable(pool, blockedMask, stopAt) {
+    var n = 0;
+    for (var i = 0; i < pool.length; i++) {
+      if ((MASKS[pool[i]] & blockedMask) === 0) {
+        n++;
+        if (n >= stopAt) return n;
+      }
+    }
+    return n;
+  }
+
+  // Weighted draw: letters that actually show up in the pool are worth blocking.
+  function drawBlocked(pool, startLetter, count) {
+    var weight = new Array(26), total = 0, i, j;
+    for (i = 0; i < 26; i++) weight[i] = 0;
+    for (i = 0; i < pool.length; i++) {
+      var m = MASKS[pool[i]];
+      for (j = 0; j < 26; j++) if (m & (1 << j)) weight[j]++;
+    }
+    weight[startLetter.charCodeAt(0) - 97] = 0;   // the forced letter is never blocked
+    var picked = [];
+    while (picked.length < count) {
+      total = 0;
+      for (i = 0; i < 26; i++) total += weight[i];
+      if (total === 0) break;
+      var roll = Math.random() * total, acc = 0, chosen = -1;
+      for (i = 0; i < 26; i++) {
+        acc += weight[i];
+        if (roll < acc) { chosen = i; break; }
+      }
+      if (chosen < 0) break;
+      weight[chosen] = 0;
+      picked.push(String.fromCharCode(97 + chosen));
+    }
+    return picked;
+  }
+
+  // Build a turn: a fresh blocked set, re-picked from scratch, that provably
+  // leaves playable words behind. Widens with the chain, backs off if it can't.
+  function makeTurn(startLetter) {
+    var pool = (BY_START[startLetter] || []).filter(function (i) { return !S.used[WORDS[i]]; });
+    var want = Math.min(2 + Math.floor(S.chain.length / 2), MAX_BLOCKED);
+    for (var n = want; n > 0; n--) {
+      for (var attempt = 0; attempt < 30; attempt++) {
+        var blocked = drawBlocked(pool, startLetter, n);
+        if (blocked.length < n) break;
+        var mask = maskOf(blocked);
+        if (countPlayable(pool, mask, MIN_OPTIONS) >= MIN_OPTIONS) {
+          return { letter: startLetter, blocked: blocked, mask: mask };
+        }
+      }
+    }
+    return { letter: startLetter, blocked: [], mask: 0 };
+  }
+
+  /* ------------------------------------------------------------------ render */
+
+  function show(name) {
+    ['home', 'game', 'over'].forEach(function (n) { el[n].classList.toggle('is-on', n === name); });
+  }
+
+  function drawLives() {
+    var out = '';
+    for (var i = 0; i < LIVES; i++) {
+      out += '<span class="heart' + (i < S.lives ? '' : ' is-lost') + '">&#9829;</span>';
+    }
+    el.lives.innerHTML = out;
+  }
+
+  function drawKeys() {
+    var out = '';
+    for (var i = 0; i < 26; i++) {
+      var ch = String.fromCharCode(97 + i);
+      var cls = 'key';
+      if (ch === S.turn.letter) cls += ' is-start';
+      else if (S.turn.blocked.indexOf(ch) > -1) cls += ' is-blocked';
+      out += '<div class="' + cls + '">' + ch.toUpperCase() + '</div>';
+    }
+    el.keys.innerHTML = out;
+  }
+
+  function drawChain() {
+    if (!S.chain.length) {
+      el.chain.innerHTML = '<span class="chain__empty">Your chain builds up here.</span>';
+      return;
+    }
+    var out = '';
+    for (var i = 0; i < S.chain.length; i++) {
+      if (i) out += '<span class="link"></span>';
+      out += '<span class="pill' + (i === S.chain.length - 1 ? ' is-new' : '') + '">' + S.chain[i] + '</span>';
+    }
+    el.chain.innerHTML = out;
+    el.chain.scrollLeft = el.chain.scrollWidth;
+  }
+
+  function drawPrompt() {
+    el.letter.textContent = S.turn.letter.toUpperCase();
+    el.letter.classList.remove('pop');
+    void el.letter.offsetWidth;
+    el.letter.classList.add('pop');
+    drawKeys();
+  }
+
+  function toast(text, plain) {
+    var t = document.createElement('div');
+    t.className = 'toast' + (plain ? ' plain' : '');
+    t.textContent = text;
+    el.toasts.appendChild(t);
+    while (el.toasts.children.length > 3) el.toasts.removeChild(el.toasts.firstChild);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 1400);
+  }
+
+  function say(text, bad) {
+    el.hint.textContent = text || '';
+    el.hint.classList.toggle('bad', !!bad);
+  }
+
+  /* ------------------------------------------------------------------ clock */
+
+  function turnLength() {
+    return Math.max(MIN_TIME, BASE_TIME - S.chain.length * TIME_STEP);
+  }
+
+  function tick() {
+    var left = S.deadline - Date.now();
+    var span = S.span;
+    if (left <= 0) {
+      el.timerFill.style.transform = 'scaleX(0)';
+      raf = 0;
+      loseLife('Out of time.');
+      return;
+    }
+    el.timerFill.style.transform = 'scaleX(' + (left / span) + ')';
+    el.timer.classList.toggle('is-low', left < LOW_TIME);
+    raf = requestAnimationFrame(tick);
+  }
+
+  function startClock() {
+    if (raf) cancelAnimationFrame(raf);
+    S.span = turnLength();
+    S.deadline = Date.now() + S.span;
+    el.timerFill.style.transform = 'scaleX(1)';
+    el.timer.classList.remove('is-low');
+    raf = requestAnimationFrame(tick);
+  }
+
+  function stopClock() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = 0;
+  }
+
+  /* ------------------------------------------------------------------ play */
+
+  function newTurn(letter) {
+    S.turn = makeTurn(letter);
+    drawPrompt();
+    el.word.value = '';
+    startClock();
+  }
+
+  function reject(message) {
+    el.entry.classList.add('shake', 'bad');
+    setTimeout(function () { el.entry.classList.remove('shake', 'bad'); }, 320);
+    loseLife(message);
+  }
+
+  // A miss costs a life but never breaks the chain — same letter, same lockout.
+  function loseLife(message) {
+    stopClock();
+    S.lives--;
+    drawLives();
+    say(message + ' ' + (S.lives > 0 ? '−1 life' : ''), true);
+    if (S.lives <= 0) { gameOver(); return; }
+    el.word.value = '';
+    startClock();
+  }
+
+  function accept(word) {
+    stopClock();
+    var points = word.length * 2;
+    S.score += points;
+    toast('+' + points, true);
+    if (word.length === 6) { S.score += SIXER; toast('+' + SIXER + ' sixer!'); }
+    if (word.charAt(3) === 'a') { S.score += A_GANG; toast('+' + A_GANG + ' A-gang!'); }
+    el.score.textContent = S.score;
+    S.used[word] = true;
+    S.chain.push(word);
+    if (word.length > S.longest.length) S.longest = word;
+    drawChain();
+    say('');
+    newTurn(word.charAt(word.length - 1));
+  }
+
+  function submit(e) {
+    e.preventDefault();
+    if (!S || S.over) return;
+    var word = el.word.value.toLowerCase().replace(/[^a-z]/g, '');
+    if (!word) return;
+    if (word.charAt(0) !== S.turn.letter) { reject('Must start with ' + S.turn.letter.toUpperCase() + '.'); return; }
+    if (word.length < 3) { reject('Three letters or more.'); return; }
+    var mask = 0;
+    for (var i = 0; i < word.length; i++) mask |= 1 << (word.charCodeAt(i) - 97);
+    if (mask & S.turn.mask) { reject('That uses a locked letter.'); return; }
+    if (S.used[word]) { reject('Already played.'); return; }
+    if (!(word in INDEX)) { reject('Not in the word list.'); return; }
+    accept(word);
+  }
+
+  function gameOver() {
+    stopClock();
+    S.over = true;
+    var beat = S.score > best.score;
+    if (beat) best.score = S.score;
+    if (S.chain.length > best.chain) best.chain = S.chain.length;
+    saveBest();
+    el.finalScore.textContent = S.score;
+    el.finalLongest.textContent = S.longest ? S.longest.toUpperCase() : '—';
+    el.finalChain.textContent = S.chain.length;
+    el.badge.classList.toggle('is-on', beat && S.score > 0);
+    el.homeBest.textContent = best.score;
+    el.homeChain.textContent = best.chain;
+    el.word.blur();
+    show('over');
+  }
+
+  function start() {
+    S = { score: 0, lives: LIVES, chain: [], used: Object.create(null), longest: '', over: false };
+    el.score.textContent = '0';
+    el.toasts.innerHTML = '';
+    say('');
+    drawLives();
+    drawChain();
+    show('game');
+    newTurn(OPENERS.charAt(Math.floor(Math.random() * OPENERS.length)));
+    el.word.focus();
+  }
+
+  /* ------------------------------------------------------------------ wire */
+
+  el.play.addEventListener('click', start);
+  el.again.addEventListener('click', start);
+  el.entry.addEventListener('submit', submit);
+  el.word.addEventListener('input', function () { if (el.hint.textContent) say(''); });
+
+  // Leaving the tab mid-turn shouldn't quietly drain the clock.
+  document.addEventListener('visibilitychange', function () {
+    if (!S || S.over) return;
+    if (document.hidden) stopClock();
+    else if (el.game.classList.contains('is-on')) startClock();
+  });
+
+  loadBest();
+})();
+// /APP LOGIC
+</script>
+
+</body>
+</html>
