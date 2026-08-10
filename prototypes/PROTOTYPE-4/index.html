@@ -1,0 +1,1369 @@
+<!doctype html>
+<!--
+  IdeaMuscle — PROTOTYPE-4
+  Daily idea capture built on the "idea muscle" premise: quantity over quality,
+  capture fast enough that an idea can't die before it's saved.
+  Self-contained: no external requests of any kind. localStorage only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>IdeaMuscle</title>
+<style>
+  /* Dark is the intended look; light is a faithful translation of it. */
+  :root {
+    --bg: #0b0b0d;
+    --surface: #141418;
+    --surface-2: #1b1b21;
+    --text: #f2f2f5;
+    --muted: #8b8b96;
+    --faint: #5c5c66;
+    --border: #24242b;
+    --accent: #ff6b35;
+    --accent-btn: #ff6b35;
+    --accent-btn-text: #0b0b0d;
+    --track: #1e1e24;
+    --danger: #ff5f57;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f7f5f2;
+      --surface: #ffffff;
+      --surface-2: #f1ede8;
+      --text: #17171a;
+      --muted: #6f6b66;
+      --faint: #9b958d;
+      --border: #e6e1da;
+      --accent: #d9531e;
+      --accent-btn: #e2541f;
+      --accent-btn-text: #ffffff;
+      --track: #e8e2da;
+      --danger: #c8352c;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  input, textarea {
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    letter-spacing: -.03em;
+  }
+
+  /* ---------- screens ---------- */
+
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .screen__pad {
+    padding:
+      calc(env(safe-area-inset-top) + 12px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 14px)
+      calc(env(safe-area-inset-left) + 16px);
+  }
+
+  /* Archive slides in from the right, capture rises from the bottom. */
+  #archive {
+    transform: translateX(100%);
+    transition: transform .28s cubic-bezier(.32, .72, 0, 1);
+    z-index: 20;
+  }
+  #archive.is-open { transform: translateX(0); }
+
+  #capture {
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.32, .72, 0, 1);
+    z-index: 30;
+  }
+  #capture.is-open { transform: translateY(0); }
+  #capture.is-dragging { transition: none; }
+
+  /* ---------- header ---------- */
+
+  .head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    flex: none;
+  }
+
+  .head__title {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 650;
+    letter-spacing: .01em;
+    flex: 1;
+    color: var(--muted);
+  }
+
+  .icon-btn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    height: 44px;
+    flex: none;
+    padding: 0 10px;
+    border-radius: 999px;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    text-decoration: none;
+    font: inherit;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .icon-btn:active { transform: scale(.92); }
+  .icon-btn--edge { margin-left: -10px; }
+
+  /* ---------- home ---------- */
+
+  .hero {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 10px 0 2px;
+  }
+
+  .streak {
+    font-size: 76px;
+    line-height: .95;
+    font-weight: 800;
+    color: var(--accent);
+    transition: color .5s ease;
+  }
+
+  .streak.is-dead { color: var(--faint); }
+
+  .streak__label {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    text-align: center;
+  }
+
+  .atrophy {
+    margin: 10px 0 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: var(--surface-2);
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.35;
+    text-align: center;
+    max-width: 280px;
+  }
+
+  .ring-wrap {
+    position: relative;
+    width: 168px;
+    height: 168px;
+    margin: 14px 0 2px;
+  }
+
+  .ring { display: block; width: 168px; height: 168px; transform: rotate(-90deg); }
+  .ring__track { fill: none; stroke: var(--track); stroke-width: 11; }
+  .ring__fill {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 11;
+    stroke-linecap: round;
+  }
+
+  .ring__center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .ring__count {
+    font-size: 34px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .ring__count small {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--faint);
+  }
+
+  .ring__label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* today's list */
+
+  .today {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 12px;
+    padding-bottom: 4px;
+  }
+
+  .today__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 8px;
+  }
+
+  .idea {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 11px 13px;
+    margin-bottom: 8px;
+    font-size: 15px;
+    line-height: 1.4;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  .idea__time {
+    flex: none;
+    font-size: 12px;
+    color: var(--faint);
+    padding-top: 2px;
+    min-width: 42px;
+  }
+
+  .idea__text {
+    flex: 1;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .idea.is-open .idea__text {
+    display: block;
+    -webkit-line-clamp: unset;
+  }
+
+  .idea--new { animation: pop .4s cubic-bezier(.2, 1.4, .4, 1); }
+
+  @keyframes pop {
+    from { opacity: 0; transform: translateY(-8px) scale(.97); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .empty {
+    color: var(--faint);
+    font-size: 14px;
+    text-align: center;
+    padding: 18px 20px;
+    line-height: 1.5;
+  }
+
+  /* capture dock — the bottom third of home */
+
+  .dock {
+    flex: none;
+    padding-top: 10px;
+  }
+
+  .capture-btn {
+    appearance: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    width: 100%;
+    min-height: 104px;
+    border: 0;
+    border-radius: 22px;
+    background: var(--accent-btn);
+    color: var(--accent-btn-text);
+    font: inherit;
+    font-size: 21px;
+    font-weight: 750;
+    letter-spacing: -.01em;
+    cursor: pointer;
+    transition: transform .1s ease;
+  }
+
+  .capture-btn small {
+    font-size: 12px;
+    font-weight: 600;
+    opacity: .68;
+    letter-spacing: .04em;
+  }
+
+  .capture-btn:active { transform: scale(.965); }
+
+  .dock__row {
+    display: flex;
+    justify-content: center;
+    padding-top: 4px;
+  }
+
+  .link-btn {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 44px;
+    padding: 0 16px;
+    cursor: pointer;
+  }
+
+  .link-btn:active { opacity: .6; }
+
+  /* ---------- capture screen ---------- */
+
+  .grabber {
+    width: 40px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--border);
+    margin: 0 auto 10px;
+    flex: none;
+  }
+
+  .capture-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: none;
+    margin-bottom: 6px;
+  }
+
+  .capture-head__label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-left: 6px;
+  }
+
+  #ideaInput {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    border: 0;
+    resize: none;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 22px;
+    line-height: 1.35;
+    padding: 4px 2px;
+    outline: none;
+  }
+
+  #ideaInput::placeholder { color: var(--faint); }
+
+  .capture-foot {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-top: 10px;
+  }
+
+  .mic {
+    appearance: none;
+    flex: none;
+    width: 60px;
+    height: 60px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .mic svg { width: 24px; height: 24px; }
+
+  .mic.is-live {
+    background: var(--accent-btn);
+    border-color: var(--accent-btn);
+    color: var(--accent-btn-text);
+    animation: breathe 1.1s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.07); }
+  }
+
+  .save-btn {
+    appearance: none;
+    flex: 1;
+    min-height: 60px;
+    border: 0;
+    border-radius: 18px;
+    background: var(--accent-btn);
+    color: var(--accent-btn-text);
+    font: inherit;
+    font-size: 18px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+
+  .save-btn:disabled {
+    background: var(--surface-2);
+    color: var(--faint);
+  }
+
+  .save-btn:active:not(:disabled) { transform: scale(.98); }
+
+  .hint {
+    flex: none;
+    font-size: 12px;
+    color: var(--faint);
+    text-align: center;
+    padding-top: 8px;
+    min-height: 18px;
+  }
+
+  /* ---------- archive ---------- */
+
+  .search-wrap {
+    flex: none;
+    position: relative;
+    margin: 4px 0 12px;
+  }
+
+  #search {
+    width: 100%;
+    min-height: 46px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    padding: 0 40px 0 14px;
+    outline: none;
+  }
+
+  #search:focus { border-color: var(--accent); }
+  #search::placeholder { color: var(--faint); }
+
+  .search-clear {
+    position: absolute;
+    right: 2px;
+    top: 0;
+    width: 44px;
+    height: 46px;
+    border: 0;
+    background: transparent;
+    color: var(--faint);
+    font-size: 18px;
+    cursor: pointer;
+    display: none;
+  }
+
+  .search-clear.is-on { display: block; }
+
+  .archive-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 20px;
+  }
+
+  .day {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    padding: 10px 2px 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    z-index: 1;
+  }
+
+  .day__count { color: var(--faint); font-weight: 600; letter-spacing: .04em; }
+
+  .editor {
+    display: none;
+    padding-top: 10px;
+  }
+
+  .idea.is-editing .editor { display: block; }
+  .idea.is-editing { flex-direction: column; gap: 0; }
+  .idea.is-editing .idea__time { padding-top: 0; margin-bottom: 6px; }
+  .idea.is-editing .idea__text { display: none; }
+
+  .editor textarea {
+    width: 100%;
+    min-height: 84px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    font-size: 15px;
+    line-height: 1.4;
+    padding: 10px;
+    resize: none;
+    outline: none;
+  }
+
+  .editor textarea:focus { border-color: var(--accent); }
+
+  .editor__row {
+    display: flex;
+    gap: 8px;
+    padding-top: 8px;
+  }
+
+  .chip {
+    appearance: none;
+    flex: 1;
+    min-height: 44px;
+    border-radius: 11px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-size: 14px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .chip--primary {
+    background: var(--accent-btn);
+    border-color: var(--accent-btn);
+    color: var(--accent-btn-text);
+  }
+
+  .chip--danger { color: var(--danger); flex: 0 0 96px; }
+  .chip:active { transform: scale(.97); }
+
+  /* ---------- menu sheet ---------- */
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease;
+    z-index: 40;
+  }
+
+  .scrim.is-open { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 520px;
+    margin: 0 auto;
+    background: var(--surface);
+    border-radius: 22px 22px 0 0;
+    border-top: 1px solid var(--border);
+    padding: 10px 16px calc(env(safe-area-inset-bottom) + 16px);
+    transform: translateY(100%);
+    transition: transform .26s cubic-bezier(.32, .72, 0, 1);
+    z-index: 41;
+  }
+
+  .sheet.is-open { transform: translateY(0); }
+
+  .sheet__title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding: 8px 4px 4px;
+  }
+
+  .sheet__item {
+    appearance: none;
+    display: block;
+    width: 100%;
+    text-align: left;
+    min-height: 50px;
+    border: 0;
+    border-top: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0 4px;
+  }
+
+  .sheet__item small {
+    display: block;
+    font-size: 12px;
+    color: var(--faint);
+    margin-top: -2px;
+  }
+
+  .sheet__item:active { opacity: .6; }
+  .sheet__item--danger { color: var(--danger); }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom) + 24px);
+    transform: translate(-50%, 20px);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 50;
+  }
+
+  .toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+</style>
+</head>
+<body>
+
+<!-- ============ HOME ============ -->
+<section class="screen screen__pad" id="home">
+  <header class="head">
+    <a class="icon-btn icon-btn--edge" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="head__title">IdeaMuscle</h1>
+    <button class="icon-btn" id="openArchive" aria-label="Open archive">Archive</button>
+    <button class="icon-btn" id="openMenu" aria-label="More">&#8942;</button>
+  </header>
+
+  <div class="hero">
+    <div class="streak num" id="streakNum">0</div>
+    <div class="streak__label" id="streakLabel">day streak</div>
+    <p class="atrophy" id="atrophy" hidden></p>
+
+    <div class="ring-wrap">
+      <svg class="ring" viewBox="0 0 168 168" aria-hidden="true">
+        <circle class="ring__track" cx="84" cy="84" r="72"></circle>
+        <circle class="ring__fill" id="ringFill" cx="84" cy="84" r="72"></circle>
+      </svg>
+      <div class="ring__center">
+        <div class="ring__count num" id="ringCount">0<small>/10</small></div>
+        <div class="ring__label">today</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="today" id="todayList"></div>
+
+  <div class="dock">
+    <button class="capture-btn" id="captureBtn">
+      Capture
+      <small>one idea, ten seconds</small>
+    </button>
+    <div class="dock__row">
+      <button class="link-btn" id="openArchive2">All ideas &rarr;</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ ARCHIVE ============ -->
+<section class="screen screen__pad" id="archive" aria-hidden="true">
+  <header class="head">
+    <button class="icon-btn icon-btn--edge" id="closeArchive" aria-label="Back to home">&larr;</button>
+    <h1 class="head__title">Archive</h1>
+    <span class="head__title num" id="archiveTotal" style="flex:none"></span>
+  </header>
+
+  <div class="search-wrap">
+    <input id="search" type="search" placeholder="Search every idea" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="search-clear" id="searchClear" aria-label="Clear search">&times;</button>
+  </div>
+
+  <div class="archive-list" id="archiveList"></div>
+</section>
+
+<!-- ============ CAPTURE ============ -->
+<section class="screen screen__pad" id="capture" aria-hidden="true">
+  <div class="grabber" id="grabber"></div>
+  <div class="capture-head" id="captureHead">
+    <span class="capture-head__label">New idea</span>
+    <button class="icon-btn" id="closeCapture" aria-label="Discard">&times;</button>
+  </div>
+  <textarea id="ideaInput" placeholder="Anything. Bad ones count." rows="4" autocomplete="off" autocapitalize="sentences"></textarea>
+  <div class="capture-foot">
+    <button class="mic" id="micBtn" aria-label="Dictate idea" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="9" y="2" width="6" height="12" rx="3"></rect>
+        <path d="M5 11a7 7 0 0 0 14 0"></path>
+        <path d="M12 18v4"></path>
+      </svg>
+    </button>
+    <button class="save-btn" id="saveBtn" disabled>Save</button>
+  </div>
+  <div class="hint" id="captureHint">Swipe down to discard</div>
+</section>
+
+<div class="scrim" id="scrim"></div>
+
+<div class="sheet" id="sheet">
+  <div class="sheet__title">Prototype controls</div>
+  <button class="sheet__item" id="skipDay">Skip ahead a day<small>Demo the streak going stale</small></button>
+  <button class="sheet__item" id="resetClock">Back to real today<small>Undo any skipped days</small></button>
+  <button class="sheet__item sheet__item--danger" id="wipe">Clear all ideas<small>Start from an empty archive</small></button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---------- state ----------
+
+  var KEY = 'ideamuscle.v1';
+  var TARGET = 10;
+  var DAY = 86400000;
+
+  var state = load();
+
+  function load() {
+    var raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) { raw = null; }
+    var s = null;
+    if (raw) { try { s = JSON.parse(raw); } catch (e) { s = null; } }
+    if (!s || !Array.isArray(s.ideas)) s = { ideas: [], dayOffset: 0, seeded: false, lastStreak: 0 };
+    if (typeof s.dayOffset !== 'number') s.dayOffset = 0;
+    if (typeof s.lastStreak !== 'number') s.lastStreak = 0;
+    if (!s.seeded) { s.ideas = seedIdeas(); s.seeded = true; }
+    return s;
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  // A few days of history so the archive and the streak mean something on
+  // first open. Last entry is yesterday, so today still needs its reps.
+  function seedIdeas() {
+    var byDay = [
+      ['A pub quiz where every answer must be a lie', 'Bookshop that only stocks books under 120 pages', 'Sell "one good excuse" as a subscription'],
+      ['Kettle that tells you how long it has been boiling for, in songs', 'Walking tour of the ugliest buildings in town', 'A dating app that matches on how you load the dishwasher', 'Rent a grandmother for Sunday lunch'],
+      ['Podcast where two strangers swap phones for a day', 'Gym for hands only', 'Recipe app that starts from what is already going off'],
+      ['Bus stop that reads the next arrival out loud in a bored voice', 'A font that gets shakier the longer you type', 'Museum of failed startups', 'Alarm clock you turn off by texting a friend', 'Newsletter that is one photograph and one sentence'],
+      ['Board game about queueing', 'Notebook that fines you for leaving pages blank']
+    ];
+    var out = [];
+    var id = 1;
+    for (var d = 0; d < byDay.length; d++) {
+      var base = new Date();
+      base.setHours(9, 12, 0, 0);
+      base.setDate(base.getDate() - (d + 1));
+      for (var i = 0; i < byDay[d].length; i++) {
+        out.push({ id: 's' + (id++), text: byDay[d][i], ts: base.getTime() + i * 47 * 60000 });
+      }
+    }
+    return out;
+  }
+
+  // ---------- time ----------
+
+  // Everything reads "now" through here so the demo day-skip is consistent.
+  function now() { return Date.now() + state.dayOffset * DAY; }
+
+  function noon(ts) {
+    var d = new Date(ts);
+    d.setHours(12, 0, 0, 0);
+    return d;
+  }
+
+  function dayKey(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function timeLabel(ts) {
+    var d = new Date(ts);
+    return pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+
+  function dayLabel(key) {
+    var today = dayKey(now());
+    var yd = noon(now());
+    yd.setDate(yd.getDate() - 1);
+    if (key === today) return 'Today';
+    if (key === dayKey(yd.getTime())) return 'Yesterday';
+    var parts = key.split('-');
+    var d = new Date(+parts[0], +parts[1] - 1, +parts[2], 12);
+    var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return days[d.getDay()] + ' ' + d.getDate() + ' ' + months[d.getMonth()];
+  }
+
+  // ---------- derived ----------
+
+  function daysWithIdeas() {
+    var set = {};
+    for (var i = 0; i < state.ideas.length; i++) set[dayKey(state.ideas[i].ts)] = true;
+    return set;
+  }
+
+  function todayCount() {
+    var k = dayKey(now());
+    var n = 0;
+    for (var i = 0; i < state.ideas.length; i++) if (dayKey(state.ideas[i].ts) === k) n++;
+    return n;
+  }
+
+  // Alive if the last active day is today or yesterday. One fully empty day
+  // in between and the muscle has atrophied — back to zero.
+  function streakInfo() {
+    var days = daysWithIdeas();
+    var cursor = noon(now());
+    if (!days[dayKey(cursor.getTime())]) {
+      cursor.setDate(cursor.getDate() - 1);
+      if (!days[dayKey(cursor.getTime())]) return { count: 0, missed: missedDays(days) };
+    }
+    var n = 0;
+    while (days[dayKey(cursor.getTime())]) {
+      n++;
+      cursor.setDate(cursor.getDate() - 1);
+    }
+    return { count: n, missed: 0 };
+  }
+
+  // How many whole days since the last captured idea (only meaningful once dead).
+  function missedDays(days) {
+    var cursor = noon(now());
+    for (var i = 1; i <= 400; i++) {
+      cursor.setDate(cursor.getDate() - 1);
+      if (days[dayKey(cursor.getTime())]) return i - 1;
+    }
+    return 0;
+  }
+
+  // ---------- ring (spring, not linear) ----------
+
+  var R = 72;
+  var C = 2 * Math.PI * R;
+  var ringFill = document.getElementById('ringFill');
+  ringFill.style.strokeDasharray = C.toFixed(2);
+  ringFill.style.strokeDashoffset = C.toFixed(2);
+
+  var springPos = 0, springVel = 0, springGoal = 0, springRaf = null;
+
+  function drawRing() {
+    var p = Math.max(0, Math.min(1, springPos));
+    ringFill.style.strokeDashoffset = (C * (1 - p)).toFixed(2);
+  }
+
+  function springStep() {
+    var k = 170, c = 21, dt = 1 / 60;
+    var a = -k * (springPos - springGoal) - c * springVel;
+    springVel += a * dt;
+    springPos += springVel * dt;
+    if (Math.abs(springPos - springGoal) < 0.0005 && Math.abs(springVel) < 0.002) {
+      springPos = springGoal;
+      springVel = 0;
+      drawRing();
+      springRaf = null;
+      return;
+    }
+    drawRing();
+    springRaf = requestAnimationFrame(springStep);
+  }
+
+  function setRing(progress, animate) {
+    springGoal = progress;
+    if (!animate) {
+      if (springRaf) { cancelAnimationFrame(springRaf); springRaf = null; }
+      springPos = progress;
+      springVel = 0;
+      drawRing();
+      return;
+    }
+    if (!springRaf) springRaf = requestAnimationFrame(springStep);
+  }
+
+  // ---------- render ----------
+
+  var streakNum = document.getElementById('streakNum');
+  var streakLabel = document.getElementById('streakLabel');
+  var atrophy = document.getElementById('atrophy');
+  var ringCount = document.getElementById('ringCount');
+  var todayList = document.getElementById('todayList');
+
+  function renderHome(opts) {
+    opts = opts || {};
+    var info = streakInfo();
+    var count = todayCount();
+
+    // A streak that just died counts down instead of snapping to zero.
+    if (info.count === 0 && state.lastStreak > 0) {
+      animateStreakDown(state.lastStreak);
+    } else {
+      streakNum.textContent = info.count;
+    }
+    state.lastStreak = info.count;
+
+    streakNum.classList.toggle('is-dead', info.count === 0);
+    streakLabel.textContent = info.count === 1 ? 'day streak' : 'days in a row';
+
+    if (info.count === 0 && state.ideas.length) {
+      atrophy.hidden = false;
+      atrophy.textContent = info.missed === 1
+        ? 'One empty day and the muscle went slack. Capture one idea to start again.'
+        : info.missed + ' empty days. The muscle atrophied — one idea rebuilds it.';
+    } else {
+      atrophy.hidden = true;
+    }
+
+    ringCount.innerHTML = count + '<small>/' + TARGET + '</small>';
+    setRing(Math.min(1, count / TARGET), opts.animate !== false);
+
+    renderToday(opts.newId);
+  }
+
+  function renderToday(newId) {
+    var k = dayKey(now());
+    var mine = state.ideas.filter(function (i) { return dayKey(i.ts) === k; })
+      .sort(function (a, b) { return b.ts - a.ts; });
+
+    var html = '<div class="today__head"><span>Today</span><span class="num">' +
+      mine.length + ' captured</span></div>';
+
+    if (!mine.length) {
+      html += '<div class="empty">Nothing yet today.<br>The first one is always the worst — that is the point.</div>';
+    } else {
+      for (var i = 0; i < mine.length; i++) {
+        html += '<div class="idea' + (mine[i].id === newId ? ' idea--new' : '') + '" data-id="' + mine[i].id + '">' +
+          '<span class="idea__time num">' + timeLabel(mine[i].ts) + '</span>' +
+          '<span class="idea__text">' + esc(mine[i].text) + '</span></div>';
+      }
+    }
+    todayList.innerHTML = html;
+  }
+
+  function animateStreakDown(from) {
+    var v = from;
+    streakNum.textContent = v;
+    var t = setInterval(function () {
+      v--;
+      streakNum.textContent = Math.max(0, v);
+      if (v <= 0) clearInterval(t);
+    }, 90);
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  // Tap a home card to see the whole idea.
+  todayList.addEventListener('click', function (e) {
+    var row = e.target.closest ? e.target.closest('.idea') : null;
+    if (row) row.classList.toggle('is-open');
+  });
+
+  // ---------- capture ----------
+
+  var captureScreen = document.getElementById('capture');
+  var ideaInput = document.getElementById('ideaInput');
+  var saveBtn = document.getElementById('saveBtn');
+  var captureHint = document.getElementById('captureHint');
+
+  function openCapture() {
+    captureScreen.setAttribute('aria-hidden', 'false');
+    captureScreen.classList.add('is-open');
+    ideaInput.value = '';
+    saveBtn.disabled = true;
+    captureHint.textContent = 'Swipe down to discard';
+    ideaInput.focus();
+  }
+
+  function closeCapture() {
+    stopMic();
+    captureScreen.classList.remove('is-open');
+    captureScreen.setAttribute('aria-hidden', 'true');
+    captureScreen.style.transform = '';
+    ideaInput.blur();
+  }
+
+  function saveIdea() {
+    var text = ideaInput.value.trim();
+    if (!text) return;
+    var idea = { id: 'i' + now() + Math.floor(Math.random() * 1000), text: text, ts: now() };
+    state.ideas.push(idea);
+    save();
+    closeCapture();
+    renderHome({ animate: true, newId: idea.id });
+    var c = todayCount();
+    toast(c >= TARGET ? 'Target hit — ' + c + ' today' : c + ' of ' + TARGET + ' today');
+  }
+
+  document.getElementById('captureBtn').addEventListener('click', openCapture);
+  document.getElementById('closeCapture').addEventListener('click', closeCapture);
+  saveBtn.addEventListener('click', saveIdea);
+
+  ideaInput.addEventListener('input', function () {
+    saveBtn.disabled = !ideaInput.value.trim();
+  });
+
+  ideaInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveIdea();
+    }
+  });
+
+  // swipe the sheet down to discard
+  var dragY = 0, dragging = false;
+
+  function dragStart(e) {
+    dragging = true;
+    dragY = e.touches[0].clientY;
+    captureScreen.classList.add('is-dragging');
+  }
+
+  function dragMove(e) {
+    if (!dragging) return;
+    var dy = e.touches[0].clientY - dragY;
+    if (dy < 0) dy = 0;
+    captureScreen.style.transform = 'translateY(' + dy + 'px)';
+  }
+
+  function dragEnd(e) {
+    if (!dragging) return;
+    dragging = false;
+    captureScreen.classList.remove('is-dragging');
+    var dy = e.changedTouches[0].clientY - dragY;
+    if (dy > 110) closeCapture();
+    else captureScreen.style.transform = '';
+  }
+
+  ['grabber', 'captureHead'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener('touchstart', dragStart, { passive: true });
+    el.addEventListener('touchmove', dragMove, { passive: true });
+    el.addEventListener('touchend', dragEnd);
+  });
+
+  // ---------- voice, where the browser offers it ----------
+
+  var micBtn = document.getElementById('micBtn');
+  var Recog = window.SpeechRecognition || window.webkitSpeechRecognition;
+  var recog = null, listening = false, baseText = '';
+
+  if (Recog) {
+    micBtn.hidden = false;
+    micBtn.addEventListener('click', function () {
+      if (listening) { stopMic(); return; }
+      startMic();
+    });
+  }
+
+  function startMic() {
+    try {
+      recog = new Recog();
+      recog.lang = 'en-GB';
+      recog.interimResults = true;
+      recog.continuous = true;
+      baseText = ideaInput.value ? ideaInput.value.replace(/\s+$/, '') + ' ' : '';
+      recog.onresult = function (e) {
+        var out = '';
+        for (var i = e.resultIndex; i < e.results.length; i++) out += e.results[i][0].transcript;
+        ideaInput.value = baseText + out;
+        saveBtn.disabled = !ideaInput.value.trim();
+      };
+      recog.onerror = function () { stopMic(); };
+      recog.onend = function () { stopMic(); };
+      recog.start();
+      listening = true;
+      micBtn.classList.add('is-live');
+      captureHint.textContent = 'Listening — tap the mic to stop';
+    } catch (err) {
+      // No dictation available; text entry carries on untouched.
+      micBtn.hidden = true;
+    }
+  }
+
+  function stopMic() {
+    if (recog) { try { recog.stop(); } catch (e) {} }
+    recog = null;
+    listening = false;
+    micBtn.classList.remove('is-live');
+    if (captureScreen.classList.contains('is-open')) captureHint.textContent = 'Swipe down to discard';
+  }
+
+  // ---------- archive ----------
+
+  var archiveScreen = document.getElementById('archive');
+  var archiveList = document.getElementById('archiveList');
+  var archiveTotal = document.getElementById('archiveTotal');
+  var search = document.getElementById('search');
+  var searchClear = document.getElementById('searchClear');
+
+  function openArchive() {
+    renderArchive();
+    archiveScreen.setAttribute('aria-hidden', 'false');
+    archiveScreen.classList.add('is-open');
+  }
+
+  function closeArchive() {
+    search.blur();
+    archiveScreen.classList.remove('is-open');
+    archiveScreen.setAttribute('aria-hidden', 'true');
+  }
+
+  document.getElementById('openArchive').addEventListener('click', openArchive);
+  document.getElementById('openArchive2').addEventListener('click', openArchive);
+  document.getElementById('closeArchive').addEventListener('click', closeArchive);
+
+  search.addEventListener('input', function () {
+    searchClear.classList.toggle('is-on', !!search.value);
+    renderArchive();
+  });
+
+  searchClear.addEventListener('click', function () {
+    search.value = '';
+    searchClear.classList.remove('is-on');
+    renderArchive();
+    search.focus();
+  });
+
+  function renderArchive() {
+    var q = search.value.trim().toLowerCase();
+    var list = state.ideas.slice().sort(function (a, b) { return b.ts - a.ts; });
+    if (q) list = list.filter(function (i) { return i.text.toLowerCase().indexOf(q) !== -1; });
+
+    archiveTotal.textContent = state.ideas.length + ' total';
+
+    if (!list.length) {
+      archiveList.innerHTML = '<div class="empty">' +
+        (q ? 'Nothing matches &ldquo;' + esc(search.value) + '&rdquo;.' : 'No ideas yet. Capture one.') +
+        '</div>';
+      return;
+    }
+
+    var html = '';
+    var currentDay = null;
+    var bucket = [];
+
+    function flush() {
+      if (!bucket.length) return;
+      html += '<div class="day"><span>' + dayLabel(currentDay) + '</span>' +
+        '<span class="day__count num">' + bucket.length + '</span></div>';
+      for (var j = 0; j < bucket.length; j++) {
+        var it = bucket[j];
+        html += '<div class="idea" data-id="' + it.id + '">' +
+          '<span class="idea__time num">' + timeLabel(it.ts) + '</span>' +
+          '<span class="idea__text">' + esc(it.text) + '</span>' +
+          '<div class="editor">' +
+            '<textarea>' + esc(it.text) + '</textarea>' +
+            '<div class="editor__row">' +
+              '<button class="chip chip--danger" data-act="delete">Delete</button>' +
+              '<button class="chip chip--primary" data-act="done">Done</button>' +
+            '</div>' +
+          '</div></div>';
+      }
+      bucket = [];
+    }
+
+    for (var i = 0; i < list.length; i++) {
+      var k = dayKey(list[i].ts);
+      if (k !== currentDay) { flush(); currentDay = k; }
+      bucket.push(list[i]);
+    }
+    flush();
+
+    archiveList.innerHTML = html;
+  }
+
+  // tap to expand into an editor; the buttons inside commit or drop it
+  archiveList.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('[data-act]') : null;
+    var row = e.target.closest ? e.target.closest('.idea') : null;
+    if (!row) return;
+    var id = row.getAttribute('data-id');
+
+    if (btn) {
+      var act = btn.getAttribute('data-act');
+      if (act === 'delete') {
+        state.ideas = state.ideas.filter(function (i) { return i.id !== id; });
+        save();
+        renderArchive();
+        renderHome({ animate: true });
+        toast('Deleted');
+      } else {
+        var ta = row.querySelector('textarea');
+        var text = ta.value.trim();
+        if (text) {
+          for (var i = 0; i < state.ideas.length; i++) {
+            if (state.ideas[i].id === id) state.ideas[i].text = text;
+          }
+          save();
+        }
+        renderArchive();
+        renderHome({ animate: false });
+      }
+      return;
+    }
+
+    if (e.target.tagName === 'TEXTAREA') return;
+    var wasOpen = row.classList.contains('is-editing');
+    var open = archiveList.querySelectorAll('.is-editing');
+    for (var n = 0; n < open.length; n++) open[n].classList.remove('is-editing');
+    if (!wasOpen) row.classList.add('is-editing');
+  });
+
+  // ---------- menu sheet ----------
+
+  var scrim = document.getElementById('scrim');
+  var sheet = document.getElementById('sheet');
+
+  function openSheet() { scrim.classList.add('is-open'); sheet.classList.add('is-open'); }
+  function closeSheet() { scrim.classList.remove('is-open'); sheet.classList.remove('is-open'); }
+
+  document.getElementById('openMenu').addEventListener('click', openSheet);
+  scrim.addEventListener('click', closeSheet);
+
+  // Roll the clock forward until a whole day really has gone by empty — from a
+  // day you already captured on, that takes two, and the streak only dies then.
+  document.getElementById('skipDay').addEventListener('click', function () {
+    var before = state.dayOffset;
+    var guard = 0;
+    do {
+      state.dayOffset += 1;
+      guard++;
+    } while (streakInfo().count > 0 && guard < 3);
+    var n = state.dayOffset - before;
+    save();
+    closeSheet();
+    renderHome({ animate: true });
+    renderArchive();
+    toast(n === 1 ? 'A day passed with nothing captured' : n + ' days passed with nothing captured');
+  });
+
+  document.getElementById('resetClock').addEventListener('click', function () {
+    state.dayOffset = 0;
+    save();
+    closeSheet();
+    renderHome({ animate: true });
+    renderArchive();
+    toast('Back to today');
+  });
+
+  document.getElementById('wipe').addEventListener('click', function () {
+    state.ideas = [];
+    state.dayOffset = 0;
+    state.lastStreak = 0;
+    save();
+    closeSheet();
+    search.value = '';
+    searchClear.classList.remove('is-on');
+    renderHome({ animate: true });
+    renderArchive();
+    toast('Archive cleared');
+  });
+
+  // ---------- toast ----------
+
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, 1600);
+  }
+
+  // ---------- boot ----------
+
+  // Streak on first paint should reflect what was already there, so seed
+  // lastStreak before the first render or the counter animates from nothing.
+  state.lastStreak = streakInfo().count;
+  save();
+  renderHome({ animate: false });
+  renderArchive();
+
+  // Fill the ring from empty once, so the spring is visible on arrival.
+  springPos = 0;
+  springVel = 0;
+  drawRing();
+  requestAnimationFrame(function () {
+    setRing(Math.min(1, todayCount() / TARGET), true);
+  });
+</script>
+
+</body>
+</html>

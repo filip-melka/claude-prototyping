@@ -25,6 +25,18 @@
       "changelog": ["v1 — initial prototype"]
     },
     {
+      "id": "PROTOTYPE-4",
+      "workItemId": "bbb0852a-444a-4559-8a30-cedd83410f82",
+      "title": "IdeaMuscle",
+      "tagline": "Ten ideas a day, captured in one tap — miss a day and the streak goes slack.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-4/index.html",
+      "version": 1,
+      "createdAt": "2026-08-10",
+      "updatedAt": "2026-08-10",
+      "changelog": ["v1 — initial prototype"]
+    },
+    {
       "id": "PROTOTYPE-5",
       "workItemId": "0021c49f-29ea-493a-81d5-39eb312e8ea1",
       "title": "Letter Lockout",
