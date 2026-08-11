@@ -1,0 +1,1010 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Pasture Push</title>
+<style>
+  :root {
+    /* Board colours are fixed in both schemes: the board is a framed object
+       sitting on the page, not a surface that follows the OS theme. */
+    --grass-a: #6fa15e;
+    --grass-b: #5f8f4f;
+    --plank-a: #7a5230;
+    --plank-b: #5c3d22;
+    --pen: #e3b23c;
+    --pen-edge: #a97b22;
+    --mud-a: #5a4530;
+    --mud-b: #43331f;
+    --panel: #3c2a1a;
+    --gold: #ffd866;
+
+    /* Barn at dusk. */
+    --app-bg: radial-gradient(120% 100% at 50% 0%, #4a3520 0%, #241a12 100%);
+    --card-bg: rgba(58, 41, 25, .72);
+    --card-border: rgba(255, 216, 102, .16);
+    --text: #f5efe0;
+    --muted: #c3ac8d;
+    --accent: #ffd866;
+    --btn-bg: rgba(255, 245, 224, .08);
+    --btn-border: rgba(255, 245, 224, .18);
+    --btn-text: #f5efe0;
+    --shadow: 0 2px 4px rgba(0, 0, 0, .35), 0 18px 40px rgba(0, 0, 0, .45);
+
+    --slide: 160ms;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      /* Same barn, mid-afternoon. */
+      --app-bg: radial-gradient(120% 100% at 50% 0%, #f6e6c8 0%, #dcc39c 100%);
+      --card-bg: #fdf6e7;
+      --card-border: #d8c19a;
+      --text: #3b2a17;
+      --muted: #7d6547;
+      --accent: #9a6614;
+      --btn-bg: #f3e6cd;
+      --btn-border: #d3bb93;
+      --btn-text: #3b2a17;
+      --shadow: 0 1px 2px rgba(90, 62, 30, .12), 0 12px 28px rgba(90, 62, 30, .18);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  /* Author display rules outrank the UA's [hidden], so say it out loud. */
+  [hidden] { display: none !important; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--app-bg);
+    background-attachment: fixed;
+    color: var(--text);
+    font: 16px/1.5 "Nunito", ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .display {
+    font-family: ui-rounded, "SF Pro Rounded", "Baloo 2", "Nunito", "Trebuchet MS", system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -.01em;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 10px)
+      calc(env(safe-area-inset-right) + 14px)
+      calc(env(safe-area-inset-bottom) + 12px)
+      calc(env(safe-area-inset-left) + 14px);
+    max-width: 420px;
+    margin: 0 auto;
+  }
+
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+    margin-bottom: 10px;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .app__titles { min-width: 0; }
+
+  .app__title {
+    margin: 0;
+    font-size: 19px;
+  }
+
+  .app__subtitle {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* Card ---------------------------------------------------------------- */
+  .card {
+    flex: 0 1 auto;                   /* hugs its content; the board is sized to fit */
+    margin: auto 0;                   /* header stays pinned, card centres in the rest */
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 12px;
+  }
+
+  .hud {
+    flex: none;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .hud__level {
+    font-size: 15px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .hud__meta {
+    display: flex;
+    gap: 12px;
+    flex: none;
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .07em;
+  }
+
+  .hud__meta b {
+    font-family: ui-rounded, "SF Pro Rounded", "Baloo 2", "Nunito", system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: 0;
+  }
+
+  /* Board --------------------------------------------------------------- */
+  /* Height is set by sizeBoard() once the other rows have been measured. */
+  .board-wrap {
+    position: relative;
+    flex: none;
+    min-height: 0;
+  }
+
+  /* Absolutely centred so the board's size never feeds back into the
+     available space we measure it against. */
+  .board {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 7px;
+    border-radius: 14px;
+    background: var(--panel);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .35), 0 6px 16px rgba(0, 0, 0, .3);
+    touch-action: none;
+  }
+
+  .grid {
+    position: relative;
+    width: calc(var(--cols) * var(--cell));
+    height: calc(var(--rows) * var(--cell));
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  .tile {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--cell);
+    height: var(--cell);
+    transform: translate(calc(var(--c) * var(--cell)), calc(var(--r) * var(--cell)));
+  }
+
+  .tile--grass   { background: var(--grass-a); }
+  .tile--grass.is-alt { background: var(--grass-b); }
+
+  .tile--wall {
+    background: repeating-linear-gradient(45deg,
+      var(--plank-a) 0 6px, var(--plank-b) 6px 12px);
+  }
+
+  .tile--pen {
+    background: var(--pen);
+    box-shadow: inset 0 0 0 3px var(--pen-edge);
+  }
+
+  .tile--pen::after {
+    content: "";
+    position: absolute;
+    inset: 26%;
+    border-radius: 999px;
+    border: 2px dashed rgba(169, 123, 34, .75);
+  }
+
+  .tile--mud {
+    background: radial-gradient(circle at 50% 45%, var(--mud-a) 0%, var(--mud-b) 100%);
+  }
+
+  /* Entities ------------------------------------------------------------ */
+  .ent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--cell);
+    height: var(--cell);
+    transform: translate(calc(var(--c) * var(--cell)), calc(var(--r) * var(--cell)));
+    transition: transform var(--slide) ease;
+    will-change: transform;
+  }
+
+  .ent svg { display: block; width: 100%; height: 100%; overflow: visible; }
+
+  .ent--sheep.is-locked svg {
+    filter: drop-shadow(0 0 5px rgba(255, 216, 102, .95));
+  }
+
+  /* Gold ring that pulses out of a pen the moment a sheep locks in. */
+  .pulse {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: var(--cell);
+    height: var(--cell);
+    transform: translate(calc(var(--c) * var(--cell)), calc(var(--r) * var(--cell)));
+    pointer-events: none;
+  }
+
+  .pulse::after {
+    content: "";
+    position: absolute;
+    inset: 6%;
+    border-radius: 999px;
+    border: 3px solid var(--gold);
+    animation: ring 520ms ease-out forwards;
+  }
+
+  @keyframes ring {
+    from { transform: scale(.55); opacity: .95; }
+    to   { transform: scale(1.65); opacity: 0; }
+  }
+
+  /* Overlays ------------------------------------------------------------ */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 14px;
+    text-align: center;
+    background: rgba(20, 13, 7, .82);
+    color: #f5efe0;
+    animation: fade 220ms ease both;
+  }
+
+  @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+  .overlay__title {
+    margin: 0;
+    font-size: 24px;
+    color: var(--gold);
+  }
+
+  .overlay__line {
+    margin: 0;
+    font-size: 13px;
+    color: #d8c7a8;
+    max-width: 24ch;
+  }
+
+  .overlay__actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Legend -------------------------------------------------------------- */
+  .legend {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px 12px;
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+
+  .legend i {
+    width: 13px;
+    height: 13px;
+    border-radius: 3px;
+    flex: none;
+  }
+
+  .legend .sw--fence { background: repeating-linear-gradient(45deg, var(--plank-a) 0 3px, var(--plank-b) 3px 6px); }
+  .legend .sw--pen   { background: var(--pen); box-shadow: inset 0 0 0 2px var(--pen-edge); }
+  .legend .sw--mud   { background: radial-gradient(circle at 50% 45%, var(--mud-a), var(--mud-b)); }
+  .legend .sw--fox   { background: linear-gradient(135deg, #d1592c, #a83f1c); }
+
+  /* Controls ------------------------------------------------------------ */
+  .controls {
+    flex: none;
+    display: grid;
+    /* minmax(0, …), not 1fr: a bare 1fr refuses to shrink past min-content
+       and pushes the row wider than the screen on a 320px phone. */
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+  }
+
+  .dpad {
+    display: grid;
+    grid-template-columns: repeat(3, 52px);
+    grid-template-rows: repeat(3, 44px);
+    gap: 4px;
+  }
+
+  .dpad button:nth-child(1) { grid-area: 1 / 2; }
+  .dpad button:nth-child(2) { grid-area: 2 / 1; }
+  .dpad button:nth-child(3) { grid-area: 2 / 3; }
+  .dpad button:nth-child(4) { grid-area: 3 / 2; }
+
+  .btn {
+    appearance: none;
+    border: 1px solid var(--btn-border);
+    border-radius: 13px;
+    background: var(--btn-bg);
+    color: var(--btn-text);
+    font: inherit;
+    font-weight: 700;
+    font-size: 14px;
+    min-height: 44px;
+    padding: 0 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .btn:active { transform: scale(.96); }
+  .btn:disabled { opacity: .4; }
+
+  .btn--pad { padding: 0; font-size: 19px; }
+
+  .btn--gold {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #3b2a17;
+  }
+
+  .btn--side { width: 100%; min-width: 0; }
+
+  /* Level pips ----------------------------------------------------------- */
+  .pips {
+    flex: none;
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .pip {
+    appearance: none;
+    width: 44px;
+    height: 32px;
+    border-radius: 10px;
+    border: 1px solid var(--btn-border);
+    background: var(--btn-bg);
+    color: var(--muted);
+    font: inherit;
+    font-weight: 700;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .pip[aria-current="true"] {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #3b2a17;
+  }
+
+  .pip.is-done:not([aria-current="true"]) {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ent { transition: none; }
+    .pulse::after { animation: none; opacity: 0; }
+    .overlay { animation: none; }
+    .btn:active, .back:active { transform: none; }
+  }
+
+  /* Narrow phones: shrink the pad so Undo/Reset keep their labels. */
+  @media (max-width: 360px) {
+    .controls { gap: 8px; }
+    .dpad { grid-template-columns: repeat(3, 44px); }
+    .btn--side { padding: 0 6px; font-size: 13px; }
+  }
+
+  /* Tall viewports have room to spare — spend it on the thumb controls. */
+  @media (min-height: 760px) {
+    .card { gap: 14px; padding: 14px; }
+    .dpad { grid-template-rows: repeat(3, 56px); }
+  }
+
+  /* Very short viewports: give the board what little is left. */
+  @media (max-height: 660px) {
+    .app__subtitle { display: none; }
+    .legend { display: none; }
+    .dpad { grid-template-rows: repeat(3, 40px); }
+  }
+</style>
+</head>
+<body>
+
+<!-- Sprites: same-document symbols, no network. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="sp-sheep" viewBox="0 0 100 100">
+    <rect x="30" y="66" width="8" height="17" rx="4" fill="#3a322c"/>
+    <rect x="55" y="66" width="8" height="17" rx="4" fill="#3a322c"/>
+    <g fill="#f7f1e1">
+      <circle cx="45" cy="51" r="23"/>
+      <circle cx="29" cy="45" r="14"/>
+      <circle cx="58" cy="43" r="14"/>
+      <circle cx="33" cy="62" r="14"/>
+      <circle cx="56" cy="63" r="13"/>
+    </g>
+    <ellipse cx="66" cy="32" rx="6.5" ry="4" fill="#2e2823" transform="rotate(-28 66 32)"/>
+    <ellipse cx="74" cy="43" rx="12.5" ry="14.5" fill="#3a322c"/>
+    <circle cx="79" cy="39" r="2.6" fill="#f7f1e1"/>
+  </symbol>
+
+  <symbol id="sp-farmer" viewBox="0 0 100 100">
+    <circle cx="50" cy="60" r="26" fill="#c1443c"/>
+    <path d="M28 74 Q50 84 72 74 L72 84 Q50 92 28 84 Z" fill="#a5372f"/>
+    <circle cx="50" cy="35" r="14.5" fill="#e6b489"/>
+    <circle cx="45" cy="35" r="2.2" fill="#3a322c"/>
+    <circle cx="55" cy="35" r="2.2" fill="#3a322c"/>
+    <path d="M36 27 Q39 11 50 11 Q61 11 64 27 Z" fill="#ecdcae"/>
+    <ellipse cx="50" cy="27" rx="27" ry="7" fill="#ecdcae"/>
+    <ellipse cx="50" cy="27" rx="27" ry="7" fill="none" stroke="#cbb27f" stroke-width="1.6"/>
+  </symbol>
+
+  <!-- Low and long, so it never reads as one of the flock. -->
+  <symbol id="sp-fox" viewBox="0 0 100 100">
+    <path d="M20 62 Q2 54 6 38 Q14 30 20 34 Q10 44 20 50 Q26 54 32 56 Z" fill="#a83f1c"/>
+    <rect x="32" y="66" width="7" height="14" rx="3.5" fill="#a83f1c"/>
+    <rect x="60" y="66" width="7" height="14" rx="3.5" fill="#a83f1c"/>
+    <ellipse cx="52" cy="58" rx="33" ry="15" fill="#d1592c"/>
+    <ellipse cx="56" cy="66" rx="18" ry="7" fill="#f6ece0"/>
+    <path d="M63 43 L61 27 L74 37 Z" fill="#a83f1c"/>
+    <path d="M79 39 L84 27 L89 41 Z" fill="#a83f1c"/>
+    <circle cx="75" cy="50" r="13" fill="#d1592c"/>
+    <path d="M84 44 L99 53 L84 60 Z" fill="#e2703f"/>
+    <circle cx="98" cy="53" r="3" fill="#2a1a12"/>
+    <circle cx="76" cy="47" r="2.6" fill="#2a1a12"/>
+  </symbol>
+</svg>
+
+<div class="app">
+  <header class="app__header">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <div class="app__titles">
+      <h1 class="app__title display">Pasture Push</h1>
+      <p class="app__subtitle">One swipe moves the whole farm. Get every sheep penned.</p>
+    </div>
+  </header>
+
+  <main class="card">
+    <div class="hud">
+      <div class="hud__level display" id="levelName">First Steps</div>
+      <div class="hud__meta">
+        <span>Level <b id="levelNo">1/4</b></span>
+        <span>Moves <b id="moveCount">0</b></span>
+      </div>
+    </div>
+
+    <div class="board-wrap" id="boardWrap">
+      <div class="board" id="board">
+        <div class="grid" id="grid"></div>
+      </div>
+      <div class="overlay" id="overlay" hidden>
+        <h2 class="overlay__title display" id="overlayTitle">Pen full!</h2>
+        <p class="overlay__line" id="overlayLine"></p>
+        <div class="overlay__actions">
+          <button class="btn" type="button" id="btnAgain">Replay</button>
+          <button class="btn btn--gold" type="button" id="btnNext">Next level</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i class="sw--fence"></i>Fence</span>
+      <span><i class="sw--pen"></i>Pen</span>
+      <span><i class="sw--mud"></i>Mud</span>
+      <span><i class="sw--fox"></i>Fox</span>
+    </div>
+
+    <div class="controls">
+      <button class="btn btn--side" type="button" id="btnUndo">Undo</button>
+      <div class="dpad">
+        <button class="btn btn--pad" type="button" data-dir="U" aria-label="Swipe up">&uarr;</button>
+        <button class="btn btn--pad" type="button" data-dir="L" aria-label="Swipe left">&larr;</button>
+        <button class="btn btn--pad" type="button" data-dir="R" aria-label="Swipe right">&rarr;</button>
+        <button class="btn btn--pad" type="button" data-dir="D" aria-label="Swipe down">&darr;</button>
+      </div>
+      <button class="btn btn--side" type="button" id="btnReset">Reset</button>
+    </div>
+
+    <div class="pips" id="pips"></div>
+    <p class="sr-only" id="live" aria-live="polite"></p>
+  </main>
+</div>
+
+<script>
+  // ---- Levels -----------------------------------------------------------
+  // # wall  . floor  P pen  M mud  F farmer  S sheep  X fox
+  // Layouts are verbatim from the brief and hand-verified solvable.
+  var LEVELS = [
+    { name: "First Steps", hint: "Try right, then down.", rows: [
+      "######",
+      "#F.S.#",
+      "#....#",
+      "#...P#",
+      "######"
+    ]},
+    { name: "Muddy Patch", hint: "Mud cuts a slide short.", rows: [
+      "#######",
+      "#F....#",
+      "#.S...#",
+      "#.....#",
+      "#.M...#",
+      "#.....#",
+      "#.P...#",
+      "#######"
+    ]},
+    { name: "Split the Flock", hint: "Two sheep, two pens, one fence between them.", rows: [
+      "#########",
+      "#F.S.S..#",
+      "#.......#",
+      "#..###..#",
+      "#.......#",
+      "#.P....P#",
+      "#.......#",
+      "#########"
+    ]},
+    { name: "Fox on the Prowl", hint: "The fox slides too — and it does not stop for sheep.", rows: [
+      "########",
+      "#...S..#",
+      "#......#",
+      "#..F...#",
+      "#P...X.#",
+      "#......#",
+      "########"
+    ]}
+  ];
+
+  var DIRS = { U: [-1, 0], D: [1, 0], L: [0, -1], R: [0, 1] };
+  var TILE = { "#": "wall", "P": "pen", "M": "mud" };
+  var SPRITE = { farmer: "sp-farmer", sheep: "sp-sheep", fox: "sp-fox" };
+
+  // ---- Elements ---------------------------------------------------------
+  var app = document.querySelector(".app");
+  var headerEl = document.querySelector(".app__header");
+  var cardEl = document.querySelector(".card");
+  var hudEl = document.querySelector(".hud");
+  var legendEl = document.querySelector(".legend");
+  var controlsEl = document.querySelector(".controls");
+  var boardWrap = document.getElementById("boardWrap");
+  var board = document.getElementById("board");
+  var grid = document.getElementById("grid");
+  var overlay = document.getElementById("overlay");
+  var overlayTitle = document.getElementById("overlayTitle");
+  var overlayLine = document.getElementById("overlayLine");
+  var btnAgain = document.getElementById("btnAgain");
+  var btnNext = document.getElementById("btnNext");
+  var btnUndo = document.getElementById("btnUndo");
+  var btnReset = document.getElementById("btnReset");
+  var pips = document.getElementById("pips");
+  var live = document.getElementById("live");
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  var state = null;      // { index, grid, entities, moves, status }
+  var undoStack = [];
+  var entityEls = {};    // entity id -> element
+  var cleared = [];      // level indexes finished at least once
+
+  // ---- Rules ------------------------------------------------------------
+  function parseLevel(index) {
+    var rows = LEVELS[index].rows;
+    var g = rows.map(function (row) {
+      return row.split("").map(function (ch) { return TILE[ch] || "floor"; });
+    });
+    var entities = [];
+    var id = 0;
+    rows.forEach(function (row, r) {
+      row.split("").forEach(function (ch, c) {
+        if (ch === "F") entities.push({ id: id++, kind: "farmer", r: r, c: c, locked: false });
+        if (ch === "S") entities.push({ id: id++, kind: "sheep", r: r, c: c, locked: false });
+        if (ch === "X") entities.push({ id: id++, kind: "fox", r: r, c: c, locked: false });
+      });
+    });
+    return { index: index, grid: g, entities: entities, moves: 0, status: "playing" };
+  }
+
+  function tileAt(r, c) { return state.grid[r] ? state.grid[r][c] : undefined; }
+
+  function occupant(r, c, self) {
+    for (var i = 0; i < state.entities.length; i++) {
+      var e = state.entities[i];
+      if (e !== self && e.r === r && e.c === c) return e;
+    }
+    return null;
+  }
+
+  // The farmer and every un-penned sheep move at once. Settling whoever is
+  // furthest along the direction first is what makes that simultaneity work:
+  // anything ahead of you has already stopped, so you stack up behind it.
+  function slideAnimals(dir) {
+    var d = DIRS[dir], dr = d[0], dc = d[1];
+    var movers = state.entities.filter(function (e) {
+      return e.kind === "farmer" || (e.kind === "sheep" && !e.locked);
+    }).sort(function (a, b) {
+      return (b.r * dr + b.c * dc) - (a.r * dr + a.c * dc);
+    });
+
+    var justLocked = [];
+    movers.forEach(function (e) {
+      for (;;) {
+        var nr = e.r + dr, nc = e.c + dc;
+        var t = tileAt(nr, nc);
+        if (!t || t === "wall") break;
+        if (occupant(nr, nc, e)) break;
+        if (t === "pen" && e.kind === "sheep") {
+          e.r = nr; e.c = nc; e.locked = true;
+          justLocked.push(e);
+          break;
+        }
+        e.r = nr; e.c = nc;
+        if (t === "mud") break;             // mud stops anything, mid-slide
+        // a pen is just floor under the farmer — he walks straight over it
+      }
+    });
+    return justLocked;
+  }
+
+  // The fox slides after the flock. Walls, pens and the farmer stop it; an
+  // un-penned sheep does not — it runs straight into the first one it meets.
+  function slideFox(dir) {
+    var fox = state.entities.filter(function (e) { return e.kind === "fox"; })[0];
+    if (!fox) return null;
+    var d = DIRS[dir], dr = d[0], dc = d[1];
+    for (;;) {
+      var nr = fox.r + dr, nc = fox.c + dc;
+      var t = tileAt(nr, nc);
+      if (!t || t === "wall" || t === "pen") break;
+      var occ = occupant(nr, nc, fox);
+      if (occ) {
+        if (occ.kind === "sheep" && !occ.locked) { fox.r = nr; fox.c = nc; return occ; }
+        break;                               // the farmer shields what is behind him
+      }
+      fox.r = nr; fox.c = nc;
+      if (t === "mud") break;
+    }
+    return null;
+  }
+
+  function isWon() {
+    return state.entities.every(function (e) { return e.kind !== "sheep" || e.locked; });
+  }
+
+  function signature() {
+    return state.entities.map(function (e) {
+      return e.id + ":" + e.r + "," + e.c + "," + (e.locked ? 1 : 0);
+    }).join("|");
+  }
+
+  function snapshot() {
+    return {
+      moves: state.moves,
+      entities: state.entities.map(function (e) {
+        return { id: e.id, r: e.r, c: e.c, locked: e.locked };
+      })
+    };
+  }
+
+  function restore(snap) {
+    state.moves = snap.moves;
+    snap.entities.forEach(function (s) {
+      var e = state.entities.filter(function (x) { return x.id === s.id; })[0];
+      e.r = s.r; e.c = s.c; e.locked = s.locked;
+    });
+    state.status = "playing";
+  }
+
+  // ---- Rendering --------------------------------------------------------
+  function buildLevel(index) {
+    state = parseLevel(index);
+    undoStack = [];
+    entityEls = {};
+
+    grid.textContent = "";
+    board.style.setProperty("--cols", state.grid[0].length);
+    board.style.setProperty("--rows", state.grid.length);
+
+    var frag = document.createDocumentFragment();
+    state.grid.forEach(function (row, r) {
+      row.forEach(function (t, c) {
+        var el = document.createElement("div");
+        el.className = "tile tile--" + (t === "floor" ? "grass" : t);
+        if (t === "floor" && (r + c) % 2) el.className += " is-alt";
+        el.style.setProperty("--r", r);
+        el.style.setProperty("--c", c);
+        frag.appendChild(el);
+      });
+    });
+
+    state.entities.forEach(function (e) {
+      var el = document.createElement("div");
+      el.className = "ent ent--" + e.kind;
+      el.style.setProperty("--r", e.r);
+      el.style.setProperty("--c", e.c);
+      el.innerHTML = '<svg aria-hidden="true"><use href="#' + SPRITE[e.kind] + '"></use></svg>';
+      entityEls[e.id] = el;
+      frag.appendChild(el);
+    });
+
+    grid.appendChild(frag);
+    hideOverlay();
+    sizeBoard();
+    paint();
+    announce(LEVELS[index].name + ". " + LEVELS[index].hint);
+  }
+
+  function paint() {
+    state.entities.forEach(function (e) {
+      var el = entityEls[e.id];
+      el.style.setProperty("--r", e.r);
+      el.style.setProperty("--c", e.c);
+      el.classList.toggle("is-locked", e.kind === "sheep" && e.locked);
+    });
+    document.getElementById("levelName").textContent = LEVELS[state.index].name;
+    document.getElementById("levelNo").textContent = (state.index + 1) + "/" + LEVELS.length;
+    document.getElementById("moveCount").textContent = state.moves;
+    btnUndo.disabled = undoStack.length === 0;
+    paintPips();
+  }
+
+  function paintPips() {
+    Array.prototype.slice.call(pips.children).forEach(function (b, i) {
+      b.setAttribute("aria-current", i === state.index ? "true" : "false");
+      b.classList.toggle("is-done", cleared.indexOf(i) !== -1);
+    });
+  }
+
+  function pulseAt(e) {
+    if (reduced.matches) return;
+    var ring = document.createElement("div");
+    ring.className = "pulse";
+    ring.style.setProperty("--r", e.r);
+    ring.style.setProperty("--c", e.c);
+    grid.appendChild(ring);
+    setTimeout(function () { if (ring.parentNode) ring.parentNode.removeChild(ring); }, 700);
+  }
+
+  // Work out the biggest cell that still lets the whole card fit the screen:
+  // measure every row of the card except the board, and give the board the
+  // rest. The board is absolutely centred in its wrapper, so the size we hand
+  // it can never feed back into the space we just measured.
+  function sizeBoard() {
+    if (!state) return;
+    var cols = state.grid[0].length, rows = state.grid.length;
+
+    var appCS = getComputedStyle(app);
+    var inner = app.clientHeight - parseFloat(appCS.paddingTop) - parseFloat(appCS.paddingBottom);
+
+    var headerCS = getComputedStyle(headerEl);
+    var headerH = headerEl.getBoundingClientRect().height + parseFloat(headerCS.marginBottom);
+
+    var cardCS = getComputedStyle(cardEl);
+    var gap = parseFloat(cardCS.rowGap) || 0;
+    var chrome = parseFloat(cardCS.paddingTop) + parseFloat(cardCS.paddingBottom) +
+                 parseFloat(cardCS.borderTopWidth) + parseFloat(cardCS.borderBottomWidth);
+
+    var siblings = 0, items = 1;           // the board's own row counts too
+    [hudEl, legendEl, controlsEl, pips].forEach(function (el) {
+      var h = el.getBoundingClientRect().height;
+      if (h > 0) { siblings += h; items++; }
+    });
+
+    var free = inner - headerH - chrome - siblings - gap * (items - 1);
+    var w = boardWrap.clientWidth - 14;    // board panel padding
+    var cell = Math.floor(Math.min(w / cols, (free - 14) / rows));
+    cell = Math.max(20, Math.min(72, cell));
+
+    board.style.setProperty("--cell", cell + "px");
+    boardWrap.style.height = (rows * cell + 14) + "px";
+  }
+
+  function announce(msg) { live.textContent = msg; }
+
+  // ---- Overlays ---------------------------------------------------------
+  function hideOverlay() { overlay.hidden = true; }
+
+  function showOverlay(kind) {
+    var last = state.index === LEVELS.length - 1;
+    if (kind === "win") {
+      overlayTitle.textContent = last ? "Every flock is home!" : "Pen full!";
+      overlayLine.textContent = state.moves + (state.moves === 1 ? " move" : " moves");
+      btnAgain.textContent = "Replay";
+      btnNext.hidden = last;
+    } else {
+      overlayTitle.textContent = "The fox got one!";
+      overlayLine.textContent = "Pens keep sheep safe — get there first.";
+      btnAgain.textContent = "Try again";
+      btnNext.hidden = true;
+    }
+    overlay.hidden = false;
+    announce(overlayTitle.textContent + " " + overlayLine.textContent);
+  }
+
+  // ---- Turn -------------------------------------------------------------
+  function move(dir) {
+    if (!state || state.status !== "playing") return;
+
+    var before = signature();
+    var snap = snapshot();
+
+    var justLocked = slideAnimals(dir);
+    var caught = slideFox(dir);
+
+    if (signature() === before) return;   // nothing shifted — not a turn
+
+    undoStack.push(snap);
+    state.moves++;
+    paint();
+    justLocked.forEach(pulseAt);
+
+    if (caught) {
+      state.status = "lost";
+    } else if (isWon()) {
+      state.status = "won";
+      if (cleared.indexOf(state.index) === -1) cleared.push(state.index);
+      paintPips();
+    }
+
+    if (state.status !== "playing") {
+      var kind = state.status === "won" ? "win" : "lose";
+      // Let the slide land first, so the last move is actually visible.
+      setTimeout(function () { showOverlay(kind); }, reduced.matches ? 0 : 200);
+    }
+  }
+
+  function undo() {
+    if (!undoStack.length) return;
+    restore(undoStack.pop());
+    hideOverlay();
+    paint();
+  }
+
+  function reset() {
+    var snap = snapshot();                    // lets Undo step back out of a reset
+    var fresh = parseLevel(state.index);
+    restore({ moves: 0, entities: fresh.entities });
+    if (snap.moves > 0) undoStack.push(snap);
+    hideOverlay();
+    paint();
+  }
+
+  function goto(index) {
+    if (index < 0 || index >= LEVELS.length) return;
+    buildLevel(index);
+  }
+
+  // ---- Input ------------------------------------------------------------
+  Array.prototype.slice.call(document.querySelectorAll("[data-dir]")).forEach(function (b) {
+    b.addEventListener("click", function () { move(b.getAttribute("data-dir")); });
+  });
+
+  btnUndo.addEventListener("click", undo);
+  btnReset.addEventListener("click", reset);
+  btnAgain.addEventListener("click", reset);
+  btnNext.addEventListener("click", function () { goto(state.index + 1); });
+
+  document.addEventListener("keydown", function (ev) {
+    var map = { ArrowUp: "U", ArrowDown: "D", ArrowLeft: "L", ArrowRight: "R" };
+    if (map[ev.key]) { ev.preventDefault(); move(map[ev.key]); }
+    else if (ev.key === "z" || ev.key === "Z") undo();
+    else if (ev.key === "r" || ev.key === "R") reset();
+  });
+
+  // Swipe on the board is the primary input; the D-pad is the fallback.
+  (function () {
+    var sx = 0, sy = 0, tracking = false;
+    var THRESHOLD = 22;
+
+    board.addEventListener("pointerdown", function (ev) {
+      if (!overlay.hidden) return;
+      tracking = true;
+      sx = ev.clientX;
+      sy = ev.clientY;
+    });
+
+    board.addEventListener("pointermove", function (ev) {
+      if (!tracking) return;
+      var dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < THRESHOLD) return;
+      tracking = false;
+      move(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "R" : "L") : (dy > 0 ? "D" : "U"));
+    });
+
+    board.addEventListener("pointerup", function () { tracking = false; });
+    board.addEventListener("pointercancel", function () { tracking = false; });
+  })();
+
+  // ---- Boot -------------------------------------------------------------
+  LEVELS.forEach(function (lvl, i) {
+    var b = document.createElement("button");
+    b.className = "pip";
+    b.type = "button";
+    b.textContent = i + 1;
+    b.setAttribute("aria-label", "Level " + (i + 1) + ": " + lvl.name);
+    b.addEventListener("click", function () { goto(i); });
+    pips.appendChild(b);
+  });
+
+  // Observe the shell, not the wrapper — sizeBoard() writes the wrapper's
+  // height, and watching what you write is how you get a resize loop.
+  if (window.ResizeObserver) {
+    new ResizeObserver(sizeBoard).observe(app);
+  } else {
+    window.addEventListener("resize", sizeBoard);
+  }
+  window.addEventListener("orientationchange", function () { setTimeout(sizeBoard, 120); });
+
+  buildLevel(0);
+</script>
+
+</body>
+</html>
