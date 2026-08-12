@@ -1,0 +1,878 @@
+<!doctype html>
+<!--
+  PROTOTYPE-7 — Slide & Spell
+  A sliding-tile word puzzle: one swipe slides every letter tile at once, walls
+  split each row and column into segments, and the level ends the instant the
+  hidden word appears as an exact run of letters anywhere on the board.
+
+  Theme: a printer's typecase — ivory metal type slugs sliding in an oak tray.
+
+  Every level below was generated and verified by a solver that implements the
+  same rules as the engine in this file: the start position is never already a
+  win, no move before the last one in the stored solution wins early, the final
+  move does win, and no reachable position can soft-lock (a win is always still
+  reachable). "par" is the proven minimum move count.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Slide &amp; Spell</title>
+<style>
+  :root {
+    --bg: #eae0cf;
+    --surface: #fbf6ec;
+    --text: #2b231a;
+    --muted: #7d6b55;
+    --border: #d8c9b0;
+    --accent: #b04a1c;
+    --accent-text: #fff8ef;
+    --tray: #e0d3bd;
+    --tray-line: #cbb99c;
+    --wall-a: #7a6047;
+    --wall-b: #5d4832;
+    --wall-edge: #4a3826;
+    --tile-a: #fffdf7;
+    --tile-b: #efe2ca;
+    --tile-edge: #c9b696;
+    --tile-ink: #241c13;
+    --shadow: 0 1px 2px rgba(60, 40, 20, .10), 0 10px 26px rgba(60, 40, 20, .12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14100c;
+      --surface: #1e1811;
+      --text: #f3e9d8;
+      --muted: #a08d73;
+      --border: #362b20;
+      --accent: #e07a3c;
+      --accent-text: #17110b;
+      --tray: #2c2318;
+      --tray-line: #3f3122;
+      --wall-a: #4b3a29;
+      --wall-b: #33261a;
+      --wall-edge: #241a11;
+      --tile-a: #f6ecd8;
+      --tile-b: #d8c7a7;
+      --tile-edge: #8d7a5b;
+      --tile-ink: #1d150d;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 10px 26px rgba(0, 0, 0, .5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 10px)
+      calc(env(safe-area-inset-right) + 14px)
+      calc(env(safe-area-inset-bottom) + 12px)
+      calc(env(safe-area-inset-left) + 14px);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex: none;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .app__title {
+    margin: 0;
+    font: 650 17px/1.2 Georgia, "Iowan Old Style", "Times New Roman", serif;
+    letter-spacing: .01em;
+    flex: 1;
+  }
+
+  .app__tag {
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .app__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+  .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .screen[hidden] { display: none; }
+
+  /* ---------- level select ---------- */
+
+  .lede {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .levels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: min-content;
+    gap: 12px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-bottom: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .lvl {
+    appearance: none;
+    position: relative;
+    aspect-ratio: 1;
+    min-height: 88px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: linear-gradient(180deg, var(--tile-a), var(--tile-b));
+    color: var(--tile-ink);
+    box-shadow: var(--shadow);
+    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .lvl:active { transform: scale(.97); }
+  .lvl__n { font: 700 26px/1 Georgia, "Times New Roman", serif; }
+  .lvl__meta { color: #6c5b44; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+
+  .lvl--solved { background: linear-gradient(180deg, #2f6b4f, #235340); color: #f2fbf5; border-color: #1d4433; }
+  .lvl--solved .lvl__meta { color: #bfe5d0; }
+
+  .lvl__check {
+    position: absolute;
+    top: 7px;
+    right: 9px;
+    font-size: 13px;
+    opacity: .9;
+  }
+
+  /* ---------- puzzle ---------- */
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex: none;
+  }
+
+  .chip {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 999px;
+    min-height: 36px;
+    padding: 0 14px;
+    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .chip:active { transform: scale(.97); }
+  .chip[disabled] { opacity: .4; }
+
+  .chip--icon {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 999px;
+    font-size: 17px;
+  }
+
+  .bar__spacer { flex: 1; }
+
+  .count {
+    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: var(--muted);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .count b {
+    color: var(--text);
+    font: 700 17px/1 Georgia, "Times New Roman", serif;
+    margin-left: 5px;
+  }
+
+  .boardwrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+  }
+
+  .board {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    max-height: 100%;
+    aspect-ratio: 1;
+    background: var(--tray);
+    border: 2px solid var(--tray-line);
+    border-radius: 14px;
+    padding: 6px;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, .18), var(--shadow);
+  }
+
+  .board--nudge { animation: nudge .22s ease; }
+
+  @keyframes nudge {
+    0%, 100% { transform: translateX(0); }
+    30% { transform: translateX(-5px); }
+    70% { transform: translateX(5px); }
+  }
+
+  .board__inner { position: relative; width: 100%; height: 100%; }
+
+  .cell, .tile {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: calc(100% / var(--cols));
+    height: calc(100% / var(--rows));
+    padding: 3px;
+  }
+
+  .cell__face, .tile__face {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* empty: a felt-lined recess in the tray */
+  .cell--empty .cell__face {
+    background: rgba(0, 0, 0, .07);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .14);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .cell--empty .cell__face {
+      background: rgba(0, 0, 0, .35);
+      box-shadow: inset 0 2px 5px rgba(0, 0, 0, .6);
+    }
+  }
+
+  /* wall: a fixed oak divider */
+  .cell--wall .cell__face {
+    background:
+      repeating-linear-gradient(90deg, rgba(0, 0, 0, .13) 0 1px, transparent 1px 6px),
+      linear-gradient(180deg, var(--wall-a), var(--wall-b));
+    border: 1px solid var(--wall-edge);
+    box-shadow: 0 2px 0 var(--wall-edge), inset 0 1px 0 rgba(255, 255, 255, .10);
+  }
+
+  /* tile: a metal type slug */
+  .tile {
+    z-index: 2;
+    --x: 0;
+    --y: 0;
+    transform: translate(calc(var(--x) * 100%), calc(var(--y) * 100%));
+    transition: transform .19s cubic-bezier(.22, .68, .24, 1);
+  }
+
+  .tile__face {
+    background: linear-gradient(180deg, var(--tile-a), var(--tile-b));
+    border: 1px solid var(--tile-edge);
+    color: var(--tile-ink);
+    font: 700 clamp(20px, 7.2vw, 34px)/1 Georgia, "Iowan Old Style", "Times New Roman", serif;
+    box-shadow: 0 2px 0 var(--tile-edge), 0 4px 8px rgba(0, 0, 0, .18), inset 0 1px 0 rgba(255, 255, 255, .8);
+  }
+
+  .board--6 .tile__face { font-size: clamp(17px, 6vw, 29px); }
+
+  .pad {
+    flex: none;
+    margin-top: 12px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    max-width: 260px;
+    width: 100%;
+    align-self: center;
+  }
+
+  .dir {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    border-radius: 14px;
+    min-height: 52px;
+    font-size: 20px;
+    line-height: 1;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+  }
+
+  .dir:active { transform: scale(.96); background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .dir--ph { visibility: hidden; }
+
+  .hint {
+    flex: none;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin: 8px 0 0;
+  }
+
+  /* ---------- win reveal ---------- */
+
+  .win {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(20, 14, 8, .62);
+    backdrop-filter: blur(3px);
+    animation: fade .18s ease;
+  }
+
+  .win[hidden] { display: none; }
+
+  @keyframes fade { from { opacity: 0; } }
+
+  .win__card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 22px 18px 18px;
+    width: 100%;
+    max-width: 360px;
+    text-align: center;
+    animation: pop .22s cubic-bezier(.2, .8, .3, 1);
+  }
+
+  @keyframes pop { from { transform: translateY(12px) scale(.96); opacity: 0; } }
+
+  .win__kicker {
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .win__word {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 14px 0 12px;
+  }
+
+  .win__slug {
+    width: 44px;
+    height: 52px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, var(--tile-a), var(--tile-b));
+    border: 1px solid var(--tile-edge);
+    color: var(--tile-ink);
+    font: 700 27px/52px Georgia, "Iowan Old Style", "Times New Roman", serif;
+    box-shadow: 0 2px 0 var(--tile-edge), inset 0 1px 0 rgba(255, 255, 255, .8);
+    animation: drop .26s cubic-bezier(.2, .8, .3, 1) both;
+  }
+
+  @keyframes drop { from { transform: translateY(-14px) rotate(-4deg); opacity: 0; } }
+
+  .win__stats { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
+  .win__stats b { color: var(--text); }
+
+  .win__actions { display: flex; flex-direction: column; gap: 8px; }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: 600 16px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 48px;
+    padding: 0 20px;
+    cursor: pointer;
+  }
+
+  .btn:active { transform: scale(.98); }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="app__header">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="app__title">Slide &amp; Spell</h1>
+    <span class="app__tag" id="tag">Typecase</span>
+  </header>
+
+  <main class="app__body">
+
+    <!-- APP MARKUP -->
+    <section class="screen" id="screenSelect">
+      <p class="lede">Every swipe slides the whole case of type. Each tray hides one
+        word — find where the letters can land, and in what order.</p>
+      <div class="levels" id="levels"></div>
+    </section>
+
+    <section class="screen" id="screenPuzzle" hidden>
+      <div class="bar">
+        <button class="chip" id="toSelect" type="button">&larr; Trays</button>
+        <button class="chip chip--icon" id="undo" type="button" aria-label="Undo one move">↶</button>
+        <button class="chip chip--icon" id="reset" type="button" aria-label="Reset the tray">⟲</button>
+        <span class="bar__spacer"></span>
+        <span class="count">Moves<b id="moves">0</b></span>
+      </div>
+
+      <div class="boardwrap" id="boardwrap">
+        <div class="board" id="board"><div class="board__inner" id="inner"></div></div>
+      </div>
+
+      <div class="pad">
+        <span class="dir dir--ph"></span>
+        <button class="dir" data-dir="U" type="button" aria-label="Slide up">↑</button>
+        <span class="dir dir--ph"></span>
+        <button class="dir" data-dir="L" type="button" aria-label="Slide left">←</button>
+        <button class="dir" data-dir="D" type="button" aria-label="Slide down">↓</button>
+        <button class="dir" data-dir="R" type="button" aria-label="Slide right">→</button>
+      </div>
+
+      <p class="hint">Swipe the tray or use the pad.</p>
+    </section>
+    <!-- /APP MARKUP -->
+
+  </main>
+</div>
+
+<div class="win" id="win" hidden>
+  <div class="win__card">
+    <div class="win__kicker" id="winKicker">Set in type</div>
+    <div class="win__word" id="winWord"></div>
+    <p class="win__stats" id="winStats"></p>
+    <div class="win__actions">
+      <button class="btn" id="winNext" type="button">Next tray</button>
+      <button class="btn btn--ghost" id="winBack" type="button">Back to trays</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // APP LOGIC
+
+  /* Levels are generated data, verified by a solver that implements the rules
+     below exactly: start is never already solved, `par` is the proven minimum,
+     and no reachable position can soft-lock. '#' wall, '.' empty, A-Z tile. */
+  var LEVELS = /*LEVELS*/[
+    { word: "CAT", w: 5, h: 5, par: 1, solution: ["L"], decoy: false,
+      grid: "....C.A......T.......#.#." },
+    { word: "SUN", w: 5, h: 5, par: 2, solution: ["U", "L"], decoy: false,
+      grid: "...U..S..N.#...#..#......" },
+    { word: "MOON", w: 5, h: 5, par: 2, solution: ["U", "L"], decoy: false,
+      grid: ".O..NM#....#.....#.....O." },
+    { word: "FROG", w: 5, h: 5, par: 3, solution: ["U", "R", "U"], decoy: false,
+      grid: "#.....R...#.OG...#..F..#." },
+    { word: "LAMP", w: 5, h: 5, par: 4, solution: ["U", "L", "D", "L"], decoy: true,
+      grid: "...L..##...M#..A....#PZ.." },
+    { word: "STORM", w: 6, h: 6, par: 4, solution: ["U", "L", "U", "L"], decoy: true,
+      grid: ".......ST#..#..##O###.Q.....#R##..#M" },
+    { word: "RIVER", w: 6, h: 6, par: 5, solution: ["D", "L", "D", "R", "D"], decoy: false,
+      grid: "....#....#R#...#.#.#.#E.R.#..#IV...." },
+    { word: "MOTH", w: 6, h: 6, par: 6, solution: ["R", "U", "R", "D", "R", "U"], decoy: true,
+      grid: ".#K.O...M#.T.#.#....##....#.H...##.#" },
+    { word: "EMBER", w: 6, h: 6, par: 7, solution: ["D", "R", "D", "L", "D", "R", "D"], decoy: false,
+      grid: "E.##...#..#.M#B##.....R#..##E.#....." },
+    { word: "GLINT", w: 6, h: 6, par: 8, solution: ["D", "R", "D", "R", "U", "L", "U", "L"], decoy: true,
+      grid: "..I..T.L##...N.X..G#...#.##..##.###." }
+  ]/*/LEVELS*/;
+
+  var WALL = '#', EMPTY = '.';
+
+  var state = null;          // { li, w, h, word, tiles, walls, moves, history }
+  var animating = false;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- storage (nice-to-have; in-memory if unavailable) ---------- */
+
+  var STORE_KEY = 'slide-spell-v1';
+  var solved = {};
+  try {
+    var raw = localStorage.getItem(STORE_KEY);
+    if (raw) { solved = JSON.parse(raw) || {}; }
+  } catch (e) { solved = {}; }
+
+  function persist() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(solved)); } catch (e) { /* in-memory only */ }
+  }
+
+  /* ---------- rules ---------- */
+
+  // Open (non-wall) segments of one line, as arrays of indices.
+  function segments(isWall, len) {
+    var segs = [], cur = [];
+    for (var i = 0; i < len; i++) {
+      if (isWall(i)) { if (cur.length) { segs.push(cur); } cur = []; }
+      else { cur.push(i); }
+    }
+    if (cur.length) { segs.push(cur); }
+    return segs;
+  }
+
+  // Slide every tile at once. Returns new {x,y} for each tile, by id.
+  function slide(tiles, walls, w, h, dir) {
+    var at = {}, i;
+    for (i = 0; i < tiles.length; i++) { at[tiles[i].x + ',' + tiles[i].y] = tiles[i]; }
+    var moved = {};
+    var horizontal = (dir === 'L' || dir === 'R');
+    var outer = horizontal ? h : w;
+
+    for (var o = 0; o < outer; o++) {
+      var isWall = horizontal
+        ? function (i) { return walls[i + ',' + o]; }
+        : function (i) { return walls[o + ',' + i]; };
+      var segs = segments(isWall, horizontal ? w : h);
+
+      for (var s = 0; s < segs.length; s++) {
+        var seg = segs[s];
+        var inSeg = [];
+        for (i = 0; i < seg.length; i++) {
+          var t = horizontal ? at[seg[i] + ',' + o] : at[o + ',' + seg[i]];
+          if (t) { inSeg.push(t); }
+        }
+        // Pack toward the swiped edge of the segment, keeping relative order.
+        var slots = (dir === 'L' || dir === 'U') ? seg.slice() : seg.slice().reverse();
+        var order = (dir === 'L' || dir === 'U') ? inSeg : inSeg.slice().reverse();
+        for (i = 0; i < order.length; i++) {
+          moved[order[i].id] = horizontal
+            ? { x: slots[i], y: o }
+            : { x: o, y: slots[i] };
+        }
+      }
+    }
+    return moved;
+  }
+
+  // Every maximal run of tile cells: rows left-to-right, then columns top-to-bottom.
+  function runs(tiles, walls, w, h) {
+    var at = {}, out = [], x, y, cur;
+    for (var i = 0; i < tiles.length; i++) { at[tiles[i].x + ',' + tiles[i].y] = tiles[i].letter; }
+
+    for (y = 0; y < h; y++) {
+      cur = '';
+      for (x = 0; x < w; x++) {
+        var c = at[x + ',' + y];
+        if (c) { cur += c; } else { if (cur) { out.push(cur); } cur = ''; }
+      }
+      if (cur) { out.push(cur); }
+    }
+    for (x = 0; x < w; x++) {
+      cur = '';
+      for (y = 0; y < h; y++) {
+        var d = at[x + ',' + y];
+        if (d) { cur += d; } else { if (cur) { out.push(cur); } cur = ''; }
+      }
+      if (cur) { out.push(cur); }
+    }
+    return out;
+  }
+
+  function isWin(tiles, walls, w, h, word) {
+    var r = runs(tiles, walls, w, h);
+    for (var i = 0; i < r.length; i++) { if (r[i] === word) { return true; } }
+    return false;
+  }
+
+  /* ---------- level select ---------- */
+
+  function renderSelect() {
+    var host = $('levels');
+    host.innerHTML = '';
+    LEVELS.forEach(function (lv, i) {
+      var b = document.createElement('button');
+      var best = solved[i];
+      b.type = 'button';
+      b.className = 'lvl' + (best !== undefined ? ' lvl--solved' : '');
+      b.innerHTML =
+        (best !== undefined ? '<span class="lvl__check">✓</span>' : '') +
+        '<span class="lvl__n">' + (i + 1) + '</span>' +
+        '<span class="lvl__meta">' +
+        (best !== undefined ? best + (best === 1 ? ' move' : ' moves') : (lv.w + '×' + lv.h)) +
+        '</span>';
+      b.addEventListener('click', function () { openLevel(i); });
+      host.appendChild(b);
+    });
+  }
+
+  /* ---------- puzzle ---------- */
+
+  function openLevel(li) {
+    var lv = LEVELS[li];
+    var walls = {}, tiles = [], id = 0;
+    for (var y = 0; y < lv.h; y++) {
+      for (var x = 0; x < lv.w; x++) {
+        var c = lv.grid.charAt(y * lv.w + x);
+        if (c === WALL) { walls[x + ',' + y] = true; }
+        else if (c !== EMPTY) { tiles.push({ id: id++, letter: c, x: x, y: y }); }
+      }
+    }
+    state = {
+      li: li, w: lv.w, h: lv.h, word: lv.word,
+      walls: walls, tiles: tiles, moves: 0, history: [],
+      start: tiles.map(function (t) { return { x: t.x, y: t.y }; })
+    };
+
+    $('screenSelect').hidden = true;
+    $('screenPuzzle').hidden = false;
+    $('tag').textContent = 'Tray ' + (li + 1) + ' · ' + lv.w + '×' + lv.h;
+    buildBoard();
+    syncBar();
+  }
+
+  function buildBoard() {
+    var board = $('board'), inner = $('inner');
+    board.className = 'board' + (state.w >= 6 ? ' board--6' : '');
+    board.style.setProperty('--cols', state.w);
+    board.style.setProperty('--rows', state.h);
+    inner.innerHTML = '';
+
+    for (var y = 0; y < state.h; y++) {
+      for (var x = 0; x < state.w; x++) {
+        var cell = document.createElement('div');
+        var wall = !!state.walls[x + ',' + y];
+        cell.className = 'cell ' + (wall ? 'cell--wall' : 'cell--empty');
+        cell.style.transform = 'translate(' + (x * 100) + '%,' + (y * 100) + '%)';
+        cell.innerHTML = '<div class="cell__face"></div>';
+        inner.appendChild(cell);
+      }
+    }
+
+    state.tiles.forEach(function (t) {
+      var el = document.createElement('div');
+      el.className = 'tile';
+      el.innerHTML = '<div class="tile__face">' + t.letter + '</div>';
+      t.el = el;
+      inner.appendChild(el);
+    });
+    placeTiles();
+  }
+
+  function placeTiles() {
+    state.tiles.forEach(function (t) {
+      t.el.style.setProperty('--x', t.x);
+      t.el.style.setProperty('--y', t.y);
+    });
+  }
+
+  function syncBar() {
+    $('moves').textContent = state.moves;
+    $('undo').disabled = state.history.length === 0;
+    $('reset').disabled = state.moves === 0;
+  }
+
+  function nudge() {
+    var b = $('board');
+    b.classList.remove('board--nudge');
+    void b.offsetWidth;
+    b.classList.add('board--nudge');
+  }
+
+  function doMove(dir) {
+    if (!state || animating || !$('win').hidden) { return; }
+    var moved = slide(state.tiles, state.walls, state.w, state.h, dir);
+
+    var changed = state.tiles.some(function (t) {
+      var m = moved[t.id];
+      return m && (m.x !== t.x || m.y !== t.y);
+    });
+    if (!changed) { nudge(); return; }
+
+    state.history.push(state.tiles.map(function (t) { return { x: t.x, y: t.y }; }));
+    state.tiles.forEach(function (t) {
+      var m = moved[t.id];
+      t.x = m.x; t.y = m.y;
+    });
+    state.moves++;
+    placeTiles();
+    syncBar();
+
+    if (isWin(state.tiles, state.walls, state.w, state.h, state.word)) {
+      animating = true;
+      setTimeout(function () { animating = false; showWin(); }, 230);
+    }
+  }
+
+  function undo() {
+    if (!state || !state.history.length) { return; }
+    var prev = state.history.pop();
+    state.tiles.forEach(function (t, i) { t.x = prev[i].x; t.y = prev[i].y; });
+    state.moves--;
+    placeTiles();
+    syncBar();
+  }
+
+  function reset() {
+    if (!state) { return; }
+    state.tiles.forEach(function (t, i) { t.x = state.start[i].x; t.y = state.start[i].y; });
+    state.moves = 0;
+    state.history = [];
+    placeTiles();
+    syncBar();
+  }
+
+  function showWin() {
+    var lv = LEVELS[state.li];
+    var best = solved[state.li];
+    if (best === undefined || state.moves < best) { solved[state.li] = state.moves; persist(); }
+
+    var host = $('winWord');
+    host.innerHTML = '';
+    state.word.split('').forEach(function (ch, i) {
+      var s = document.createElement('span');
+      s.className = 'win__slug';
+      s.textContent = ch;
+      s.style.animationDelay = (i * 55) + 'ms';
+      host.appendChild(s);
+    });
+
+    $('winKicker').textContent = state.moves === lv.par ? 'Perfect setting' : 'Set in type';
+    $('winStats').innerHTML =
+      'Solved in <b>' + state.moves + '</b> move' + (state.moves === 1 ? '' : 's') +
+      ' · best possible <b>' + lv.par + '</b>';
+    $('winNext').hidden = state.li >= LEVELS.length - 1;
+    $('win').hidden = false;
+    renderSelect();
+  }
+
+  function toSelect() {
+    $('win').hidden = true;
+    $('screenPuzzle').hidden = true;
+    $('screenSelect').hidden = false;
+    $('tag').textContent = 'Typecase';
+    state = null;
+    renderSelect();
+  }
+
+  /* ---------- input ---------- */
+
+  Array.prototype.forEach.call(document.querySelectorAll('[data-dir]'), function (b) {
+    b.addEventListener('click', function () { doMove(b.getAttribute('data-dir')); });
+  });
+
+  $('undo').addEventListener('click', undo);
+  $('reset').addEventListener('click', reset);
+  $('toSelect').addEventListener('click', toSelect);
+  $('winBack').addEventListener('click', toSelect);
+  $('winNext').addEventListener('click', function () {
+    var next = state.li + 1;
+    $('win').hidden = true;
+    if (next < LEVELS.length) { openLevel(next); } else { toSelect(); }
+  });
+
+  (function swipe() {
+    var wrap = $('boardwrap'), sx = 0, sy = 0, tracking = false;
+
+    function start(x, y) { sx = x; sy = y; tracking = true; }
+    function end(x, y) {
+      if (!tracking) { return; }
+      tracking = false;
+      var dx = x - sx, dy = y - sy;
+      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) { return; }
+      if (Math.abs(dx) > Math.abs(dy)) { doMove(dx > 0 ? 'R' : 'L'); }
+      else { doMove(dy > 0 ? 'D' : 'U'); }
+    }
+
+    wrap.addEventListener('touchstart', function (e) {
+      var t = e.changedTouches[0];
+      start(t.clientX, t.clientY);
+    }, { passive: true });
+
+    wrap.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+
+    wrap.addEventListener('touchend', function (e) {
+      var t = e.changedTouches[0];
+      end(t.clientX, t.clientY);
+    });
+
+    wrap.addEventListener('mousedown', function (e) { start(e.clientX, e.clientY); });
+    window.addEventListener('mouseup', function (e) { end(e.clientX, e.clientY); });
+  })();
+
+  window.addEventListener('keydown', function (e) {
+    var map = { ArrowLeft: 'L', ArrowRight: 'R', ArrowUp: 'U', ArrowDown: 'D' };
+    if (map[e.key]) { e.preventDefault(); doMove(map[e.key]); }
+    else if (e.key === 'z') { undo(); }
+    else if (e.key === 'r') { reset(); }
+  });
+
+  renderSelect();
+
+  // /APP LOGIC
+</script>
+
+</body>
+</html>

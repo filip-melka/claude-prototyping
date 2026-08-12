@@ -59,6 +59,18 @@
       "createdAt": "2026-08-11",
       "updatedAt": "2026-08-11",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-7",
+      "workItemId": "493856b5-ab24-4ea7-bbeb-7603d734cbb4",
+      "title": "Slide & Spell",
+      "tagline": "One swipe slides the whole case of type — spell the hidden word to open the tray.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-7/index.html",
+      "version": 1,
+      "createdAt": "2026-08-12",
+      "updatedAt": "2026-08-12",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
