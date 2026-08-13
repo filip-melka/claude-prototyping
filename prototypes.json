@@ -64,13 +64,16 @@
       "id": "PROTOTYPE-7",
       "workItemId": "493856b5-ab24-4ea7-bbeb-7603d734cbb4",
       "title": "Slide & Spell",
-      "tagline": "One swipe slides the whole case of type — spell the hidden word to open the tray.",
+      "tagline": "One swipe slides every letter at once — spell the hidden word, or race the clock in Endless.",
       "kind": "game",
       "path": "prototypes/PROTOTYPE-7/index.html",
-      "version": 1,
+      "version": 2,
       "createdAt": "2026-08-12",
-      "updatedAt": "2026-08-12",
-      "changelog": ["v1 — initial prototype"]
+      "updatedAt": "2026-08-13",
+      "changelog": [
+        "v1 — initial prototype",
+        "v2 — bright minimal restyle (sage tray, pastel chunky tiles), added timed Endless mode"
+      ]
     }
   ]
 }

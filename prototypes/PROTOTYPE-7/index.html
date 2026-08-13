@@ -2,16 +2,18 @@
 <!--
   PROTOTYPE-7 — Slide & Spell
   A sliding-tile word puzzle: one swipe slides every letter tile at once, walls
-  split each row and column into segments, and the level ends the instant the
+  split each row and column into segments, and the puzzle ends the instant the
   hidden word appears as an exact run of letters anywhere on the board.
 
-  Theme: a printer's typecase — ivory metal type slugs sliding in an oak tray.
+  Two modes share one engine: a 10-level campaign, and Endless — short rounds
+  against a 20-second clock, drawn at random from a pre-verified pool.
 
-  Every level below was generated and verified by a solver that implements the
-  same rules as the engine in this file: the start position is never already a
-  win, no move before the last one in the stored solution wins early, the final
-  move does win, and no reachable position can soft-lock (a win is always still
-  reachable). "par" is the proven minimum move count.
+  Every level and every Endless round below is generated data, verified by a
+  solver that implements the same rules as the engine in this file: the start
+  position is never already a win, no move before the last one in the stored
+  solution wins early, the final move does win, "par" is the proven minimum,
+  and no reachable position can soft-lock (a win is always still reachable —
+  which is what makes Endless fair, since it has no Undo or Reset).
 -->
 <html lang="en">
 <head>
@@ -23,44 +25,45 @@
 <title>Slide &amp; Spell</title>
 <style>
   :root {
-    --bg: #eae0cf;
-    --surface: #fbf6ec;
-    --text: #2b231a;
-    --muted: #7d6b55;
-    --border: #d8c9b0;
-    --accent: #b04a1c;
-    --accent-text: #fff8ef;
-    --tray: #e0d3bd;
-    --tray-line: #cbb99c;
-    --wall-a: #7a6047;
-    --wall-b: #5d4832;
-    --wall-edge: #4a3826;
-    --tile-a: #fffdf7;
-    --tile-b: #efe2ca;
-    --tile-edge: #c9b696;
-    --tile-ink: #241c13;
-    --shadow: 0 1px 2px rgba(60, 40, 20, .10), 0 10px 26px rgba(60, 40, 20, .12);
+    --page: #ffffff;
+    --ink: #33403a;
+    --muted: #7d8f86;
+    --tray: #d8ebdd;
+    --cell: #b6d3c3;
+    --wall: #8caf9b;
+    --tile-ink: #2a352f;
+    --accent: #35b57f;
+    --accent-edge: #248a5f;
+    --accent-ink: #ffffff;
+    --control: #eef5f0;
+    --control-edge: #cfe0d5;
+
+    --t1: #5cb8ef; --e1: #3491ca;
+    --t2: #fa8a8a; --e2: #d76062;
+    --t3: #f8c93f; --e3: #d4a115;
+    --t4: #57cfa0; --e4: #2ea87a;
+    --t5: #ac9df3; --e5: #8175d3;
+    --t6: #fba45f; --e6: #d97e35;
+
+    --round: ui-rounded, "SF Pro Rounded", "Varela Round", "Trebuchet MS",
+             system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --spring: cubic-bezier(.34, 1.3, .5, 1);
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #14100c;
-      --surface: #1e1811;
-      --text: #f3e9d8;
-      --muted: #a08d73;
-      --border: #362b20;
-      --accent: #e07a3c;
-      --accent-text: #17110b;
-      --tray: #2c2318;
-      --tray-line: #3f3122;
-      --wall-a: #4b3a29;
-      --wall-b: #33261a;
-      --wall-edge: #241a11;
-      --tile-a: #f6ecd8;
-      --tile-b: #d8c7a7;
-      --tile-edge: #8d7a5b;
-      --tile-ink: #1d150d;
-      --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 10px 26px rgba(0, 0, 0, .5);
+      --page: #151a17;
+      --ink: #e9f2ec;
+      --muted: #92a89b;
+      --tray: #24322b;
+      --cell: #35493e;
+      --wall: #1c2621;
+      --tile-ink: #202b25;
+      --accent: #3fc98d;
+      --accent-edge: #2a9a69;
+      --accent-ink: #10201a;
+      --control: #23302a;
+      --control-edge: #33463b;
     }
   }
 
@@ -73,9 +76,9 @@
   }
 
   body {
-    background: var(--bg);
-    color: var(--text);
-    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--page);
+    color: var(--ink);
+    font: 16px/1.5 var(--round);
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
@@ -87,53 +90,59 @@
     flex-direction: column;
     height: 100dvh;
     padding:
-      calc(env(safe-area-inset-top) + 10px)
-      calc(env(safe-area-inset-right) + 14px)
-      calc(env(safe-area-inset-bottom) + 12px)
-      calc(env(safe-area-inset-left) + 14px);
+      calc(env(safe-area-inset-top) + 12px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 14px)
+      calc(env(safe-area-inset-left) + 16px);
     max-width: 520px;
     margin: 0 auto;
   }
 
+  /* ---------- shared chrome ---------- */
+
   .app__header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
+    gap: 12px;
+    margin-bottom: 16px;
     flex: none;
   }
-
-  .back {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    flex: none;
-    border-radius: 999px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--muted);
-    text-decoration: none;
-    font-size: 15px;
-    line-height: 1;
-  }
-
-  .back:active { transform: scale(.94); }
 
   .app__title {
     margin: 0;
-    font: 650 17px/1.2 Georgia, "Iowan Old Style", "Times New Roman", serif;
-    letter-spacing: .01em;
+    font: 800 20px/1.1 var(--round);
+    letter-spacing: -.01em;
     flex: 1;
   }
 
-  .app__tag {
-    font-size: 12px;
-    color: var(--muted);
-    letter-spacing: .12em;
+  .label {
+    font: 800 11px/1 var(--round);
+    letter-spacing: .14em;
     text-transform: uppercase;
+    color: var(--muted);
   }
+
+  /* one round control per screen — chunky, flat, no drop shadow */
+  .back {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border: 0;
+    border-radius: 16px;
+    background: var(--control);
+    box-shadow: 0 3px 0 var(--control-edge);
+    color: var(--ink);
+    text-decoration: none;
+    font: 700 19px/1 var(--round);
+    cursor: pointer;
+  }
+
+  .back[hidden] { display: none; }
+  .back:active { transform: translateY(3px); box-shadow: 0 0 0 var(--control-edge); }
 
   .app__body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
@@ -143,20 +152,44 @@
   /* ---------- level select ---------- */
 
   .lede {
-    margin: 0 0 14px;
+    margin: 0 0 18px;
     color: var(--muted);
-    font-size: 14px;
+    font-size: 15px;
+    line-height: 1.45;
   }
+
+  .endless-cta {
+    appearance: none;
+    border: 0;
+    width: 100%;
+    flex: none;
+    border-radius: 22px;
+    background: var(--accent);
+    box-shadow: 0 5px 0 var(--accent-edge);
+    color: var(--accent-ink);
+    font: 800 18px/1 var(--round);
+    min-height: 60px;
+    padding: 0 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    cursor: pointer;
+    margin-bottom: 20px;
+  }
+
+  .endless-cta:active { transform: translateY(5px); box-shadow: 0 0 0 var(--accent-edge); }
+  .endless-cta__sub { font: 800 11px/1 var(--round); letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
 
   .levels {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-auto-rows: min-content;
-    gap: 12px;
+    gap: 14px;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding-bottom: 8px;
+    padding-bottom: 10px;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -164,88 +197,90 @@
     appearance: none;
     position: relative;
     aspect-ratio: 1;
-    min-height: 88px;
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    background: linear-gradient(180deg, var(--tile-a), var(--tile-b));
+    min-height: 84px;
+    border: 0;
+    border-radius: 20px;
+    background: var(--cell);
+    box-shadow: 0 4px 0 var(--wall);
     color: var(--tile-ink);
-    box-shadow: var(--shadow);
-    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font: 800 12px/1 var(--round);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: 7px;
     cursor: pointer;
   }
 
-  .lvl:active { transform: scale(.97); }
-  .lvl__n { font: 700 26px/1 Georgia, "Times New Roman", serif; }
-  .lvl__meta { color: #6c5b44; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+  .lvl:active { transform: translateY(4px); box-shadow: 0 0 0 var(--wall); }
+  .lvl__n { font: 800 28px/1 var(--round); }
+  .lvl__meta { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .72; }
 
-  .lvl--solved { background: linear-gradient(180deg, #2f6b4f, #235340); color: #f2fbf5; border-color: #1d4433; }
-  .lvl--solved .lvl__meta { color: #bfe5d0; }
+  .lvl--solved { background: var(--accent); box-shadow: 0 4px 0 var(--accent-edge); color: var(--accent-ink); }
+  .lvl--solved .lvl__meta { opacity: .9; }
 
-  .lvl__check {
-    position: absolute;
-    top: 7px;
-    right: 9px;
-    font-size: 13px;
-    opacity: .9;
-  }
+  .lvl__check { position: absolute; top: 9px; right: 11px; font-size: 13px; }
 
-  /* ---------- puzzle ---------- */
+  /* ---------- puzzle (shared by both modes) ---------- */
 
   .bar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 10px;
+    gap: 10px;
+    margin-bottom: 14px;
     flex: none;
-  }
-
-  .chip {
-    appearance: none;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    border-radius: 999px;
-    min-height: 36px;
-    padding: 0 14px;
-    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    cursor: pointer;
-  }
-
-  .chip:active { transform: scale(.97); }
-  .chip[disabled] { opacity: .4; }
-
-  .chip--icon {
-    width: 44px;
     min-height: 44px;
-    padding: 0;
-    justify-content: center;
-    border-radius: 999px;
-    font-size: 17px;
   }
 
   .bar__spacer { flex: 1; }
+  .bar [hidden] { display: none; }
 
-  .count {
-    font: 600 13px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    color: var(--muted);
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    white-space: nowrap;
+  .chip {
+    appearance: none;
+    border: 0;
+    background: var(--control);
+    box-shadow: 0 3px 0 var(--control-edge);
+    color: var(--ink);
+    border-radius: 16px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    font: 700 18px/1 var(--round);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
   }
 
-  .count b {
-    color: var(--text);
-    font: 700 17px/1 Georgia, "Times New Roman", serif;
-    margin-left: 5px;
+  .chip:active { transform: translateY(3px); box-shadow: 0 0 0 var(--control-edge); }
+  .chip[disabled] { opacity: .35; }
+
+  .stat { text-align: right; white-space: nowrap; }
+  .stat + .stat { margin-left: 12px; }
+  .stat__k { display: block; font: 800 10px/1 var(--round); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .stat__v { display: block; font: 800 22px/1.15 var(--round); color: var(--ink); }
+  .stat__v--warn { color: var(--t2); }
+
+  .clock {
+    flex: none;
+    height: 8px;
+    border-radius: 99px;
+    background: var(--control);
+    overflow: hidden;
+    margin-bottom: 14px;
   }
+
+  .clock[hidden] { display: none; }
+
+  .clock__fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 99px;
+    background: var(--accent);
+    transform-origin: left center;
+  }
+
+  .clock__fill--warn { background: var(--t2); }
 
   .boardwrap {
     flex: 1;
@@ -254,27 +289,22 @@
     align-items: center;
     justify-content: center;
     touch-action: none;
+    position: relative;
   }
 
   .board {
     position: relative;
-    width: 100%;
-    max-width: 100%;
-    max-height: 100%;
-    aspect-ratio: 1;
     background: var(--tray);
-    border: 2px solid var(--tray-line);
-    border-radius: 14px;
-    padding: 6px;
-    box-shadow: inset 0 2px 8px rgba(0, 0, 0, .18), var(--shadow);
+    border-radius: 24px;
+    padding: 10px;
   }
 
-  .board--nudge { animation: nudge .22s ease; }
+  .board--nudge { animation: nudge .26s var(--spring); }
 
   @keyframes nudge {
     0%, 100% { transform: translateX(0); }
-    30% { transform: translateX(-5px); }
-    70% { transform: translateX(5px); }
+    30% { transform: translateX(-6px); }
+    70% { transform: translateX(6px); }
   }
 
   .board__inner { position: relative; width: 100%; height: 100%; }
@@ -285,97 +315,113 @@
     left: 0;
     width: calc(100% / var(--cols));
     height: calc(100% / var(--rows));
-    padding: 3px;
+    padding: 4px;
   }
 
   .cell__face, .tile__face {
     width: 100%;
     height: 100%;
-    border-radius: 8px;
+    border-radius: 15px;
     display: flex;
     align-items: center;
     justify-content: center;
   }
 
-  /* empty: a felt-lined recess in the tray */
-  .cell--empty .cell__face {
-    background: rgba(0, 0, 0, .07);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, .14);
-  }
+  /* empty and wall: same muted sage family — the wall is just flatter and darker */
+  .cell--empty .cell__face { background: var(--cell); }
+  .cell--wall .cell__face { background: var(--wall); border-radius: 13px; }
 
-  @media (prefers-color-scheme: dark) {
-    .cell--empty .cell__face {
-      background: rgba(0, 0, 0, .35);
-      box-shadow: inset 0 2px 5px rgba(0, 0, 0, .6);
-    }
-  }
-
-  /* wall: a fixed oak divider */
-  .cell--wall .cell__face {
-    background:
-      repeating-linear-gradient(90deg, rgba(0, 0, 0, .13) 0 1px, transparent 1px 6px),
-      linear-gradient(180deg, var(--wall-a), var(--wall-b));
-    border: 1px solid var(--wall-edge);
-    box-shadow: 0 2px 0 var(--wall-edge), inset 0 1px 0 rgba(255, 255, 255, .10);
-  }
-
-  /* tile: a metal type slug */
   .tile {
     z-index: 2;
     --x: 0;
     --y: 0;
     transform: translate(calc(var(--x) * 100%), calc(var(--y) * 100%));
-    transition: transform .19s cubic-bezier(.22, .68, .24, 1);
+    transition: transform .22s var(--spring);
   }
 
+  /* solid fill on top, a darker shade of the same hue along the bottom edge */
   .tile__face {
-    background: linear-gradient(180deg, var(--tile-a), var(--tile-b));
-    border: 1px solid var(--tile-edge);
+    background: var(--tc);
+    box-shadow: 0 4px 0 var(--te);
     color: var(--tile-ink);
-    font: 700 clamp(20px, 7.2vw, 34px)/1 Georgia, "Iowan Old Style", "Times New Roman", serif;
-    box-shadow: 0 2px 0 var(--tile-edge), 0 4px 8px rgba(0, 0, 0, .18), inset 0 1px 0 rgba(255, 255, 255, .8);
+    font: 800 var(--fs, 26px)/1 var(--round);
   }
-
-  .board--6 .tile__face { font-size: clamp(17px, 6vw, 29px); }
 
   .pad {
     flex: none;
-    margin-top: 12px;
+    margin-top: 16px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
-    max-width: 260px;
+    gap: 10px;
+    max-width: 268px;
     width: 100%;
     align-self: center;
   }
 
   .dir {
     appearance: none;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text);
-    border-radius: 14px;
-    min-height: 52px;
-    font-size: 20px;
-    line-height: 1;
-    box-shadow: var(--shadow);
+    border: 0;
+    background: var(--control);
+    box-shadow: 0 4px 0 var(--control-edge);
+    color: var(--ink);
+    border-radius: 18px;
+    min-height: 54px;
+    font: 700 22px/1 var(--round);
     cursor: pointer;
   }
 
-  .dir:active { transform: scale(.96); background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .dir:active { transform: translateY(4px); box-shadow: 0 0 0 var(--control-edge); }
   .dir--ph { visibility: hidden; }
 
   .hint {
     flex: none;
     text-align: center;
     color: var(--muted);
-    font-size: 12px;
-    margin: 8px 0 0;
+    font: 800 10px/1 var(--round);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    margin: 12px 0 0;
   }
 
-  /* ---------- win reveal ---------- */
+  .hint[hidden] { display: none; }
 
-  .win {
+  /* ---------- word reveal (win, flash, run over) ---------- */
+
+  .word {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .slug {
+    width: 46px;
+    height: 54px;
+    border-radius: 15px;
+    background: var(--tc);
+    box-shadow: 0 4px 0 var(--te);
+    color: var(--tile-ink);
+    font: 800 26px/54px var(--round);
+    text-align: center;
+    animation: drop .34s var(--spring) both;
+  }
+
+  @keyframes drop { from { transform: translateY(-16px) scale(.86); opacity: 0; } }
+
+  /* the brief flash shown over the board between Endless rounds */
+  .flash {
+    position: absolute;
+    inset: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .flash[hidden] { display: none; }
+
+  .overlay {
     position: fixed;
     inset: 0;
     z-index: 20;
@@ -383,140 +429,144 @@
     align-items: center;
     justify-content: center;
     padding: 24px;
-    background: rgba(20, 14, 8, .62);
-    backdrop-filter: blur(3px);
-    animation: fade .18s ease;
+    background: rgba(28, 44, 36, .55);
+    animation: fade .2s ease;
   }
 
-  .win[hidden] { display: none; }
+  .overlay[hidden] { display: none; }
 
   @keyframes fade { from { opacity: 0; } }
 
-  .win__card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    box-shadow: var(--shadow);
-    padding: 22px 18px 18px;
+  .card {
+    background: var(--page);
+    border-radius: 28px;
+    padding: 26px 20px 20px;
     width: 100%;
     max-width: 360px;
     text-align: center;
-    animation: pop .22s cubic-bezier(.2, .8, .3, 1);
+    animation: pop .3s var(--spring);
   }
 
-  @keyframes pop { from { transform: translateY(12px) scale(.96); opacity: 0; } }
+  @keyframes pop { from { transform: translateY(14px) scale(.94); opacity: 0; } }
 
-  .win__kicker {
-    font-size: 11px;
-    letter-spacing: .18em;
-    text-transform: uppercase;
-    color: var(--accent);
-    font-weight: 700;
-  }
-
-  .win__word {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 14px 0 12px;
-  }
-
-  .win__slug {
-    width: 44px;
-    height: 52px;
-    border-radius: 8px;
-    background: linear-gradient(180deg, var(--tile-a), var(--tile-b));
-    border: 1px solid var(--tile-edge);
-    color: var(--tile-ink);
-    font: 700 27px/52px Georgia, "Iowan Old Style", "Times New Roman", serif;
-    box-shadow: 0 2px 0 var(--tile-edge), inset 0 1px 0 rgba(255, 255, 255, .8);
-    animation: drop .26s cubic-bezier(.2, .8, .3, 1) both;
-  }
-
-  @keyframes drop { from { transform: translateY(-14px) rotate(-4deg); opacity: 0; } }
-
-  .win__stats { color: var(--muted); font-size: 14px; margin: 0 0 16px; }
-  .win__stats b { color: var(--text); }
-
-  .win__actions { display: flex; flex-direction: column; gap: 8px; }
+  .card__kicker { font: 800 11px/1 var(--round); letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .card .word { margin: 18px 0 16px; }
+  .card__stats { color: var(--muted); font-size: 15px; margin: 0 0 20px; }
+  .card__stats b { color: var(--ink); font-weight: 800; }
+  .card__actions { display: flex; flex-direction: column; gap: 10px; }
 
   .btn {
     appearance: none;
     border: 0;
-    border-radius: 14px;
+    border-radius: 20px;
     background: var(--accent);
-    color: var(--accent-text);
-    font: 600 16px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    min-height: 48px;
+    box-shadow: 0 4px 0 var(--accent-edge);
+    color: var(--accent-ink);
+    font: 800 17px/1 var(--round);
+    min-height: 52px;
     padding: 0 20px;
     cursor: pointer;
   }
 
-  .btn:active { transform: scale(.98); }
+  .btn:active { transform: translateY(4px); box-shadow: 0 0 0 var(--accent-edge); }
 
   .btn--ghost {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--border);
+    background: var(--control);
+    box-shadow: 0 4px 0 var(--control-edge);
+    color: var(--ink);
   }
+
+  .btn--ghost:active { box-shadow: 0 0 0 var(--control-edge); }
+  .btn[hidden] { display: none; }
 </style>
 </head>
 <body>
 
 <div class="app">
   <header class="app__header">
-    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
-    <h1 class="app__title">Slide &amp; Spell</h1>
-    <span class="app__tag" id="tag">Typecase</span>
+    <a class="back" id="backGallery" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <button class="back" id="backLevels" type="button" aria-label="Back to levels" hidden>&larr;</button>
+    <h1 class="app__title" id="title">Slide &amp; Spell</h1>
+    <span class="label" id="tag"></span>
   </header>
 
   <main class="app__body">
 
     <!-- APP MARKUP -->
     <section class="screen" id="screenSelect">
-      <p class="lede">Every swipe slides the whole case of type. Each tray hides one
-        word — find where the letters can land, and in what order.</p>
+      <p class="lede">Every swipe slides all the letters at once. Each board hides
+        one word — work out where the letters can land, and in what order.</p>
+
+      <button class="endless-cta" id="toEndless" type="button">
+        Endless
+        <span class="endless-cta__sub">20s a word</span>
+      </button>
+
       <div class="levels" id="levels"></div>
     </section>
 
     <section class="screen" id="screenPuzzle" hidden>
       <div class="bar">
-        <button class="chip" id="toSelect" type="button">&larr; Trays</button>
-        <button class="chip chip--icon" id="undo" type="button" aria-label="Undo one move">↶</button>
-        <button class="chip chip--icon" id="reset" type="button" aria-label="Reset the tray">⟲</button>
+        <button class="chip" id="undo" type="button" aria-label="Undo one move">&#8630;</button>
+        <button class="chip" id="reset" type="button" aria-label="Reset the board">&#10227;</button>
         <span class="bar__spacer"></span>
-        <span class="count">Moves<b id="moves">0</b></span>
+        <span class="stat" id="statScore" hidden>
+          <span class="stat__k">Solved</span>
+          <span class="stat__v" id="score">0</span>
+        </span>
+        <span class="stat" id="statMoves">
+          <span class="stat__k">Moves</span>
+          <span class="stat__v" id="moves">0</span>
+        </span>
+        <span class="stat" id="statTime" hidden>
+          <span class="stat__k">Time</span>
+          <span class="stat__v" id="time">20</span>
+        </span>
       </div>
+
+      <div class="clock" id="clock" hidden><div class="clock__fill" id="clockFill"></div></div>
 
       <div class="boardwrap" id="boardwrap">
         <div class="board" id="board"><div class="board__inner" id="inner"></div></div>
+        <div class="flash" id="flash" hidden><div class="word" id="flashWord"></div></div>
       </div>
 
       <div class="pad">
         <span class="dir dir--ph"></span>
-        <button class="dir" data-dir="U" type="button" aria-label="Slide up">↑</button>
+        <button class="dir" data-dir="U" type="button" aria-label="Slide up">&uarr;</button>
         <span class="dir dir--ph"></span>
-        <button class="dir" data-dir="L" type="button" aria-label="Slide left">←</button>
-        <button class="dir" data-dir="D" type="button" aria-label="Slide down">↓</button>
-        <button class="dir" data-dir="R" type="button" aria-label="Slide right">→</button>
+        <button class="dir" data-dir="L" type="button" aria-label="Slide left">&larr;</button>
+        <button class="dir" data-dir="D" type="button" aria-label="Slide down">&darr;</button>
+        <button class="dir" data-dir="R" type="button" aria-label="Slide right">&rarr;</button>
       </div>
 
-      <p class="hint">Swipe the tray or use the pad.</p>
+      <p class="hint" id="hint">Swipe the board or use the pad</p>
     </section>
     <!-- /APP MARKUP -->
 
   </main>
 </div>
 
-<div class="win" id="win" hidden>
-  <div class="win__card">
-    <div class="win__kicker" id="winKicker">Set in type</div>
-    <div class="win__word" id="winWord"></div>
-    <p class="win__stats" id="winStats"></p>
-    <div class="win__actions">
-      <button class="btn" id="winNext" type="button">Next tray</button>
-      <button class="btn btn--ghost" id="winBack" type="button">Back to trays</button>
+<div class="overlay" id="win" hidden>
+  <div class="card">
+    <div class="card__kicker" id="winKicker">Solved</div>
+    <div class="word" id="winWord"></div>
+    <p class="card__stats" id="winStats"></p>
+    <div class="card__actions">
+      <button class="btn" id="winNext" type="button">Next level</button>
+      <button class="btn btn--ghost" id="winBack" type="button">Back to levels</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="over" hidden>
+  <div class="card">
+    <div class="card__kicker">Time — the word was</div>
+    <div class="word" id="overWord"></div>
+    <p class="card__stats" id="overStats"></p>
+    <div class="card__actions">
+      <button class="btn" id="overAgain" type="button">Play again</button>
+      <button class="btn btn--ghost" id="overBack" type="button">Back to levels</button>
     </div>
   </div>
 </div>
@@ -524,9 +574,10 @@
 <script>
   // APP LOGIC
 
-  /* Levels are generated data, verified by a solver that implements the rules
-     below exactly: start is never already solved, `par` is the proven minimum,
-     and no reachable position can soft-lock. '#' wall, '.' empty, A-Z tile. */
+  /* Campaign levels — generated data, verified by a solver implementing the
+     rules below exactly: start is never already solved, `par` is the proven
+     minimum, and no reachable position can soft-lock.
+     '#' wall, '.' empty, A-Z tile. */
   var LEVELS = /*LEVELS*/[
     { word: "CAT", w: 5, h: 5, par: 1, solution: ["L"], decoy: false,
       grid: "....C.A......T.......#.#." },
@@ -550,24 +601,85 @@
       grid: "..I..T.L##...N.X..G#...#.##..##.###." }
   ]/*/LEVELS*/;
 
-  var WALL = '#', EMPTY = '.';
+  /* Endless pool — short boards (3-4 letters, little or no wall complexity),
+     drawn in random order, never repeating immediately. Verified by the same
+     solver, with the soft-lock guarantee doing real work here: Endless has no
+     Undo or Reset, so no round may ever strand a player. */
+  var ENDLESS = /*ENDLESS*/[
+    { word: "BEE", w: 4, h: 4, par: 2, solution: ["U", "L"],
+      grid: "........B....E#E" },
+    { word: "JAM", w: 5, h: 5, par: 2, solution: ["L", "U"],
+      grid: "....J.#.........A.......M" },
+    { word: "TOP", w: 4, h: 5, par: 1, solution: ["L"],
+      grid: "..T#O....P.........." },
+    { word: "SUN", w: 5, h: 5, par: 1, solution: ["R"],
+      grid: "......S......#U...N......" },
+    { word: "NUT", w: 5, h: 4, par: 2, solution: ["U", "L"],
+      grid: "...UTN......#......." },
+    { word: "CUP", w: 4, h: 4, par: 2, solution: ["L", "U"],
+      grid: "..C..U.....#..P." },
+    { word: "FIG", w: 5, h: 5, par: 3, solution: ["U", "R", "U"],
+      grid: ".I......#........G....F.." },
+    { word: "BUS", w: 4, h: 4, par: 3, solution: ["L", "D", "L"],
+      grid: "....U.B..#....S." },
+    { word: "KEY", w: 4, h: 4, par: 1, solution: ["L"],
+      grid: "#.#..K.....EY..." },
+    { word: "EGG", w: 4, h: 4, par: 3, solution: ["L", "D", "L"],
+      grid: "..G.GE...#......" },
+    { word: "BUS", w: 5, h: 5, par: 2, solution: ["D", "L"],
+      grid: "....#..U.......B...S....." },
+    { word: "ICE", w: 5, h: 4, par: 1, solution: ["U"],
+      grid: ".....I.....CE..#...." },
+    { word: "PIE", w: 4, h: 4, par: 2, solution: ["D", "L"],
+      grid: "...#...#.I.EP..." },
+    { word: "EGG", w: 5, h: 4, par: 2, solution: ["L", "U"],
+      grid: "........#....E.#.G.G" },
+    { word: "TOP", w: 4, h: 4, par: 3, solution: ["D", "L", "U"],
+      grid: ".PT#..O...#....." },
+    { word: "MUD", w: 4, h: 4, par: 1, solution: ["L"],
+      grid: "M#...U..D......." },
+    { word: "CUP", w: 4, h: 4, par: 1, solution: ["L"],
+      grid: ".......#....CU.P" },
+    { word: "HAT", w: 4, h: 5, par: 2, solution: ["L", "U"],
+      grid: ".......H.A.....#...T" },
+    { word: "BIRD", w: 4, h: 4, par: 1, solution: ["D"],
+      grid: "......R#...DBI.." },
+    { word: "DOG", w: 5, h: 5, par: 2, solution: ["R", "D"],
+      grid: "............D#......OG..." },
+    { word: "OWL", w: 4, h: 5, par: 3, solution: ["U", "L", "U"],
+      grid: "..........#O....#.LW" },
+    { word: "VAN", w: 4, h: 4, par: 2, solution: ["U", "L"],
+      grid: "...#V..A...N..#." },
+    { word: "HAT", w: 5, h: 5, par: 2, solution: ["U", "L"],
+      grid: "....T.#...H......A..#...." },
+    { word: "ICE", w: 4, h: 4, par: 1, solution: ["R"],
+      grid: ".....I....#C..E." }
+  ]/*/ENDLESS*/;
 
-  var state = null;          // { li, w, h, word, tiles, walls, moves, history }
+  var WALL = '#', EMPTY = '.';
+  var ROUND_MS = 20000;
+  var PALETTE = 6;
+
+  var state = null;          // { mode, li, w, h, word, tiles, walls, moves, history }
   var animating = false;
+  var endless = null;        // { score, best, bag, last, deadline, timer, dead }
 
   var $ = function (id) { return document.getElementById(id); };
 
   /* ---------- storage (nice-to-have; in-memory if unavailable) ---------- */
 
-  var STORE_KEY = 'slide-spell-v1';
-  var solved = {};
+  var STORE_KEY = 'slide-spell-v2';
+  var save = { solved: {}, best: 0 };
   try {
     var raw = localStorage.getItem(STORE_KEY);
-    if (raw) { solved = JSON.parse(raw) || {}; }
-  } catch (e) { solved = {}; }
+    if (raw) {
+      var parsed = JSON.parse(raw);
+      if (parsed && parsed.solved) { save = parsed; }
+    }
+  } catch (e) { /* in-memory only */ }
 
   function persist() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(solved)); } catch (e) { /* in-memory only */ }
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(save)); } catch (e) { /* in-memory only */ }
   }
 
   /* ---------- rules ---------- */
@@ -654,11 +766,11 @@
     host.innerHTML = '';
     LEVELS.forEach(function (lv, i) {
       var b = document.createElement('button');
-      var best = solved[i];
+      var best = save.solved[i];
       b.type = 'button';
       b.className = 'lvl' + (best !== undefined ? ' lvl--solved' : '');
       b.innerHTML =
-        (best !== undefined ? '<span class="lvl__check">✓</span>' : '') +
+        (best !== undefined ? '<span class="lvl__check">&#10003;</span>' : '') +
         '<span class="lvl__n">' + (i + 1) + '</span>' +
         '<span class="lvl__meta">' +
         (best !== undefined ? best + (best === 1 ? ' move' : ' moves') : (lv.w + '×' + lv.h)) +
@@ -668,34 +780,27 @@
     });
   }
 
-  /* ---------- puzzle ---------- */
+  /* ---------- board ---------- */
 
-  function openLevel(li) {
-    var lv = LEVELS[li];
+  // Build engine state from a puzzle definition ('#' wall, '.' empty, A-Z tile).
+  function build(def, mode, li) {
     var walls = {}, tiles = [], id = 0;
-    for (var y = 0; y < lv.h; y++) {
-      for (var x = 0; x < lv.w; x++) {
-        var c = lv.grid.charAt(y * lv.w + x);
+    for (var y = 0; y < def.h; y++) {
+      for (var x = 0; x < def.w; x++) {
+        var c = def.grid.charAt(y * def.w + x);
         if (c === WALL) { walls[x + ',' + y] = true; }
         else if (c !== EMPTY) { tiles.push({ id: id++, letter: c, x: x, y: y }); }
       }
     }
-    state = {
-      li: li, w: lv.w, h: lv.h, word: lv.word,
+    return {
+      mode: mode, li: li, w: def.w, h: def.h, word: def.word, par: def.par,
       walls: walls, tiles: tiles, moves: 0, history: [],
       start: tiles.map(function (t) { return { x: t.x, y: t.y }; })
     };
-
-    $('screenSelect').hidden = true;
-    $('screenPuzzle').hidden = false;
-    $('tag').textContent = 'Tray ' + (li + 1) + ' · ' + lv.w + '×' + lv.h;
-    buildBoard();
-    syncBar();
   }
 
   function buildBoard() {
     var board = $('board'), inner = $('inner');
-    board.className = 'board' + (state.w >= 6 ? ' board--6' : '');
     board.style.setProperty('--cols', state.w);
     board.style.setProperty('--rows', state.h);
     inner.innerHTML = '';
@@ -713,12 +818,30 @@
 
     state.tiles.forEach(function (t) {
       var el = document.createElement('div');
+      // Colour is fixed per tile at build time, so a tile never changes
+      // colour while it slides. It carries no meaning.
+      var n = (t.id % PALETTE) + 1;
       el.className = 'tile';
+      el.style.setProperty('--tc', 'var(--t' + n + ')');
+      el.style.setProperty('--te', 'var(--e' + n + ')');
       el.innerHTML = '<div class="tile__face">' + t.letter + '</div>';
       t.el = el;
       inner.appendChild(el);
     });
     placeTiles();
+    layout();
+  }
+
+  // Size the tray to whole square cells, so non-square boards stay square-celled.
+  function layout() {
+    if (!state) { return; }
+    var wrap = $('boardwrap'), board = $('board'), pad = 10;
+    var aw = wrap.clientWidth - pad * 2, ah = wrap.clientHeight - pad * 2;
+    if (aw <= 0 || ah <= 0) { return; }
+    var cell = Math.floor(Math.min(aw / state.w, ah / state.h));
+    board.style.width = (cell * state.w + pad * 2) + 'px';
+    board.style.height = (cell * state.h + pad * 2) + 'px';
+    board.style.setProperty('--fs', Math.round(cell * 0.44) + 'px');
   }
 
   function placeTiles() {
@@ -728,12 +851,6 @@
     });
   }
 
-  function syncBar() {
-    $('moves').textContent = state.moves;
-    $('undo').disabled = state.history.length === 0;
-    $('reset').disabled = state.moves === 0;
-  }
-
   function nudge() {
     var b = $('board');
     b.classList.remove('board--nudge');
@@ -741,10 +858,27 @@
     b.classList.add('board--nudge');
   }
 
-  function doMove(dir) {
-    if (!state || animating || !$('win').hidden) { return; }
-    var moved = slide(state.tiles, state.walls, state.w, state.h, dir);
+  function renderWord(host, word) {
+    host.innerHTML = '';
+    word.split('').forEach(function (ch, i) {
+      var n = (i % PALETTE) + 1;
+      var s = document.createElement('span');
+      s.className = 'slug';
+      s.style.setProperty('--tc', 'var(--t' + n + ')');
+      s.style.setProperty('--te', 'var(--e' + n + ')');
+      s.textContent = ch;
+      s.style.animationDelay = (i * 60) + 'ms';
+      host.appendChild(s);
+    });
+  }
 
+  /* ---------- moves ---------- */
+
+  function doMove(dir) {
+    if (!state || animating) { return; }
+    if (!$('win').hidden || !$('over').hidden || !$('flash').hidden) { return; }
+
+    var moved = slide(state.tiles, state.walls, state.w, state.h, dir);
     var changed = state.tiles.some(function (t) {
       var m = moved[t.id];
       return m && (m.x !== t.x || m.y !== t.y);
@@ -762,12 +896,16 @@
 
     if (isWin(state.tiles, state.walls, state.w, state.h, state.word)) {
       animating = true;
-      setTimeout(function () { animating = false; showWin(); }, 230);
+      var solvedIn = state.mode;
+      setTimeout(function () {
+        animating = false;
+        if (solvedIn === 'endless') { endlessSolved(); } else { showWin(); }
+      }, 250);
     }
   }
 
   function undo() {
-    if (!state || !state.history.length) { return; }
+    if (!state || state.mode !== 'level' || !state.history.length) { return; }
     var prev = state.history.pop();
     state.tiles.forEach(function (t, i) { t.x = prev[i].x; t.y = prev[i].y; });
     state.moves--;
@@ -776,7 +914,7 @@
   }
 
   function reset() {
-    if (!state) { return; }
+    if (!state || state.mode !== 'level') { return; }
     state.tiles.forEach(function (t, i) { t.x = state.start[i].x; t.y = state.start[i].y; });
     state.moves = 0;
     state.history = [];
@@ -784,35 +922,160 @@
     syncBar();
   }
 
+  function syncBar() {
+    if (!state) { return; }
+    if (state.mode === 'level') {
+      $('moves').textContent = state.moves;
+      $('undo').disabled = state.history.length === 0;
+      $('reset').disabled = state.moves === 0;
+    } else {
+      $('score').textContent = endless.score;
+    }
+  }
+
+  /* ---------- levels mode ---------- */
+
+  function openLevel(li) {
+    stopClock();
+    state = build(LEVELS[li], 'level', li);
+    showPuzzleScreen('level');
+    $('tag').textContent = 'Level ' + (li + 1);
+    buildBoard();
+    syncBar();
+  }
+
   function showWin() {
-    var lv = LEVELS[state.li];
-    var best = solved[state.li];
-    if (best === undefined || state.moves < best) { solved[state.li] = state.moves; persist(); }
+    var best = save.solved[state.li];
+    if (best === undefined || state.moves < best) { save.solved[state.li] = state.moves; persist(); }
 
-    var host = $('winWord');
-    host.innerHTML = '';
-    state.word.split('').forEach(function (ch, i) {
-      var s = document.createElement('span');
-      s.className = 'win__slug';
-      s.textContent = ch;
-      s.style.animationDelay = (i * 55) + 'ms';
-      host.appendChild(s);
-    });
-
-    $('winKicker').textContent = state.moves === lv.par ? 'Perfect setting' : 'Set in type';
+    renderWord($('winWord'), state.word);
+    $('winKicker').textContent = state.moves === state.par ? 'Perfect' : 'Solved';
     $('winStats').innerHTML =
-      'Solved in <b>' + state.moves + '</b> move' + (state.moves === 1 ? '' : 's') +
-      ' · best possible <b>' + lv.par + '</b>';
+      '<b>' + state.moves + '</b> move' + (state.moves === 1 ? '' : 's') +
+      ' · best possible <b>' + state.par + '</b>';
     $('winNext').hidden = state.li >= LEVELS.length - 1;
     $('win').hidden = false;
     renderSelect();
   }
 
+  /* ---------- endless mode ---------- */
+
+  function startEndless() {
+    endless = { score: 0, best: save.best || 0, bag: [], last: -1, deadline: 0, timer: 0 };
+    showPuzzleScreen('endless');
+    nextRound();
+  }
+
+  // Draw from a shuffled bag so the pool cycles without immediate repeats.
+  function drawRound() {
+    if (!endless.bag.length) {
+      var i;
+      endless.bag = [];
+      for (i = 0; i < ENDLESS.length; i++) { endless.bag.push(i); }
+      for (i = endless.bag.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = endless.bag[i]; endless.bag[i] = endless.bag[j]; endless.bag[j] = tmp;
+      }
+      // never the same board twice in a row across a reshuffle
+      if (endless.bag.length > 1 && endless.bag[endless.bag.length - 1] === endless.last) {
+        endless.bag.unshift(endless.bag.pop());
+      }
+    }
+    var pick = endless.bag.pop();
+    endless.last = pick;
+    return pick;
+  }
+
+  function nextRound() {
+    var idx = drawRound();
+    state = build(ENDLESS[idx], 'endless', idx);
+    $('tag').textContent = 'Best ' + (save.best || 0);
+    buildBoard();
+    syncBar();
+    startClock();
+  }
+
+  function startClock() {
+    stopClock();
+    endless.deadline = Date.now() + ROUND_MS;
+    $('clockFill').style.transition = 'none';
+    tick();
+    endless.timer = setInterval(tick, 100);
+  }
+
+  function stopClock() {
+    if (endless && endless.timer) { clearInterval(endless.timer); endless.timer = 0; }
+  }
+
+  function tick() {
+    var left = Math.max(0, endless.deadline - Date.now());
+    var secs = Math.ceil(left / 1000);
+    var warn = left <= 5000;
+    $('time').textContent = secs;
+    $('time').className = 'stat__v' + (warn ? ' stat__v--warn' : '');
+    $('clockFill').style.transform = 'scaleX(' + (left / ROUND_MS) + ')';
+    $('clockFill').className = 'clock__fill' + (warn ? ' clock__fill--warn' : '');
+    if (left <= 0) { stopClock(); runOver(); }
+  }
+
+  function endlessSolved() {
+    stopClock();
+    endless.score++;
+    syncBar();
+
+    // flash the word over the board, then advance automatically
+    renderWord($('flashWord'), state.word);
+    $('flash').hidden = false;
+    setTimeout(function () {
+      $('flash').hidden = true;
+      if (!$('over').hidden) { return; }
+      nextRound();
+    }, 900);
+  }
+
+  function runOver() {
+    var word = state ? state.word : '';
+    if (endless.score > (save.best || 0)) { save.best = endless.score; persist(); }
+    endless.best = save.best || 0;
+    $('flash').hidden = true;
+    renderWord($('overWord'), word);
+    $('overStats').innerHTML =
+      '<b>' + endless.score + '</b> word' + (endless.score === 1 ? '' : 's') +
+      ' this run · best <b>' + endless.best + '</b>';
+    $('over').hidden = false;
+  }
+
+  /* ---------- screens ---------- */
+
+  function showPuzzleScreen(mode) {
+    var lvl = (mode === 'level');
+    $('screenSelect').hidden = true;
+    $('screenPuzzle').hidden = false;
+    $('backGallery').hidden = true;
+    $('backLevels').hidden = false;
+    $('title').textContent = lvl ? 'Slide & Spell' : 'Endless';
+
+    // Undo, Reset and the move counter are Levels-only; the clock is Endless-only.
+    $('undo').hidden = !lvl;
+    $('reset').hidden = !lvl;
+    $('statMoves').hidden = !lvl;
+    $('hint').hidden = !lvl;
+    $('statScore').hidden = lvl;
+    $('statTime').hidden = lvl;
+    $('clock').hidden = lvl;
+  }
+
   function toSelect() {
+    stopClock();
     $('win').hidden = true;
+    $('over').hidden = true;
+    $('flash').hidden = true;
     $('screenPuzzle').hidden = true;
     $('screenSelect').hidden = false;
-    $('tag').textContent = 'Typecase';
+    $('backGallery').hidden = false;
+    $('backLevels').hidden = true;
+    $('title').textContent = 'Slide & Spell';
+    $('tag').textContent = '';
     state = null;
     renderSelect();
   }
@@ -825,8 +1088,14 @@
 
   $('undo').addEventListener('click', undo);
   $('reset').addEventListener('click', reset);
-  $('toSelect').addEventListener('click', toSelect);
+  $('backLevels').addEventListener('click', toSelect);
+  $('toEndless').addEventListener('click', startEndless);
   $('winBack').addEventListener('click', toSelect);
+  $('overBack').addEventListener('click', toSelect);
+  $('overAgain').addEventListener('click', function () {
+    $('over').hidden = true;
+    startEndless();
+  });
   $('winNext').addEventListener('click', function () {
     var next = state.li + 1;
     $('win').hidden = true;
@@ -868,6 +1137,8 @@
     else if (e.key === 'z') { undo(); }
     else if (e.key === 'r') { reset(); }
   });
+
+  window.addEventListener('resize', layout);
 
   renderSelect();
 
