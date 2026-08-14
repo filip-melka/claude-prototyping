@@ -55,10 +55,13 @@
       "tagline": "One swipe slides the whole flock — pen every sheep before the fox gets one.",
       "kind": "game",
       "path": "prototypes/PROTOTYPE-6/index.html",
-      "version": 1,
+      "version": 2,
       "createdAt": "2026-08-11",
-      "updatedAt": "2026-08-11",
-      "changelog": ["v1 — initial prototype"]
+      "updatedAt": "2026-08-14",
+      "changelog": [
+        "v1 — initial prototype",
+        "v2 — bright toylike restyle (mint field, raised 3D fences, blue water, cream HUD pill and bottom card), irregular non-rectangular boards, added level 5 \"Round the Bend\""
+      ]
     },
     {
       "id": "PROTOTYPE-7",
