@@ -40,13 +40,16 @@
       "id": "PROTOTYPE-5",
       "workItemId": "0021c49f-29ea-493a-81d5-39eb312e8ea1",
       "title": "Letter Lockout",
-      "tagline": "Chain words letter to letter while the alphabet locks out under your feet.",
+      "tagline": "Chain words from a tray of unlocked letters that shrinks under your feet.",
       "kind": "game",
       "path": "prototypes/PROTOTYPE-5/index.html",
-      "version": 1,
+      "version": 2,
       "createdAt": "2026-08-09",
-      "updatedAt": "2026-08-09",
-      "changelog": ["v1 — initial prototype"]
+      "updatedAt": "2026-08-15",
+      "changelog": [
+        "v1 — initial prototype",
+        "v2 — unlocked-letter tray replaces the strikethrough keyboard, gold bonus letters, zigzag across/down board of letter tiles"
+      ]
     },
     {
       "id": "PROTOTYPE-6",
