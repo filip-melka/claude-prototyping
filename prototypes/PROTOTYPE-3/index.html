@@ -5,6 +5,11 @@
   a new character unlocks at 90% accuracy. Two answer modes to compare: Type vs Tap.
   Self-contained: tones are synthesised with the Web Audio API, progress lives in
   localStorage. No network, no build step.
+
+  v2 layout is modelled on real lesson/quiz screens: a segmented per-question
+  progress bar and a replay control above a hairline-divided answer zone (the
+  Duolingo lesson pattern), and a donut accuracy ring with a correct/missed
+  legend on the results screen (the Quizlet test-results pattern).
 -->
 <html lang="en">
 <head>
@@ -24,10 +29,12 @@
     --muted: #61706a;
     --border: #d2dad4;
     --accent: #067a42;
-    --accent-dim: rgba(6, 122, 66, .16);
+    --accent-dim: rgba(6, 122, 66, .14);
     --accent-text: #ffffff;
     --bad: #c4392c;
-    --bad-dim: rgba(196, 57, 44, .16);
+    --bad-dim: rgba(196, 57, 44, .14);
+    --amber: #9a6400;
+    --amber-dim: rgba(154, 100, 0, .12);
     --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Roboto Mono", monospace;
   }
 
@@ -40,10 +47,12 @@
       --muted: #7d8f86;
       --border: #24302b;
       --accent: #39ff88;
-      --accent-dim: rgba(57, 255, 136, .14);
+      --accent-dim: rgba(57, 255, 136, .13);
       --accent-text: #06110b;
       --bad: #ff5c4d;
-      --bad-dim: rgba(255, 92, 77, .16);
+      --bad-dim: rgba(255, 92, 77, .15);
+      --amber: #ffc24d;
+      --amber-dim: rgba(255, 194, 77, .13);
     }
   }
 
@@ -81,20 +90,22 @@
     overflow: hidden;
   }
 
-  .app__header {
+  /* ---------- top bar ---------- */
+
+  .bar {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     flex: none;
-    height: 34px;
+    height: 36px;
   }
 
-  .back {
+  .icon-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 34px;
-    height: 34px;
+    width: 36px;
+    height: 36px;
     flex: none;
     border-radius: 999px;
     border: 1px solid var(--border);
@@ -103,20 +114,48 @@
     text-decoration: none;
     font-size: 15px;
     line-height: 1;
+    cursor: pointer;
+    appearance: none;
+    font-family: inherit;
   }
+  .icon-btn:active { transform: scale(.94); }
 
-  .back:active { transform: scale(.94); }
+  .bar__title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
 
   .counter {
     margin-left: auto;
     font-family: var(--mono);
-    font-size: 15px;
-    letter-spacing: .04em;
+    font-size: 13px;
+    letter-spacing: .06em;
     color: var(--muted);
-    visibility: hidden;
   }
-  .counter.is-on { visibility: visible; }
   .counter b { color: var(--accent); font-weight: 600; }
+
+  /* Segmented run progress — one segment per character, coloured by outcome.
+     Borrowed from lesson progress bars, but it doubles as a live scoreline. */
+  .segs {
+    display: flex;
+    gap: 3px;
+    flex: none;
+    margin: 12px 0 2px;
+    height: 6px;
+  }
+
+  .seg {
+    flex: 1;
+    border-radius: 3px;
+    background: var(--surface-2);
+    transition: background-color .18s ease, transform .18s ease;
+  }
+  .seg.is-good { background: var(--accent); }
+  .seg.is-bad { background: var(--bad); }
+  .seg.is-now { background: var(--muted); transform: scaleY(1.9); }
 
   .app__body {
     position: relative;
@@ -134,6 +173,63 @@
   }
   .screen.is-active { display: flex; }
 
+  /* ---------- shared bits ---------- */
+
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    min-height: 54px;
+    padding: 0 20px;
+    width: 100%;
+    cursor: pointer;
+  }
+  .btn:active { transform: scale(.98); }
+
+  .btn--ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 10.5px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* Donut ring — conic-gradient, so no images and no library. */
+  .ring {
+    position: relative;
+    flex: none;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: conic-gradient(var(--ring-color, var(--accent)) calc(var(--p, 0) * 1%), var(--surface-2) 0);
+  }
+  .ring::after {
+    content: '';
+    position: absolute;
+    inset: 11px;
+    border-radius: 50%;
+    background: var(--bg);
+  }
+  .ring__in {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    line-height: 1;
+  }
+
   /* ---------- home ---------- */
 
   .home__top {
@@ -142,17 +238,26 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 6px;
     min-height: 0;
+    gap: 18px;
   }
 
-  .hero {
+  .dial { width: 176px; height: 176px; }
+  .dial .ring__in .n {
     font-family: var(--mono);
-    font-size: 88px;
-    line-height: 1;
+    font-size: 60px;
     font-weight: 600;
     letter-spacing: -.04em;
     color: var(--accent);
+    display: block;
+  }
+  .dial .ring__in .of {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: .1em;
+    color: var(--muted);
+    display: block;
+    margin-top: 8px;
   }
 
   .hero__label {
@@ -160,37 +265,48 @@
     letter-spacing: .16em;
     text-transform: uppercase;
     color: var(--muted);
+    margin-top: -8px;
   }
 
   .known {
-    margin-top: 18px;
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 8px;
-    max-width: 300px;
+    gap: 7px;
+    max-width: 320px;
   }
 
   .known__chip {
     font-family: var(--mono);
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 600;
     letter-spacing: .06em;
-    padding: 5px 10px;
-    border-radius: 8px;
+    padding: 6px 11px;
+    border-radius: 9px;
     background: var(--accent-dim);
     color: var(--accent);
   }
-
-  .stat {
-    margin-top: 20px;
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: .06em;
+  .known__chip--next {
+    background: transparent;
+    border: 1px dashed var(--border);
     color: var(--muted);
   }
 
-  .home__bottom { flex: none; display: flex; flex-direction: column; gap: 14px; }
+  /* Two small stat cards, side by side. */
+  .stats { display: flex; gap: 10px; width: 100%; max-width: 320px; }
+
+  .stat {
+    flex: 1;
+    padding: 11px 13px;
+    border-radius: 13px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .stat__k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
+  .stat__v { font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--text); margin-top: 3px; }
+  .stat__v em { font-style: normal; color: var(--accent); }
+
+  .home__bottom { flex: none; display: flex; flex-direction: column; gap: 12px; }
 
   .toggle {
     display: flex;
@@ -222,42 +338,28 @@
     text-align: center;
     font-size: 12.5px;
     color: var(--muted);
-    margin: -6px 0 0;
-  }
-
-  .btn {
-    appearance: none;
-    border: 0;
-    border-radius: 14px;
-    background: var(--accent);
-    color: var(--accent-text);
-    font: inherit;
-    font-size: 16px;
-    font-weight: 700;
-    letter-spacing: .04em;
-    min-height: 54px;
-    padding: 0 20px;
-    width: 100%;
-    cursor: pointer;
-  }
-  .btn:active { transform: scale(.98); }
-
-  .btn--ghost {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-weight: 600;
+    margin: -4px 0 0;
   }
 
   /* ---------- session ---------- */
 
-  .wave {
+  /* Stage: waveform while a tone plays, swapped for the answer glyph on feedback. */
+  .stage {
     flex: 1;
+    min-height: 132px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+  }
+
+  .wave {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    min-height: 120px;
+    height: 62px;
   }
 
   .wave__bar {
@@ -268,60 +370,85 @@
     opacity: .5;
     transition: height .05s linear, opacity .05s linear;
   }
-  .wave.is-bad .wave__bar { background: var(--bad); }
+
+  .replay {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 20px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    cursor: pointer;
+  }
+  .replay:active { transform: scale(.95); }
+  .replay:disabled { opacity: .35; }
+
+  /* The answered character, echoed at hero size in place of the waveform. */
+  .echo { display: none; text-align: center; }
+  .echo.is-on { display: block; }
+  .echo__ch {
+    font-family: var(--mono);
+    font-size: 76px;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -.03em;
+    animation: pop .16s ease;
+  }
+  .echo.is-good .echo__ch { color: var(--accent); }
+  .echo.is-bad .echo__ch { color: var(--bad); }
+  .echo__was {
+    display: block;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 12px;
+  }
+
+  @keyframes pop { from { transform: scale(.82); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  /* Hairline split between the stage and the answer zone — the lesson-screen
+     pattern that keeps the prompt glued to the controls. */
+  .split {
+    flex: none;
+    border-top: 1px solid var(--border);
+    margin: 0 -16px;
+  }
 
   .session__prompt {
     flex: none;
     text-align: center;
-    font-size: 13px;
-    letter-spacing: .16em;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .2em;
     text-transform: uppercase;
     color: var(--muted);
+    padding: 16px 0 14px;
     min-height: 20px;
   }
-
-  .session__answer {
-    flex: none;
-    margin: 18px 0 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 78px;
-  }
-
-  /* the last answer, echoed big */
-  .echo {
-    font-family: var(--mono);
-    font-size: 64px;
-    line-height: 1;
-    font-weight: 600;
-    color: var(--muted);
-    opacity: 0;
-    transform: scale(.9);
-    transition: opacity .12s ease, transform .12s ease;
-  }
-  .echo.is-on { opacity: 1; transform: scale(1); }
-  .echo.is-good { color: var(--accent); }
-  .echo.is-bad { color: var(--bad); }
-  .echo__was {
-    display: block;
-    font-family: var(--mono);
-    font-size: 14px;
-    letter-spacing: .08em;
-    color: var(--muted);
-    margin-top: 6px;
-  }
+  .session__prompt.is-good { color: var(--accent); }
+  .session__prompt.is-bad { color: var(--bad); }
 
   .input {
     appearance: none;
     width: 100%;
-    min-height: 56px;
+    min-height: 60px;
     border-radius: 14px;
     border: 1px solid var(--border);
     background: var(--surface);
     color: var(--text);
     font-family: var(--mono);
-    font-size: 24px;
+    font-size: 26px;
     font-weight: 600;
     letter-spacing: .3em;
     text-align: center;
@@ -354,7 +481,7 @@
   .key.is-good { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
   .key.is-bad { background: var(--bad); border-color: var(--bad); color: #fff; }
 
-  .session__foot { flex: none; padding-top: 12px; }
+  .session__foot { flex: none; }
 
   /* full-bleed right/wrong flash */
   .flash {
@@ -364,64 +491,124 @@
     opacity: 0;
     background: var(--accent);
     transition: opacity .22s ease;
+    z-index: 5;
   }
-  .flash.is-good { opacity: .14; }
-  .flash.is-bad { background: var(--bad); opacity: .16; }
+  .flash.is-good { opacity: .12; }
+  .flash.is-bad { background: var(--bad); opacity: .14; }
+
+  /* Shown only if the browser refuses to start an AudioContext at all. */
+  .audio-warn {
+    display: none;
+    flex: none;
+    margin-top: 10px;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: var(--amber-dim);
+    color: var(--amber);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: .04em;
+    text-align: center;
+  }
+  .audio-warn.is-on { display: block; }
 
   /* ---------- results ---------- */
 
-  .results { overflow-y: auto; }
-
-  .results__top {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 10px 0 4px;
-  }
-
-  .unlock {
-    flex: none;
-    margin: 14px 0 2px;
-    padding: 12px 14px;
-    border-radius: 12px;
-    background: var(--accent-dim);
-    border: 1px solid var(--accent);
-    color: var(--accent);
-    font-family: var(--mono);
-    font-size: 14px;
-    letter-spacing: .04em;
-    text-align: center;
-    display: none;
-  }
-  .unlock.is-on { display: block; }
-  .unlock b { font-size: 20px; }
-
-  .breakdown {
+  .results__scroll {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    margin: 18px 0 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .row { display: flex; align-items: center; gap: 10px; }
+  .results__head {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 14px 0 4px;
+  }
 
-  .row__char {
+  .score { width: 116px; height: 116px; }
+  .score .ring__in .n {
     font-family: var(--mono);
-    font-size: 17px;
+    font-size: 30px;
     font-weight: 600;
-    width: 20px;
-    flex: none;
+    letter-spacing: -.02em;
     color: var(--text);
   }
 
+  .verdict { flex: 1; min-width: 0; }
+  .verdict__h {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    line-height: 1.2;
+    margin: 0 0 12px;
+  }
+
+  /* Correct / missed legend beside the ring. */
+  .legend { display: flex; flex-direction: column; gap: 7px; }
+  .legend__row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .legend__dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .legend__dot--good { background: var(--accent); }
+  .legend__dot--bad { background: var(--bad); }
+  .legend__n {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    min-width: 34px;
+    text-align: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .unlock {
+    display: none;
+    margin: 16px 0 0;
+    padding: 14px 16px;
+    border-radius: 14px;
+    background: var(--amber-dim);
+    border: 1px solid var(--amber);
+    color: var(--amber);
+    text-align: center;
+  }
+  .unlock.is-on { display: block; }
+  .unlock__k { font-family: var(--mono); font-size: 10.5px; letter-spacing: .2em; text-transform: uppercase; opacity: .8; }
+  .unlock__v { font-family: var(--mono); font-size: 34px; font-weight: 600; line-height: 1.1; margin-top: 4px; }
+
+  .breakdown__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 24px 0 10px;
+  }
+
+  .breakdown { display: flex; flex-direction: column; gap: 10px; padding-bottom: 6px; }
+
+  .row { display: flex; align-items: center; gap: 11px; }
+
+  .row__char {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 600;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 9px;
+    background: var(--surface-2);
+    color: var(--text);
+    display: grid;
+    place-items: center;
+  }
+  .row.is-weak .row__char { background: var(--bad-dim); color: var(--bad); }
+
   .row__bar {
     flex: 1;
-    height: 10px;
-    border-radius: 5px;
+    height: 8px;
+    border-radius: 4px;
     background: var(--surface-2);
     overflow: hidden;
     display: flex;
@@ -434,13 +621,22 @@
     font-family: var(--mono);
     font-size: 12.5px;
     color: var(--muted);
-    width: 54px;
+    width: 46px;
     flex: none;
     text-align: right;
     letter-spacing: .02em;
   }
 
-  .results__foot { flex: none; display: flex; gap: 10px; }
+  .results__foot {
+    flex: none;
+    display: flex;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    margin: 0 -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
   .results__foot .btn { flex: 1; }
 </style>
 </head>
@@ -449,10 +645,15 @@
 <div class="app">
   <div class="flash" id="flash"></div>
 
-  <header class="app__header">
-    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
-    <span class="counter" id="counter"><b>0</b> / 20</span>
+  <!-- top bar: back/close on the left, run counter on the right -->
+  <header class="bar">
+    <a class="icon-btn" id="backLink" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <button class="icon-btn" id="quitBtn" type="button" aria-label="End session" style="display:none">&times;</button>
+    <span class="bar__title" id="barTitle">Koch Code</span>
+    <span class="counter" id="counter"></span>
   </header>
+
+  <div class="segs" id="segs" style="display:none"></div>
 
   <main class="app__body">
     <!-- APP MARKUP -->
@@ -460,10 +661,26 @@
     <!-- HOME -->
     <section class="screen is-active" id="screen-home">
       <div class="home__top">
-        <div class="hero" id="knownCount">2</div>
+        <div class="ring dial" id="poolRing">
+          <div class="ring__in">
+            <span class="n" id="knownCount">2</span>
+            <span class="of" id="poolOf">of 16</span>
+          </div>
+        </div>
         <div class="hero__label" id="knownLabel">characters known</div>
+
         <div class="known" id="knownSet"></div>
-        <div class="stat" id="bestStat">best 0%</div>
+
+        <div class="stats">
+          <div class="stat">
+            <div class="stat__k">Best</div>
+            <div class="stat__v" id="bestStat"><em>0%</em></div>
+          </div>
+          <div class="stat">
+            <div class="stat__k">Next up</div>
+            <div class="stat__v" id="nextStat">R</div>
+          </div>
+        </div>
       </div>
 
       <div class="home__bottom">
@@ -473,17 +690,23 @@
         </div>
         <p class="toggle__hint" id="modeHint">Answer on the keyboard</p>
         <button class="btn" id="startBtn" type="button">Start session</button>
+        <div class="audio-warn" id="audioWarn">Sound is blocked in this browser — tones won't play</div>
       </div>
     </section>
 
     <!-- SESSION -->
     <section class="screen" id="screen-session">
-      <div class="wave" id="wave"></div>
-      <div class="session__prompt" id="prompt">listen</div>
-
-      <div class="session__answer">
-        <div class="echo" id="echo"></div>
+      <div class="stage">
+        <div class="wave" id="wave"></div>
+        <div class="echo" id="echo">
+          <span class="echo__ch" id="echoCh"></span>
+          <span class="echo__was" id="echoWas"></span>
+        </div>
+        <button class="replay" id="replayBtn" type="button">&#9654;&#65038; Replay</button>
       </div>
+
+      <div class="split"></div>
+      <div class="session__prompt" id="prompt">Listen</div>
 
       <div class="session__foot">
         <input class="input" id="typeInput" type="text" inputmode="text" maxlength="1"
@@ -494,15 +717,38 @@
     </section>
 
     <!-- RESULTS -->
-    <section class="screen results" id="screen-results">
-      <div class="results__top">
-        <div class="hero" id="scoreHero">0%</div>
-        <div class="hero__label" id="scoreLabel">accuracy</div>
+    <section class="screen" id="screen-results">
+      <div class="results__scroll">
+        <div class="results__head">
+          <div class="ring score" id="scoreRing">
+            <div class="ring__in"><span class="n" id="scoreHero">0%</span></div>
+          </div>
+          <div class="verdict">
+            <h1 class="verdict__h" id="verdictLine">Session complete</h1>
+            <div class="legend">
+              <div class="legend__row">
+                <span class="legend__dot legend__dot--good"></span> Correct
+                <span class="legend__n" id="hitCount">0</span>
+              </div>
+              <div class="legend__row">
+                <span class="legend__dot legend__dot--bad"></span> Missed
+                <span class="legend__n" id="missCount">0</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="unlock" id="unlockBanner">
+          <div class="unlock__k">New character unlocked</div>
+          <div class="unlock__v" id="unlockChar">J</div>
+        </div>
+
+        <div class="breakdown__head">
+          <span class="eyebrow">Per character</span>
+          <span class="eyebrow" id="passNote">90% to unlock</span>
+        </div>
+        <div class="breakdown" id="breakdown"></div>
       </div>
-
-      <div class="unlock" id="unlockBanner">New character unlocked: <b id="unlockChar">J</b></div>
-
-      <div class="breakdown" id="breakdown"></div>
 
       <div class="results__foot">
         <button class="btn btn--ghost" id="homeBtn" type="button">Home</button>
@@ -537,6 +783,7 @@
   var DIT = 0.06;
   var GAP_AFTER_ANSWER = 620;
   var TONE_HZ = 620;
+  var LEAD = 0.12;          // scheduling lead — never queue a tone in the past
 
   /* ---------- state ---------- */
 
@@ -569,63 +816,115 @@
   /* ---------- elements ---------- */
 
   var el = {};
-  ['screen-home','screen-session','screen-results','knownCount','knownLabel','knownSet',
-   'bestStat','modeType','modeTap','modeHint','startBtn','wave','prompt','echo','typeInput',
-   'tapGrid','counter','flash','scoreHero','scoreLabel','unlockBanner','unlockChar',
-   'breakdown','homeBtn','againBtn'].forEach(function (id) {
-    el[id] = document.getElementById(id);
-  });
+  ['screen-home','screen-session','screen-results','knownCount','poolOf','poolRing','knownLabel',
+   'knownSet','bestStat','nextStat','modeType','modeTap','modeHint','startBtn','audioWarn',
+   'wave','prompt','echo','echoCh','echoWas','replayBtn','typeInput','tapGrid','counter','segs',
+   'flash','backLink','quitBtn','barTitle','scoreRing','scoreHero','verdictLine','hitCount',
+   'missCount','unlockBanner','unlockChar','passNote','breakdown','homeBtn','againBtn']
+  .forEach(function (id) { el[id] = document.getElementById(id); });
 
   function show(name) {
     ['home', 'session', 'results'].forEach(function (n) {
       el['screen-' + n].classList.toggle('is-active', n === name);
     });
-    el.counter.classList.toggle('is-on', name === 'session');
+    var inSession = name === 'session';
+    el.segs.style.display = inSession ? 'flex' : 'none';
+    el.quitBtn.style.display = inSession ? '' : 'none';
+    el.backLink.style.display = inSession ? 'none' : '';
+    el.counter.style.visibility = inSession ? 'visible' : 'hidden';
+    el.barTitle.textContent = inSession ? 'Session' : (name === 'results' ? 'Results' : 'Koch Code');
   }
 
-  /* ---------- audio ---------- */
+  /* ---------- audio ----------
+
+     v1 shipped silent. The context was created on the Start tap but `resume()`
+     was never awaited, so on Safari the first character was scheduled against a
+     context still in `suspended` — where `currentTime` is frozen. By the time
+     the context actually started, every event in that envelope (and the
+     matching `osc.stop`) was already in the past, so the tone was dropped
+     outright rather than played late. Nothing ever sounded.
+
+     The fix has three parts: start a real (silent) node inside the gesture so
+     Safari genuinely unlocks, await `resume()` before the run's first tone, and
+     re-check `state === 'running'` before every character, scheduling with a
+     lead so nothing can land in the past. */
 
   var ctx = null;
+  var master = null;
   var playing = null;   // { osc, gain, segments, endsAt }
 
   function ensureAudio() {
     if (!ctx) {
       var AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return null;
-      ctx = new AC();
+      try { ctx = new AC(); } catch (e) { return null; }
+      master = ctx.createGain();
+      master.gain.value = 0.9;
+      master.connect(ctx.destination);
     }
-    if (ctx.state === 'suspended') ctx.resume();
     return ctx;
+  }
+
+  // Must be called synchronously from a user gesture. Resolves once the context
+  // is actually running (or we know it never will be).
+  function unlockAudio() {
+    var c = ensureAudio();
+    if (!c) return Promise.resolve(false);
+
+    // Safari only really unlocks once a node has been started during a gesture.
+    try {
+      var src = c.createBufferSource();
+      src.buffer = c.createBuffer(1, 1, c.sampleRate);
+      src.connect(master);
+      src.start(0);
+    } catch (e) {}
+
+    var p;
+    try { p = (c.state === 'running') ? Promise.resolve() : c.resume(); }
+    catch (e) { p = Promise.resolve(); }
+
+    return Promise.resolve(p).then(
+      function () { return c.state === 'running'; },
+      function () { return false; }
+    );
   }
 
   // Schedules one character as a gain envelope on a single oscillator, and
   // records when it is actually sounding so the waveform can follow it.
   function playChar(ch) {
     stopTone();
-    if (!ensureAudio()) return;
+    var c = ensureAudio();
+    if (!c) return;
+
+    // A context can fall back to 'suspended' (backgrounded tab, iOS call, …).
+    if (c.state !== 'running') {
+      try { c.resume(); } catch (e) {}
+    }
 
     var code = MORSE[ch] || '.';
-    var gain = ctx.createGain();
-    var osc = ctx.createOscillator();
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+    var gain = c.createGain();
+    var osc = c.createOscillator();
     osc.type = 'sine';
     osc.frequency.value = TONE_HZ;
     osc.connect(gain);
-    gain.connect(ctx.destination);
+    gain.connect(master);
 
-    var t = ctx.currentTime + 0.08;
+    var start = c.currentTime;
+    var t = start + LEAD;
+    gain.gain.setValueAtTime(0.0001, start);
+
     var segments = [];
     for (var i = 0; i < code.length; i++) {
       var dur = code[i] === '.' ? DIT : DIT * 3;
       gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.exponentialRampToValueAtTime(0.25, t + 0.006);
-      gain.gain.setValueAtTime(0.25, t + dur - 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.3, t + 0.006);
+      gain.gain.setValueAtTime(0.3, t + dur - 0.006);
       gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       segments.push([t, t + dur]);
       t += dur + DIT;        // intra-character gap is one dit
     }
 
-    osc.start(ctx.currentTime);
+    osc.start(start);
     osc.stop(t + 0.05);
     playing = { osc: osc, gain: gain, segments: segments, endsAt: t };
   }
@@ -660,7 +959,6 @@
     bars.push(bar);
   }
 
-  var raf = null;
   function tick(ts) {
     var on = isSounding();
     for (var i = 0; i < BARS; i++) {
@@ -676,9 +974,9 @@
       bars[i].style.height = Math.max(3, h).toFixed(1) + 'px';
       bars[i].style.opacity = on ? '1' : '.45';
     }
-    raf = requestAnimationFrame(tick);
+    requestAnimationFrame(tick);
   }
-  raf = requestAnimationFrame(tick);
+  requestAnimationFrame(tick);
 
   /* ---------- home ---------- */
 
@@ -690,8 +988,13 @@
   }
 
   function renderHome() {
+    var next = nextLocked();
+
     el.knownCount.textContent = state.known.length;
+    el.poolOf.textContent = 'of ' + POOL.length;
+    el.poolRing.style.setProperty('--p', (state.known.length / POOL.length * 100).toFixed(1));
     el.knownLabel.textContent = state.known.length === 1 ? 'character known' : 'characters known';
+
     el.knownSet.innerHTML = '';
     state.known.forEach(function (c) {
       var chip = document.createElement('span');
@@ -699,8 +1002,15 @@
       chip.textContent = c;
       el.knownSet.appendChild(chip);
     });
-    el.bestStat.textContent = 'best ' + Math.round(state.best * 100) + '%'
-      + (nextLocked() ? '' : '  ·  pool complete');
+    if (next) {
+      var lock = document.createElement('span');
+      lock.className = 'known__chip known__chip--next';
+      lock.textContent = next;
+      el.knownSet.appendChild(lock);
+    }
+
+    el.bestStat.innerHTML = '<em>' + Math.round(state.best * 100) + '%</em>';
+    el.nextStat.textContent = next ? next : 'done';
     setMode(state.mode, true);
   }
 
@@ -742,12 +1052,27 @@
     });
   }
 
+  function buildSegs() {
+    el.segs.innerHTML = '';
+    session.segs = [];
+    for (var i = 0; i < SESSION_LEN; i++) {
+      var s = document.createElement('div');
+      s.className = 'seg';
+      el.segs.appendChild(s);
+      session.segs.push(s);
+    }
+  }
+
   function startSession() {
-    ensureAudio();   // unlocked by this tap, which is the only gesture we get
+    // The tap that got us here is the only gesture we get, so unlock on it —
+    // synchronously, before any of the setup below yields.
+    var ready = unlockAudio();
+
     session = {
       i: 0,
       accepting: false,
       chars: [],
+      segs: [],
       stats: {}       // char -> { hit, total }
     };
     for (var n = 0; n < SESSION_LEN; n++) {
@@ -756,13 +1081,19 @@
     state.known.forEach(function (c) { session.stats[c] = { hit: 0, total: 0 }; });
 
     buildGrid();
+    buildSegs();
     setMode(state.mode, true);
-    el.echo.className = 'echo';
-    el.echo.textContent = '';
+    hideEcho();
     updateCounter();
     show('session');
     if (state.mode === 'type') focusInput();
-    setTimeout(nextChar, 500);
+
+    // Only start the run once the context is genuinely running — scheduling
+    // against a suspended context is what made v1 silent.
+    ready.then(function (ok) {
+      el.audioWarn.classList.toggle('is-on', !ok);
+      setTimeout(nextChar, 400);
+    });
   }
 
   function focusInput() {
@@ -775,18 +1106,26 @@
     el.counter.innerHTML = '<b>' + done + '</b> / ' + SESSION_LEN;
   }
 
+  function hideEcho() {
+    el.echo.className = 'echo';
+    el.wave.style.display = '';
+  }
+
   function nextChar() {
     if (!session) return;
     if (session.i >= SESSION_LEN) { finish(); return; }
-    el.prompt.textContent = 'listen';
-    el.wave.classList.remove('is-bad');
+    el.prompt.className = 'session__prompt';
+    el.prompt.textContent = state.mode === 'type' ? 'Type what you hear' : 'Tap what you hear';
+    session.segs[session.i].classList.add('is-now');
     session.accepting = true;
+    el.replayBtn.disabled = false;
     playChar(session.chars[session.i]);
   }
 
   function answer(ch, keyEl) {
     if (!session || !session.accepting) return;
     session.accepting = false;
+    el.replayBtn.disabled = true;
     stopTone();
 
     var want = session.chars[session.i];
@@ -795,14 +1134,20 @@
     st.total++;
     if (ok) st.hit++;
 
-    // instant flash: full-bleed wash, the echoed answer, and the key itself
+    // instant feedback: full-bleed wash, the answer echoed over the stage,
+    // the run segment locked to its outcome, and the key itself
     el.flash.className = 'flash ' + (ok ? 'is-good' : 'is-bad');
+    el.wave.style.display = 'none';
     el.echo.className = 'echo is-on ' + (ok ? 'is-good' : 'is-bad');
-    el.echo.innerHTML = ok
-      ? ch
-      : ch + '<span class="echo__was">was ' + want + '</span>';
-    el.wave.classList.toggle('is-bad', !ok);
-    el.prompt.textContent = ok ? 'correct' : 'miss';
+    el.echoCh.textContent = ch;
+    el.echoWas.textContent = ok ? '' : 'it was ' + want;
+    el.prompt.className = 'session__prompt ' + (ok ? 'is-good' : 'is-bad');
+    el.prompt.textContent = ok ? 'Correct' : 'Miss';
+
+    var seg = session.segs[session.i];
+    seg.classList.remove('is-now');
+    seg.classList.add(ok ? 'is-good' : 'is-bad');
+
     if (keyEl) {
       keyEl.classList.add(ok ? 'is-good' : 'is-bad');
       setTimeout(function () { keyEl.classList.remove('is-good', 'is-bad'); }, 260);
@@ -814,11 +1159,23 @@
 
     setTimeout(function () { el.flash.className = 'flash'; }, 240);
     setTimeout(function () {
-      el.echo.className = 'echo';
+      if (!session) return;
+      hideEcho();
       if (state.mode === 'type') focusInput();
       nextChar();
     }, GAP_AFTER_ANSWER);
   }
+
+  // Replay costs nothing — it re-sends the same character, which is also the
+  // recovery path if the browser swallowed the first tone.
+  el.replayBtn.addEventListener('click', function () {
+    if (!session || !session.accepting) return;
+    unlockAudio().then(function (ok) {
+      el.audioWarn.classList.toggle('is-on', !ok);
+      playChar(session.chars[session.i]);
+    });
+    if (state.mode === 'type') focusInput();
+  });
 
   // Type mode: every keystroke is an answer, no submit step.
   el.typeInput.addEventListener('input', function () {
@@ -851,19 +1208,26 @@
       if (s) { hit += s.hit; total += s.total; }
     });
     var acc = total ? hit / total : 0;
+    var passed = acc >= PASS;
 
     if (acc > state.best) state.best = acc;
 
     var unlocked = null;
-    if (acc >= PASS) {
+    if (passed) {
       unlocked = nextLocked();
       if (unlocked) state.known.push(unlocked);
     }
     save();
 
     el.scoreHero.textContent = Math.round(acc * 100) + '%';
-    el.scoreHero.style.color = acc >= PASS ? 'var(--accent)' : 'var(--bad)';
-    el.scoreLabel.textContent = acc >= PASS ? 'accuracy · passed' : 'accuracy · 90% to unlock';
+    el.scoreRing.style.setProperty('--p', (acc * 100).toFixed(1));
+    el.scoreRing.style.setProperty('--ring-color', passed ? 'var(--accent)' : 'var(--bad)');
+    el.verdictLine.textContent = passed
+      ? (unlocked ? "You're copying it." : 'Pool complete.')
+      : 'Not quite — run it again.';
+    el.hitCount.textContent = hit;
+    el.missCount.textContent = total - hit;
+    el.passNote.textContent = passed ? 'passed' : '90% to unlock';
 
     el.unlockBanner.classList.toggle('is-on', !!unlocked);
     if (unlocked) el.unlockChar.textContent = unlocked;
@@ -872,7 +1236,7 @@
     Object.keys(session.stats).forEach(function (c) {
       var s = session.stats[c];
       var row = document.createElement('div');
-      row.className = 'row';
+      row.className = 'row' + (s.total && s.hit < s.total ? ' is-weak' : '');
 
       var name = document.createElement('span');
       name.className = 'row__char';
@@ -907,9 +1271,18 @@
 
   /* ---------- wiring ---------- */
 
+  function goHome() {
+    session = null;
+    stopTone();
+    el.typeInput.blur();
+    renderHome();
+    show('home');
+  }
+
   el.startBtn.addEventListener('click', startSession);
   el.againBtn.addEventListener('click', startSession);
-  el.homeBtn.addEventListener('click', function () { renderHome(); show('home'); });
+  el.homeBtn.addEventListener('click', goHome);
+  el.quitBtn.addEventListener('click', goHome);
 
   // Leaving the session by any route should not keep a tone running.
   document.addEventListener('visibilitychange', function () {

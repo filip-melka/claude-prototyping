@@ -19,10 +19,13 @@
       "tagline": "Learn Morse the Koch way — full speed from the first tone, typing or tapping your answer.",
       "kind": "app",
       "path": "prototypes/PROTOTYPE-3/index.html",
-      "version": 1,
+      "version": 2,
       "createdAt": "2026-08-08",
-      "updatedAt": "2026-08-08",
-      "changelog": ["v1 — initial prototype"]
+      "updatedAt": "2026-08-16",
+      "changelog": [
+        "v1 — initial prototype",
+        "v2 — fixed the silent tone (audio unlocked and resumed on the Start tap before scheduling), lesson-style session screen with a segmented run bar and a replay button, donut accuracy ring and correct/missed legend on results"
+      ]
     },
     {
       "id": "PROTOTYPE-4",
