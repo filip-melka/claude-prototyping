@@ -1,0 +1,1352 @@
+<!doctype html>
+<!--
+  Number Sprint — PROTOTYPE-8
+  Mental math trainer: 60-second timed drills that adapt a per-operation difficulty
+  tier, plus untimed real-world tip scenarios.
+  Self-contained: no external requests of any kind. localStorage only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Number Sprint</title>
+<style>
+  /* Light is the intended look — clean and energetic, closer to a fitness app
+     than a kids' app. Dark is a faithful translation of it. */
+  :root {
+    --bg: #fafafa;
+    --surface: #ffffff;
+    --surface-2: #f1f2f5;
+    --text: #14161a;
+    --muted: #6b7280;
+    --faint: #9ca3af;
+    --border: #e7e8ec;
+    --accent: #2f6fed;
+    --accent-soft: rgba(47, 111, 237, .1);
+    --accent-text: #ffffff;
+    --good: #22c55e;
+    --good-soft: rgba(34, 197, 94, .14);
+    --bad: #ef4444;
+    --bad-soft: rgba(239, 68, 68, .14);
+    --track: #e9eaee;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 10px 26px rgba(16, 24, 40, .06);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d0f13;
+      --surface: #161a20;
+      --surface-2: #1d222a;
+      --text: #f3f4f6;
+      --muted: #98a1ae;
+      --faint: #6b7482;
+      --border: #262c35;
+      --accent: #5b8def;
+      --accent-soft: rgba(91, 141, 239, .16);
+      --accent-text: #0b0d11;
+      --good: #34d47f;
+      --good-soft: rgba(52, 212, 127, .16);
+      --bad: #f4685f;
+      --bad-soft: rgba(244, 104, 95, .16);
+      --track: #232932;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 26px rgba(0, 0, 0, .35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  /* screens swap chrome in and out with [hidden]; author display rules must not win */
+  [hidden] { display: none !important; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  /* Tabular numerals everywhere a number can change under you. */
+  .tnum { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    /* fixed height, not min-height: tall screens scroll inside .scrollarea
+       instead of stretching the page out from under the pinned buttons */
+    height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 10px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 14px)
+      calc(env(safe-area-inset-left) + 16px);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  /* ---------- top bar: back link lives here on every screen ---------- */
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    flex: none;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .topbar__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 640;
+    letter-spacing: -.015em;
+    flex: 1;
+  }
+
+  .iconbtn {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    min-width: 44px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .iconbtn:active { transform: scale(.96); }
+
+  /* countdown bar + score chip replace the title during a drill */
+  .timerwrap { flex: 1; display: flex; align-items: center; gap: 10px; }
+
+  .timer {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--track);
+    overflow: hidden;
+  }
+
+  .timer__fill {
+    height: 100%;
+    width: 100%;
+    border-radius: 999px;
+    background: var(--accent);
+    transform-origin: left center;
+    transition: transform 1s linear, background-color .3s ease;
+  }
+
+  .timer.is-low .timer__fill { background: var(--bad); }
+
+  .timer__count {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    min-width: 26px;
+    text-align: right;
+    color: var(--muted);
+  }
+
+  .timer.is-low + .timer__count,
+  .timer__count.is-low { color: var(--bad); }
+
+  .score {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 5px 11px;
+    flex: none;
+  }
+
+  /* ---------- screens ---------- */
+
+  /* min-height:0 lets .scrollarea actually clip instead of stretching the page */
+  .screen { display: none; flex: 1; min-height: 0; flex-direction: column; padding-top: 14px; }
+  .screen.is-active { display: flex; }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 10px;
+  }
+
+  /* ---------- home ---------- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px 14px;
+  }
+
+  .stat__value {
+    font-size: 26px;
+    font-weight: 720;
+    letter-spacing: -.03em;
+    line-height: 1.15;
+    display: flex;
+    align-items: baseline;
+    gap: 3px;
+  }
+
+  .stat__unit { font-size: 14px; font-weight: 600; color: var(--muted); }
+
+  .stat__label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  .chips {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 4px;
+    margin: 0 -16px 18px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .chips::-webkit-scrollbar { display: none; }
+
+  .chip {
+    appearance: none;
+    flex: none;
+    min-height: 62px;
+    padding: 9px 15px;
+    border-radius: 15px;
+    border: 1.5px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    line-height: 1.25;
+  }
+
+  .chip__name { font-size: 14px; font-weight: 640; letter-spacing: -.01em; }
+  .chip__tier { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+  .chip.is-on {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .chip.is-on .chip__tier { color: var(--accent); font-weight: 600; }
+  .chip:active { transform: scale(.97); }
+
+  .tierlist {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 4px 14px;
+  }
+
+  .tierrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+
+  .tierrow:last-child { border-bottom: 0; }
+  .tierrow__name { flex: 1; color: var(--muted); }
+  .tierrow__tier { font-weight: 650; font-size: 13px; }
+
+  .pips { display: flex; gap: 4px; }
+
+  .pip {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    background: var(--track);
+  }
+
+  .pip.is-on { background: var(--accent); }
+
+  .spacer { flex: 1; min-height: 18px; }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 16px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    min-height: 56px;
+    width: 100%;
+    padding: 0 20px;
+    cursor: pointer;
+  }
+
+  .btn:active { transform: scale(.985); }
+
+  .btn--ghost {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  .btn--big { min-height: 64px; font-size: 18px; }
+
+  .btn__sub {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    opacity: .78;
+    margin-top: 1px;
+  }
+
+  .btnrow { display: flex; gap: 10px; }
+
+  /* ---------- drill ---------- */
+
+  .drill { align-items: stretch; }
+
+  .problem {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 190px;
+  }
+
+  .problem__q {
+    font-size: 52px;
+    font-weight: 700;
+    letter-spacing: -.035em;
+    line-height: 1.1;
+    text-align: center;
+  }
+
+  .problem__a {
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    line-height: 1.2;
+    min-height: 50px;
+    color: var(--accent);
+    transition: transform .1s ease, color .12s ease;
+  }
+
+  .problem__a.is-empty { color: var(--faint); }
+  .problem__a.is-pulse { transform: scale(1.07); }
+  .problem.is-good .problem__a { color: var(--good); }
+  .problem.is-bad .problem__a { color: var(--bad); }
+
+  /* 200ms full-bleed flash on submit */
+  .flash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .2s ease;
+    z-index: 5;
+  }
+
+  .flash.is-good { background: var(--good-soft); opacity: 1; }
+  .flash.is-bad { background: var(--bad-soft); opacity: 1; }
+
+  .keypad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
+    flex: none;
+  }
+
+  .key {
+    appearance: none;
+    border: 0;
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font: inherit;
+    font-size: 27px;
+    font-weight: 550;
+    letter-spacing: -.02em;
+    min-height: 58px;
+    cursor: pointer;
+  }
+
+  .key:active { transform: scale(.96); background: var(--surface-2); }
+  .key--dim { font-size: 22px; color: var(--muted); box-shadow: none; background: var(--surface-2); }
+  .key--go { background: var(--accent); color: var(--accent-text); font-size: 22px; box-shadow: none; }
+
+  /* ---------- results ---------- */
+
+  .ring { display: flex; justify-content: center; margin: 6px 0 18px; }
+  .ring svg { display: block; }
+  .ring__track { stroke: var(--track); }
+  .ring__val { stroke: var(--accent); transition: stroke-dashoffset .7s ease; }
+
+  .heroes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .hero {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 13px 14px;
+    text-align: center;
+  }
+
+  .hero__value {
+    font-size: 30px;
+    font-weight: 720;
+    letter-spacing: -.03em;
+    line-height: 1.15;
+  }
+
+  .hero__unit { font-size: 15px; font-weight: 600; color: var(--muted); }
+  .hero__label { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .tierchange {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 14px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 640;
+    margin-bottom: 14px;
+    background: var(--surface-2);
+    color: var(--muted);
+  }
+
+  .tierchange.is-up { background: var(--good-soft); color: var(--good); }
+  .tierchange.is-down { background: var(--bad-soft); color: var(--bad); }
+
+  .missed {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2px 14px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .missrow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 15px;
+  }
+
+  .missrow:last-child { border-bottom: 0; }
+  .missrow__q { flex: 1; font-weight: 600; }
+  .missrow__given { color: var(--bad); text-decoration: line-through; font-size: 14px; }
+  .missrow__ans { color: var(--good); font-weight: 650; }
+
+  .empty {
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+    padding: 18px 6px;
+  }
+
+  /* ---------- real-world scenario ---------- */
+
+  .scenario {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+    margin-bottom: 12px;
+  }
+
+  .scenario__tag {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .scenario__line {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    line-height: 1.35;
+    margin-top: 8px;
+  }
+
+  .scenario__bill {
+    font-size: 34px;
+    font-weight: 720;
+    letter-spacing: -.03em;
+    margin-top: 10px;
+  }
+
+  .worked {
+    background: var(--surface-2);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.7;
+    color: var(--muted);
+  }
+
+  .worked__step strong { color: var(--text); font-weight: 650; }
+
+  .worked__verdict {
+    font-weight: 700;
+    font-size: 15px;
+    margin-bottom: 4px;
+  }
+
+  .worked__verdict.is-good { color: var(--good); }
+  .worked__verdict.is-bad { color: var(--bad); }
+
+  /* ---------- stats ---------- */
+
+  .chartcard {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+  .swatch { width: 12px; height: 3px; border-radius: 999px; display: inline-block; }
+  .swatch--acc { background: var(--accent); }
+  .swatch--time { background: var(--faint); }
+
+  .chart { width: 100%; height: auto; display: block; }
+  .chart__grid { stroke: var(--border); stroke-width: 1; }
+  .chart__acc { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .chart__time { fill: none; stroke: var(--faint); stroke-width: 2.5; stroke-dasharray: 4 4; stroke-linejoin: round; stroke-linecap: round; }
+  .chart__dot { fill: var(--accent); }
+  .chart__label { fill: var(--faint); font-size: 9px; font-family: inherit; }
+
+  .scrollarea { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  /* once the scenario is answered the keypad goes; keep the answer near the card
+     and let the worked calculation sit with it, buttons pinned to the bottom */
+  #screen-real.is-answered #realBox { flex: none; min-height: 76px; }
+  #realNextRow { margin-top: auto; }
+</style>
+</head>
+<body>
+
+<div class="flash" id="flash"></div>
+
+<div class="app">
+  <header class="topbar">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+
+    <h1 class="topbar__title" id="title">Number Sprint</h1>
+
+    <!-- swapped in during a drill -->
+    <div class="timerwrap" id="timerwrap" hidden>
+      <div class="timer" id="timer"><div class="timer__fill" id="timerFill"></div></div>
+      <div class="timer__count tnum" id="timerCount">60</div>
+    </div>
+
+    <div class="score tnum" id="score" hidden>0/0</div>
+    <button class="iconbtn" id="statsBtn" type="button">Stats</button>
+  </header>
+
+  <!-- ============================ HOME ============================ -->
+  <section class="screen is-active" id="screen-home">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat__value tnum"><span id="statStreak">0</span><span class="stat__unit" id="statStreakUnit">days</span></div>
+        <div class="stat__label">Current streak</div>
+      </div>
+      <div class="stat">
+        <div class="stat__value tnum"><span id="statBest">—</span><span class="stat__unit">s / problem</span></div>
+        <div class="stat__label">Best average</div>
+      </div>
+    </div>
+
+    <p class="eyebrow">Choose your drill</p>
+    <div class="chips" id="chips"></div>
+
+    <p class="eyebrow">Difficulty tiers</p>
+    <div class="tierlist" id="tierlist"></div>
+
+    <div class="spacer"></div>
+
+    <button class="btn btn--big" id="startBtn" type="button">
+      Start Drill
+      <span class="btn__sub" id="startSub">Addition · Tier 1 · 60 seconds</span>
+    </button>
+  </section>
+
+  <!-- ============================ DRILL ============================ -->
+  <section class="screen drill" id="screen-drill">
+    <div class="problem" id="problemBox">
+      <div class="problem__q tnum" id="problemQ">47 × 6</div>
+      <div class="problem__a tnum is-empty" id="problemA">–</div>
+    </div>
+    <div class="keypad" id="keypadDrill"></div>
+  </section>
+
+  <!-- ============================ RESULTS ============================ -->
+  <section class="screen" id="screen-results">
+    <div class="scrollarea">
+      <div class="ring">
+        <svg width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
+          <circle class="ring__track" cx="66" cy="66" r="56" fill="none" stroke-width="11"></circle>
+          <circle class="ring__val" id="ringVal" cx="66" cy="66" r="56" fill="none" stroke-width="11"
+                  stroke-linecap="round" transform="rotate(-90 66 66)"
+                  stroke-dasharray="351.86" stroke-dashoffset="351.86"></circle>
+          <text x="66" y="62" text-anchor="middle" font-size="30" font-weight="700"
+                fill="currentColor" class="tnum" id="ringPct">0%</text>
+          <text x="66" y="82" text-anchor="middle" font-size="12" fill="currentColor"
+                opacity=".55" id="ringSub">0 of 0</text>
+        </svg>
+      </div>
+
+      <div class="heroes">
+        <div class="hero">
+          <div class="hero__value tnum" id="resAcc">0<span class="hero__unit">%</span></div>
+          <div class="hero__label">Accuracy</div>
+        </div>
+        <div class="hero">
+          <div class="hero__value tnum" id="resAvg">0.0<span class="hero__unit">s</span></div>
+          <div class="hero__label">Avg per problem</div>
+        </div>
+      </div>
+
+      <div class="tierchange" id="tierChange">Tier 1 held</div>
+
+      <p class="eyebrow">Missed</p>
+      <div class="missed" id="missedList"></div>
+    </div>
+
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn btn--ghost" id="resHome" type="button">Home</button>
+      <button class="btn" id="resAgain" type="button">Again</button>
+    </div>
+  </section>
+
+  <!-- ======================= REAL-WORLD SCENARIO ======================= -->
+  <section class="screen" id="screen-real">
+    <div class="scenario">
+      <div class="scenario__tag" id="realTag">Tip · Untimed</div>
+      <div class="scenario__line" id="realLine">What's an 18% tip?</div>
+      <div class="scenario__bill tnum" id="realBill">$42.80</div>
+    </div>
+
+    <div class="problem" id="realBox" style="min-height:110px">
+      <div class="problem__a tnum is-empty" id="realA">$0</div>
+    </div>
+
+    <div class="worked" id="realWorked" hidden></div>
+
+    <div class="keypad" id="keypadReal"></div>
+
+    <div class="btnrow" id="realNextRow" style="margin-top:10px">
+      <button class="btn btn--ghost" id="realHome" type="button">Home</button>
+      <button class="btn" id="realNext" type="button" hidden>Next scenario</button>
+    </div>
+  </section>
+
+  <!-- ============================ STATS ============================ -->
+  <section class="screen" id="screen-stats">
+    <div class="scrollarea">
+      <div class="chartcard">
+        <div class="legend">
+          <span><i class="swatch swatch--acc"></i>Accuracy %</span>
+          <span><i class="swatch swatch--time"></i>Avg time / problem</span>
+        </div>
+        <div id="chartHost"></div>
+      </div>
+
+      <p class="eyebrow">Tier by operation</p>
+      <div class="tierlist" id="statsTiers"></div>
+
+      <p class="eyebrow" style="margin-top:16px">Recent sessions</p>
+      <div class="missed" id="sessionList"></div>
+    </div>
+
+    <button class="btn btn--ghost" id="statsBack" type="button" style="margin-top:12px">Back</button>
+  </section>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------ *
+   * Persistence
+   * ------------------------------------------------------------------ */
+
+  var KEY = 'numberSprint.v1';
+  var MAX_TIER = 5;
+  var DRILL_SECONDS = 60;
+
+  var state = {
+    tiers: { add: 1, sub: 1, mul: 1, div: 1, mix: 1 },
+    streak: 0,
+    lastPlayed: null,   // YYYY-MM-DD
+    bestAvg: null,      // seconds per problem
+    sessions: []        // { date, op, acc, avg, answered, tier }
+  };
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (!raw) return;
+      var saved = JSON.parse(raw);
+      if (saved && typeof saved === 'object') {
+        if (saved.tiers) for (var k in state.tiers) if (saved.tiers[k]) state.tiers[k] = clampTier(saved.tiers[k]);
+        if (typeof saved.streak === 'number') state.streak = saved.streak;
+        if (saved.lastPlayed) state.lastPlayed = saved.lastPlayed;
+        if (typeof saved.bestAvg === 'number') state.bestAvg = saved.bestAvg;
+        if (Array.isArray(saved.sessions)) state.sessions = saved.sessions.slice(-30);
+      }
+    } catch (e) { /* private mode or file:// — run stateless */ }
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+
+  function clampTier(t) { return Math.max(1, Math.min(MAX_TIER, Math.round(t) || 1)); }
+
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function daysBetween(a, b) {
+    return Math.round((Date.parse(b + 'T00:00:00') - Date.parse(a + 'T00:00:00')) / 86400000);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Problem generation — one range table per operation, per tier
+   * ------------------------------------------------------------------ */
+
+  function rnd(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
+
+  var OPS = {
+    add: {
+      label: 'Addition', short: 'Addition', sym: '+',
+      gen: function (t) {
+        var r = [[2, 9, 2, 9], [10, 29, 2, 9], [11, 49, 11, 49], [20, 99, 20, 99], [105, 499, 105, 499]][t - 1];
+        var a = rnd(r[0], r[1]), b = rnd(r[2], r[3]);
+        return { text: a + ' + ' + b, answer: a + b };
+      }
+    },
+    sub: {
+      label: 'Subtraction', short: 'Subtraction', sym: '−',
+      gen: function (t) {
+        var r = [[5, 19, 2, 9], [20, 49, 2, 19], [30, 99, 11, 29], [50, 199, 20, 99], [200, 799, 100, 399]][t - 1];
+        var a = rnd(r[0], r[1]), b = rnd(r[2], Math.min(r[3], a - 1));
+        return { text: a + ' − ' + b, answer: a - b };
+      }
+    },
+    mul: {
+      label: 'Multiplication', short: 'Multiplication', sym: '×',
+      gen: function (t) {
+        var r = [[2, 9, 2, 9], [2, 12, 2, 9], [11, 19, 2, 9], [12, 49, 3, 9], [11, 29, 11, 19]][t - 1];
+        var a = rnd(r[0], r[1]), b = rnd(r[2], r[3]);
+        return { text: a + ' × ' + b, answer: a * b };
+      }
+    },
+    div: {
+      label: 'Division', short: 'Division', sym: '÷',
+      gen: function (t) {
+        var r = [[2, 9, 2, 9], [2, 9, 2, 12], [3, 9, 11, 19], [11, 19, 2, 9], [12, 29, 11, 19]][t - 1];
+        var b = rnd(r[0], r[1]), q = rnd(r[2], r[3]);
+        return { text: (b * q) + ' ÷ ' + b, answer: q };
+      }
+    },
+    mix: {
+      label: 'Mixed', short: 'Mixed', sym: '≡',
+      gen: function (t) {
+        var pick = ['add', 'sub', 'mul', 'div'][rnd(0, 3)];
+        return OPS[pick].gen(t);
+      }
+    },
+    real: { label: 'Real-World', short: 'Real-World', sym: '%' }
+  };
+
+  var OP_ORDER = ['add', 'sub', 'mul', 'div', 'mix', 'real'];
+
+  /* Tip scenarios — untimed, worked through after you answer. */
+  var TIPS = [
+    { bill: 42.80, pct: 18, place: 'Dinner for two' },
+    { bill: 36.00, pct: 20, place: 'Brunch' },
+    { bill: 58.50, pct: 15, place: 'Team lunch' },
+    { bill: 24.40, pct: 20, place: 'Takeaway counter' },
+    { bill: 91.20, pct: 18, place: 'Birthday table' },
+    { bill: 15.60, pct: 15, place: 'Coffee and cake' }
+  ];
+
+  /* ------------------------------------------------------------------ *
+   * DOM helpers
+   * ------------------------------------------------------------------ */
+
+  function $(id) { return document.getElementById(id); }
+
+  var screens = {
+    home: $('screen-home'),
+    drill: $('screen-drill'),
+    results: $('screen-results'),
+    real: $('screen-real'),
+    stats: $('screen-stats')
+  };
+
+  var current = 'home';
+
+  function show(name) {
+    for (var k in screens) screens[k].classList.toggle('is-active', k === name);
+    current = name;
+
+    var drilling = name === 'drill';
+    $('title').hidden = drilling;
+    $('timerwrap').hidden = !drilling;
+    $('score').hidden = !drilling;
+    $('statsBtn').hidden = name !== 'home';
+
+    var titles = { home: 'Number Sprint', results: 'Session', real: 'Real-World', stats: 'Your progress' };
+    if (titles[name]) $('title').textContent = titles[name];
+    window.scrollTo(0, 0);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Home
+   * ------------------------------------------------------------------ */
+
+  var selectedOp = 'add';
+
+  function renderHome() {
+    $('statStreak').textContent = state.streak;
+    $('statStreakUnit').textContent = state.streak === 1 ? 'day' : 'days';
+    $('statBest').textContent = state.bestAvg == null ? '—' : state.bestAvg.toFixed(1);
+
+    var chips = $('chips');
+    chips.innerHTML = '';
+    OP_ORDER.forEach(function (op) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip' + (op === selectedOp ? ' is-on' : '');
+      b.innerHTML = '<div class="chip__name">' + OPS[op].label + '</div>' +
+                    '<div class="chip__tier tnum">' + (op === 'real' ? 'Untimed' : 'Tier ' + state.tiers[op]) + '</div>';
+      b.addEventListener('click', function () { selectedOp = op; renderHome(); });
+      chips.appendChild(b);
+    });
+
+    $('tierlist').innerHTML = tierRows();
+
+    var sub = OPS[selectedOp].label + ' · ' +
+      (selectedOp === 'real' ? 'Untimed scenarios' : 'Tier ' + state.tiers[selectedOp] + ' · 60 seconds');
+    $('startSub').textContent = sub;
+    $('startBtn').firstChild.nodeValue = selectedOp === 'real' ? 'Start Scenarios' : 'Start Drill';
+  }
+
+  function tierRows() {
+    return OP_ORDER.filter(function (op) { return op !== 'real'; }).map(function (op) {
+      var t = state.tiers[op], pips = '';
+      for (var i = 1; i <= MAX_TIER; i++) pips += '<i class="pip' + (i <= t ? ' is-on' : '') + '"></i>';
+      return '<div class="tierrow">' +
+               '<span class="tierrow__name">' + OPS[op].label + '</span>' +
+               '<span class="pips">' + pips + '</span>' +
+               '<span class="tierrow__tier tnum">Tier ' + t + '</span>' +
+             '</div>';
+    }).join('');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Keypads
+   * ------------------------------------------------------------------ */
+
+  function buildKeypad(host, keys, onKey) {
+    host.innerHTML = '';
+    keys.forEach(function (k) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'key' + (k.cls ? ' ' + k.cls : '');
+      b.textContent = k.label;
+      b.addEventListener('click', function () { onKey(k.value); });
+      host.appendChild(b);
+    });
+  }
+
+  function digitKeys() {
+    var out = [];
+    for (var i = 1; i <= 9; i++) out.push({ label: '' + i, value: '' + i });
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Drill
+   * ------------------------------------------------------------------ */
+
+  var drill = null;
+  var tick = null;
+  var flashTimer = null;
+  var pulseTimer = null;
+
+  function startDrill(op) {
+    drill = {
+      op: op,
+      tier: state.tiers[op],
+      left: DRILL_SECONDS,
+      typed: '',
+      right: 0,
+      total: 0,
+      missed: [],
+      times: [],
+      started: 0,
+      problem: null,
+      locked: false
+    };
+
+    $('timerFill').style.transition = 'none';
+    $('timerFill').style.transform = 'scaleX(1)';
+    $('timer').classList.remove('is-low');
+    $('timerCount').classList.remove('is-low');
+    $('timerCount').textContent = DRILL_SECONDS;
+    $('score').textContent = '0/0';
+
+    show('drill');
+    nextProblem();
+
+    // let the reset paint before the countdown animation resumes
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        $('timerFill').style.transition = 'transform 1s linear, background-color .3s ease';
+      });
+    });
+
+    clearInterval(tick);
+    tick = setInterval(function () {
+      drill.left--;
+      $('timerCount').textContent = Math.max(0, drill.left);
+      $('timerFill').style.transform = 'scaleX(' + Math.max(0, drill.left / DRILL_SECONDS) + ')';
+      if (drill.left <= 10) {
+        $('timer').classList.add('is-low');
+        $('timerCount').classList.add('is-low');
+      }
+      if (drill.left <= 0) endDrill();
+    }, 1000);
+  }
+
+  function nextProblem() {
+    var p = OPS[drill.op].gen(drill.tier);
+    // never repeat the problem you just answered
+    if (drill.problem && p.text === drill.problem.text) p = OPS[drill.op].gen(drill.tier);
+    drill.problem = p;
+    drill.typed = '';
+    drill.started = Date.now();
+    drill.locked = false;
+    $('problemQ').textContent = p.text;
+    paintAnswer();
+  }
+
+  function paintAnswer() {
+    var el = $('problemA');
+    el.textContent = drill.typed === '' ? '–' : drill.typed;
+    el.classList.toggle('is-empty', drill.typed === '');
+  }
+
+  function pulse(el) {
+    el.classList.add('is-pulse');
+    clearTimeout(pulseTimer);
+    pulseTimer = setTimeout(function () { el.classList.remove('is-pulse'); }, 100);
+  }
+
+  function flash(good) {
+    var f = $('flash');
+    f.className = 'flash ' + (good ? 'is-good' : 'is-bad');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { f.className = 'flash'; }, 200);
+  }
+
+  function drillKey(v) {
+    if (!drill || drill.locked) return;
+
+    if (v === 'del') {
+      drill.typed = drill.typed.slice(0, -1);
+      paintAnswer();
+      return;
+    }
+    if (v === 'go') {
+      if (drill.typed !== '') submitAnswer();
+      return;
+    }
+    if (drill.typed.length >= 5) return;
+    if (drill.typed === '' && v === '0') return;
+    drill.typed += v;
+    paintAnswer();
+    pulse($('problemA'));
+
+    // auto-submit once the typed answer is as long as the real one
+    if (drill.typed.length === String(drill.problem.answer).length) {
+      setTimeout(function () { if (drill && !drill.locked) submitAnswer(); }, 130);
+    }
+  }
+
+  function submitAnswer() {
+    drill.locked = true;
+    var given = parseInt(drill.typed, 10);
+    var right = given === drill.problem.answer;
+    var box = $('problemBox');
+
+    drill.total++;
+    drill.times.push((Date.now() - drill.started) / 1000);
+    if (right) drill.right++;
+    else drill.missed.push({ q: drill.problem.text, given: drill.typed, answer: drill.problem.answer });
+
+    $('score').textContent = drill.right + '/' + drill.total;
+    box.classList.add(right ? 'is-good' : 'is-bad');
+    flash(right);
+    pulse($('problemA'));
+
+    setTimeout(function () {
+      box.classList.remove('is-good', 'is-bad');
+      if (drill && drill.left > 0) nextProblem();
+    }, 220);
+  }
+
+  function endDrill() {
+    clearInterval(tick);
+    var d = drill;
+    drill = null;
+    if (!d) return;
+
+    var acc = d.total ? d.right / d.total : 0;
+    var avg = d.times.length ? d.times.reduce(function (a, b) { return a + b; }, 0) / d.times.length : 0;
+
+    // Tier moves on session performance: a clean run climbs, a rough one drops.
+    var delta = 0;
+    if (d.total >= 4) {
+      if (acc >= 0.85) delta = 1;
+      else if (acc < 0.6) delta = -1;
+    }
+    var was = state.tiers[d.op];
+    var now = clampTier(was + delta);
+    state.tiers[d.op] = now;
+
+    // streak counts consecutive days with at least one finished drill
+    var t = today();
+    if (state.lastPlayed !== t) {
+      state.streak = (state.lastPlayed && daysBetween(state.lastPlayed, t) === 1) ? state.streak + 1 : 1;
+      state.lastPlayed = t;
+    }
+    if (d.right > 0 && (state.bestAvg == null || avg < state.bestAvg)) state.bestAvg = Math.round(avg * 10) / 10;
+
+    state.sessions.push({
+      date: t, op: d.op,
+      acc: Math.round(acc * 100),
+      avg: Math.round(avg * 10) / 10,
+      answered: d.total, tier: now
+    });
+    if (state.sessions.length > 30) state.sessions = state.sessions.slice(-30);
+    save();
+
+    renderResults(d, acc, avg, was, now);
+    show('results');
+  }
+
+  function renderResults(d, acc, avg, was, now) {
+    var pct = Math.round(acc * 100);
+    $('resAcc').innerHTML = pct + '<span class="hero__unit">%</span>';
+    $('resAvg').innerHTML = (d.times.length ? avg.toFixed(1) : '—') + '<span class="hero__unit">s</span>';
+    $('ringPct').textContent = pct + '%';
+    $('ringSub').textContent = d.right + ' of ' + d.total;
+
+    var C = 351.86;
+    $('ringVal').setAttribute('stroke-dashoffset', C);
+    setTimeout(function () { $('ringVal').setAttribute('stroke-dashoffset', C * (1 - acc)); }, 60);
+
+    var tc = $('tierChange');
+    tc.className = 'tierchange' + (now > was ? ' is-up' : now < was ? ' is-down' : '');
+    tc.textContent = now > was ? '↑ Moved up to Tier ' + now
+                   : now < was ? '↓ Dropped to Tier ' + now
+                   : 'Tier ' + now + ' held';
+
+    $('missedList').innerHTML = d.missed.length
+      ? d.missed.slice(0, 12).map(function (m) {
+          return '<div class="missrow">' +
+                   '<span class="missrow__q tnum">' + m.q + '</span>' +
+                   '<span class="missrow__given tnum">' + m.given + '</span>' +
+                   '<span class="missrow__ans tnum">' + m.answer + '</span>' +
+                 '</div>';
+        }).join('')
+      : '<div class="empty">' + (d.total ? 'Nothing missed — clean run.' : 'No answers this session.') + '</div>';
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Real-world scenario (untimed tip calculation)
+   * ------------------------------------------------------------------ */
+
+  var real = null;
+
+  function startReal() {
+    var pickFrom = TIPS.filter(function (s) { return !real || s.bill !== real.scenario.bill; });
+    var scenario = pickFrom[rnd(0, pickFrom.length - 1)];
+    real = {
+      scenario: scenario,
+      answer: Math.round(scenario.bill * scenario.pct) / 100,
+      typed: '',
+      done: false
+    };
+
+    $('realTag').textContent = 'Tip · ' + scenario.place;
+    var article = /^(8|11|18)/.test(String(scenario.pct)) ? 'an' : 'a';
+    $('realLine').textContent = "What's " + article + ' ' + scenario.pct + '% tip?';
+    $('realBill').textContent = '$' + scenario.bill.toFixed(2);
+    $('realWorked').hidden = true;
+    $('realNext').hidden = true;          // Home stays reachable the whole time
+    $('keypadReal').hidden = false;
+    $('realBox').classList.remove('is-good', 'is-bad');
+    $('screen-real').classList.remove('is-answered');
+    paintReal();
+    show('real');
+  }
+
+  function paintReal() {
+    var el = $('realA');
+    el.textContent = '$' + (real.typed === '' ? '0' : real.typed);
+    el.classList.toggle('is-empty', real.typed === '');
+  }
+
+  function realKey(v) {
+    if (!real || real.done) return;
+
+    if (v === 'del') { real.typed = real.typed.slice(0, -1); paintReal(); return; }
+    if (v === 'go') { if (real.typed !== '') checkReal(); return; }
+    if (v === '.') {
+      if (real.typed.indexOf('.') !== -1 || real.typed === '') return;
+      real.typed += '.';
+      paintReal();
+      return;
+    }
+    var dot = real.typed.indexOf('.');
+    if (dot !== -1 && real.typed.length - dot > 2) return;   // two decimal places max
+    if (dot === -1 && real.typed.length >= 4) return;
+    if (real.typed === '0') real.typed = '';
+    real.typed += v;
+    paintReal();
+    pulse($('realA'));
+  }
+
+  function checkReal() {
+    real.done = true;
+    var given = parseFloat(real.typed);
+    var right = Math.abs(given - real.answer) < 0.005;
+    var s = real.scenario;
+
+    $('realBox').classList.add(right ? 'is-good' : 'is-bad');
+    flash(right);
+    pulse($('realA'));
+
+    var tenth = s.bill / 10;
+    var mult = s.pct / 10;
+    var w = $('realWorked');
+    w.innerHTML =
+      '<div class="worked__verdict ' + (right ? 'is-good' : 'is-bad') + '">' +
+        (right ? 'Correct — $' + real.answer.toFixed(2) : 'The tip is $' + real.answer.toFixed(2)) +
+      '</div>' +
+      '<div class="worked__step">10% of $' + s.bill.toFixed(2) + ' = <strong>$' + tenth.toFixed(2) + '</strong></div>' +
+      '<div class="worked__step">' + s.pct + '% is 10% × ' + mult + ' → $' + tenth.toFixed(2) + ' × ' + mult +
+        ' = <strong>$' + real.answer.toFixed(2) + '</strong></div>';
+    w.hidden = false;
+    $('keypadReal').hidden = true;
+    $('realNext').hidden = false;
+    $('screen-real').classList.add('is-answered');
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Stats
+   * ------------------------------------------------------------------ */
+
+  function renderStats() {
+    $('statsTiers').innerHTML = tierRows();
+
+    var recent = state.sessions.slice(-8);
+    $('chartHost').innerHTML = recent.length >= 2
+      ? chartSvg(recent)
+      : '<div class="empty">Finish two drills and your accuracy and pace show up here.</div>';
+
+    $('sessionList').innerHTML = state.sessions.length
+      ? state.sessions.slice(-10).reverse().map(function (s) {
+          return '<div class="missrow">' +
+                   '<span class="missrow__q">' + OPS[s.op].short + '</span>' +
+                   '<span class="missrow__given tnum" style="color:var(--muted);text-decoration:none">' +
+                     s.avg.toFixed(1) + 's · T' + s.tier + '</span>' +
+                   '<span class="missrow__ans tnum">' + s.acc + '%</span>' +
+                 '</div>';
+        }).join('')
+      : '<div class="empty">No sessions yet.</div>';
+  }
+
+  function chartSvg(rows) {
+    var W = 300, H = 130, padL = 8, padR = 8, padT = 10, padB = 20;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+    var maxTime = Math.max.apply(null, rows.map(function (r) { return r.avg; }).concat([4]));
+
+    function x(i) { return padL + (rows.length === 1 ? innerW / 2 : innerW * i / (rows.length - 1)); }
+    function yAcc(v) { return padT + innerH * (1 - v / 100); }
+    function yTime(v) { return padT + innerH * (1 - v / maxTime); }
+
+    var accPts = rows.map(function (r, i) { return x(i).toFixed(1) + ',' + yAcc(r.acc).toFixed(1); }).join(' ');
+    var timePts = rows.map(function (r, i) { return x(i).toFixed(1) + ',' + yTime(r.avg).toFixed(1); }).join(' ');
+    var dots = rows.map(function (r, i) {
+      return '<circle class="chart__dot" cx="' + x(i).toFixed(1) + '" cy="' + yAcc(r.acc).toFixed(1) + '" r="3"></circle>';
+    }).join('');
+    var grid = [0, 0.5, 1].map(function (f) {
+      var y = padT + innerH * f;
+      return '<line class="chart__grid" x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '"></line>';
+    }).join('');
+
+    return '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Accuracy and pace over recent sessions">' +
+             grid +
+             '<polyline class="chart__time" points="' + timePts + '"></polyline>' +
+             '<polyline class="chart__acc" points="' + accPts + '"></polyline>' +
+             dots +
+             '<text class="chart__label" x="' + padL + '" y="' + (H - 6) + '">oldest</text>' +
+             '<text class="chart__label" x="' + (W - padR) + '" y="' + (H - 6) + '" text-anchor="end">latest</text>' +
+           '</svg>';
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Wiring
+   * ------------------------------------------------------------------ */
+
+  buildKeypad($('keypadDrill'),
+    digitKeys().concat([
+      { label: '⌫', value: 'del', cls: 'key--dim' },
+      { label: '0', value: '0' },
+      { label: '✓', value: 'go', cls: 'key--go' }
+    ]), drillKey);
+
+  buildKeypad($('keypadReal'),
+    digitKeys().concat([
+      { label: '.', value: '.', cls: 'key--dim' },
+      { label: '0', value: '0' },
+      { label: '⌫', value: 'del', cls: 'key--dim' }
+    ]).concat([]), realKey);
+
+  // the scenario screen needs an explicit submit — a tip has no fixed length
+  (function addRealCheck() {
+    var host = $('keypadReal');
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'key key--go';
+    b.textContent = 'Check';
+    b.style.gridColumn = '1 / -1';
+    b.addEventListener('click', function () { realKey('go'); });
+    host.appendChild(b);
+  })();
+
+  $('startBtn').addEventListener('click', function () {
+    if (selectedOp === 'real') startReal();
+    else startDrill(selectedOp);
+  });
+
+  $('resAgain').addEventListener('click', function () {
+    renderHome();
+    startDrill(selectedOp);
+  });
+
+  $('resHome').addEventListener('click', function () { renderHome(); show('home'); });
+  $('realNext').addEventListener('click', startReal);
+  $('realHome').addEventListener('click', function () { renderHome(); show('home'); });
+  $('statsBtn').addEventListener('click', function () { renderStats(); show('stats'); });
+  $('statsBack').addEventListener('click', function () { renderHome(); show('home'); });
+
+  // hardware keyboard, for anyone poking at this on a desktop
+  document.addEventListener('keydown', function (e) {
+    if (current === 'drill') {
+      if (e.key >= '0' && e.key <= '9') drillKey(e.key);
+      else if (e.key === 'Backspace') drillKey('del');
+      else if (e.key === 'Enter') drillKey('go');
+    } else if (current === 'real') {
+      if (e.key >= '0' && e.key <= '9') realKey(e.key);
+      else if (e.key === '.') realKey('.');
+      else if (e.key === 'Backspace') realKey('del');
+      else if (e.key === 'Enter') realKey('go');
+    }
+  });
+
+  load();
+  renderHome();
+  show('home');
+})();
+</script>
+
+</body>
+</html>

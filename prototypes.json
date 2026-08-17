@@ -83,6 +83,18 @@
         "v1 — initial prototype",
         "v2 — bright minimal restyle (sage tray, pastel chunky tiles), added timed Endless mode"
       ]
+    },
+    {
+      "id": "PROTOTYPE-8",
+      "workItemId": "add2c958-19bd-464b-9e30-c9ae9385b2bb",
+      "title": "Number Sprint",
+      "tagline": "Sixty seconds of mental arithmetic that tunes its own difficulty to you.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-8/index.html",
+      "version": 1,
+      "createdAt": "2026-08-17",
+      "updatedAt": "2026-08-17",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
