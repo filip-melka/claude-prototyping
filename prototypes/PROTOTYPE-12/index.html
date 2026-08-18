@@ -1,0 +1,1292 @@
+<!doctype html>
+<!--
+  Country Compass — PROTOTYPE-12
+  Guess the secret country in 10 tries. Every guess lights up on a 3D globe and
+  reports its great-circle distance and bearing to the target.
+
+  Self-contained: no external requests of any kind. The globe is a hand-authored
+  low-resolution coastline set drawn with an orthographic projection on canvas.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Country Compass</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0a0e17;
+    --surface: #141a26;
+    --surface-2: #1b2333;
+    --text: #eef2f8;
+    --muted: #8a97ad;
+    --border: #232c3d;
+    --accent: #4a7fff;
+    --accent-text: #ffffff;
+    --hot: #ff6b4a;
+    --cold: #4a7fff;
+    --gold: #ffc44a;
+    --ocean: #2a4858;
+    --ocean-deep: #1b3040;
+    --land: #6b8f71;
+    --grat: rgba(255, 255, 255, .10);
+    --rim: rgba(150, 200, 255, .55);
+    --sheet-shadow: 0 -8px 40px rgba(0, 0, 0, .6);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg: #eef1f6;
+      --surface: #ffffff;
+      --surface-2: #f4f6fa;
+      --text: #131722;
+      --muted: #626c80;
+      --border: #dde2ec;
+      --accent: #2f5fe0;
+      --accent-text: #ffffff;
+      --hot: #e0472a;
+      --cold: #2f5fe0;
+      --gold: #c98a00;
+      --ocean: #9fc4d6;
+      --ocean-deep: #7aa8c0;
+      --land: #86ad8b;
+      --grat: rgba(0, 0, 0, .10);
+      --rim: rgba(255, 255, 255, .9);
+      --sheet-shadow: 0 -8px 40px rgba(20, 30, 60, .18);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .app {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 10px)
+      calc(env(safe-area-inset-right) + 14px)
+      calc(env(safe-area-inset-bottom) + 12px)
+      calc(env(safe-area-inset-left) + 14px);
+    max-width: 520px;
+    margin: 0 auto;
+    overflow: hidden;
+  }
+
+  /* ---------- header ---------- */
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .app__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    flex: 1;
+  }
+
+  .counter {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    font-size: 13px;
+    font-weight: 650;
+    color: var(--muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+
+  .counter.low { color: var(--hot); border-color: color-mix(in srgb, var(--hot) 45%, var(--border)); }
+
+  /* ---------- globe ---------- */
+  .globe {
+    position: relative;
+    flex: none;
+    height: 34dvh;
+    min-height: 210px;
+    max-height: 300px;
+    margin: 8px -4px 4px;
+  }
+
+  .globe canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .globe canvas:active { cursor: grabbing; }
+
+  .globe__hint {
+    position: absolute;
+    left: 50%;
+    bottom: 2px;
+    transform: translateX(-50%);
+    font-size: 11px;
+    letter-spacing: .03em;
+    color: var(--muted);
+    background: color-mix(in srgb, var(--bg) 72%, transparent);
+    border-radius: 999px;
+    padding: 3px 10px;
+    pointer-events: none;
+    transition: opacity .4s;
+  }
+
+  .globe__hint.gone { opacity: 0; }
+
+  /* ---------- featured last guess ---------- */
+  .feature {
+    flex: none;
+    display: none;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .feature.on { display: flex; }
+
+  .feature::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 3px;
+    width: var(--fill, 0%);
+    background: var(--heat, var(--cold));
+    transition: width .45s cubic-bezier(.2, .8, .2, 1);
+  }
+
+  .feature__main { flex: 1; min-width: 0; }
+
+  .feature__name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .feature__km {
+    font-size: 42px;
+    line-height: 1.05;
+    font-weight: 700;
+    letter-spacing: -.03em;
+    font-variant-numeric: tabular-nums;
+    color: var(--heat, var(--cold));
+  }
+
+  .feature__km small {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .compass {
+    flex: none;
+    width: 54px;
+    height: 54px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    display: grid;
+    place-items: center;
+  }
+
+  .compass svg { width: 26px; height: 26px; transition: transform .45s cubic-bezier(.2, .8, .2, 1); }
+  .compass path { fill: var(--heat, var(--cold)); }
+
+  /* ---------- input ---------- */
+  .entry {
+    position: relative;
+    flex: none;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .field {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 0 12px;
+    min-height: 48px;
+  }
+
+  .field svg { width: 17px; height: 17px; flex: none; fill: var(--muted); }
+
+  .field input {
+    flex: 1;
+    min-width: 0;
+    appearance: none;
+    background: none;
+    border: 0;
+    outline: none;
+    color: var(--text);
+    font: inherit;
+    font-size: 16px;
+    padding: 0;
+    user-select: text;
+  }
+
+  .field input::placeholder { color: var(--muted); }
+  .field input::-webkit-search-cancel-button { display: none; }
+
+  .clear {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 4px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1;
+    display: none;
+  }
+
+  .clear.on { display: block; }
+
+  .submit {
+    appearance: none;
+    flex: none;
+    width: 48px;
+    height: 48px;
+    border: 0;
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .submit:disabled { opacity: .38; }
+  .submit:active:not(:disabled) { transform: scale(.96); }
+
+  /* autocomplete — flat list under the field, matched text in bold */
+  .suggest {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 6px);
+    z-index: 20;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(0, 0, 0, .35);
+    overflow: hidden;
+    display: none;
+  }
+
+  .suggest.on { display: block; }
+
+  .suggest button {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 46px;
+    padding: 0 14px;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .suggest button:last-child { border-bottom: 0; }
+  .suggest button:active { background: var(--surface-2); }
+  .suggest button[disabled] { color: var(--muted); }
+  .suggest b { font-weight: 700; }
+  .suggest .flag { font-size: 18px; flex: none; }
+  .suggest .tag { margin-left: auto; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+  /* ---------- history ---------- */
+  .history {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-top: 10px;
+    padding-bottom: 4px;
+    transition: opacity .18s;
+  }
+
+  /* pushed back while the suggestion list is open, so the list reads as the focus */
+  .history.dim { opacity: .12; }
+
+  .history__empty {
+    color: var(--muted);
+    font-size: 13px;
+    text-align: center;
+    padding: 18px 24px;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    margin-bottom: 6px;
+    animation: rowIn .22s ease both;
+  }
+
+  @keyframes rowIn { from { opacity: 0; transform: translateY(-6px); } }
+
+  .row .flag { font-size: 18px; flex: none; width: 24px; }
+
+  .row__name {
+    flex: 1;
+    min-width: 0;
+    font-size: 14px;
+    font-weight: 550;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .row__star { flex: none; color: var(--gold); font-size: 13px; }
+
+  .row__km {
+    flex: none;
+    font-size: 14px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    color: var(--heat, var(--cold));
+  }
+
+  .row__dir { flex: none; width: 18px; height: 18px; }
+  .row__dir path { fill: var(--heat, var(--cold)); }
+
+  /* ---------- end sheet ---------- */
+  .sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-radius: 24px 24px 0 0;
+    box-shadow: var(--sheet-shadow);
+    padding:
+      18px
+      calc(env(safe-area-inset-right) + 18px)
+      calc(env(safe-area-inset-bottom) + 16px)
+      calc(env(safe-area-inset-left) + 18px);
+    transform: translateY(102%);
+    transition: transform .42s cubic-bezier(.2, .85, .25, 1);
+    max-height: 74dvh;
+    overflow-y: auto;
+  }
+
+  .sheet.on { transform: translateY(0); }
+
+  .sheet__grip {
+    width: 38px;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--border);
+    margin: -6px auto 12px;
+  }
+
+  .sheet__title {
+    margin: 0 0 2px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+    text-align: center;
+  }
+
+  .sheet__sub {
+    margin: 0 0 14px;
+    font-size: 14px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  .stats {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+  }
+
+  .stat:last-child { border-bottom: 0; }
+  .stat span { color: var(--muted); }
+  .stat b { margin-left: auto; font-weight: 650; font-variant-numeric: tabular-nums; }
+
+  .grid {
+    background: var(--surface-2);
+    border-radius: 14px;
+    padding: 12px;
+    font-size: 15px;
+    line-height: 1.5;
+    text-align: center;
+    letter-spacing: .04em;
+    white-space: pre;
+    overflow-x: auto;
+    user-select: text;
+    margin-bottom: 12px;
+  }
+
+  .actions { display: flex; gap: 8px; }
+
+  .btn {
+    appearance: none;
+    flex: 1;
+    border: 0;
+    border-radius: 14px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: 650;
+    min-height: 50px;
+    padding: 0 18px;
+    cursor: pointer;
+  }
+
+  .btn--ghost {
+    background: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    flex: 0 1 42%;
+  }
+
+  .btn:active { transform: scale(.98); }
+
+  .toast {
+    position: absolute;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom) + 20px);
+    transform: translate(-50%, 12px);
+    z-index: 60;
+    background: var(--text);
+    color: var(--bg);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 9px 16px;
+    border-radius: 999px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+  }
+
+  .toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+  .shake { animation: shake .3s; }
+  @keyframes shake {
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="app__header">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="app__title">Country Compass</h1>
+    <div class="counter" id="counter">Guess 1 / 10</div>
+  </header>
+
+  <div class="globe">
+    <canvas id="globe"></canvas>
+    <div class="globe__hint" id="hint">drag to spin &middot; pinch to zoom</div>
+  </div>
+
+  <div class="feature" id="feature">
+    <div class="feature__main">
+      <div class="feature__name" id="featureName">&mdash;</div>
+      <div class="feature__km"><span id="featureKm">0</span><small>km away</small></div>
+    </div>
+    <div class="compass">
+      <svg id="featureDir" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 L18.5 21 L12 16.6 L5.5 21 Z"/></svg>
+    </div>
+  </div>
+
+  <div class="entry">
+    <label class="field">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2a8 8 0 1 0 4.9 14.3l5.4 5.4 1.4-1.4-5.4-5.4A8 8 0 0 0 10 2zm0 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg>
+      <input id="input" type="text" inputmode="text" enterkeyhint="go" autocomplete="off"
+             autocorrect="off" autocapitalize="words" spellcheck="false" placeholder="Guess a country">
+      <button class="clear" id="clear" type="button" aria-label="Clear">&times;</button>
+    </label>
+    <button class="submit" id="submit" type="button" aria-label="Submit guess" disabled>&#8593;</button>
+    <div class="suggest" id="suggest"></div>
+  </div>
+
+  <div class="history" id="history">
+    <div class="history__empty">No guesses yet. Every guess tells you how far it is from the secret country &mdash; and which way to head.</div>
+  </div>
+
+  <div class="sheet" id="sheet">
+    <div class="sheet__grip"></div>
+    <h2 class="sheet__title" id="sheetTitle">Solved!</h2>
+    <p class="sheet__sub" id="sheetSub"></p>
+    <div class="stats" id="sheetStats"></div>
+    <div class="grid" id="sheetGrid"></div>
+    <div class="actions">
+      <button class="btn btn--ghost" id="shareBtn" type="button">Share</button>
+      <button class="btn" id="againBtn" type="button">Play Again</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------ *
+   * Country list — 55 well-known countries with centroid lat/lon.
+   * ------------------------------------------------------------------ */
+  var COUNTRIES = [
+    ['Afghanistan', 33.9, 67.7, 'AF'], ['Argentina', -38.4, -63.6, 'AR'],
+    ['Australia', -25.3, 133.8, 'AU'], ['Austria', 47.5, 14.6, 'AT'],
+    ['Brazil', -14.2, -51.9, 'BR'], ['Canada', 56.1, -106.3, 'CA'],
+    ['Chile', -35.7, -71.5, 'CL'], ['China', 35.9, 104.2, 'CN'],
+    ['Colombia', 4.6, -74.3, 'CO'], ['Cuba', 21.5, -77.8, 'CU'],
+    ['Denmark', 56.3, 9.5, 'DK'], ['Egypt', 26.8, 30.8, 'EG'],
+    ['Ethiopia', 9.1, 40.5, 'ET'], ['Finland', 61.9, 25.7, 'FI'],
+    ['France', 46.2, 2.2, 'FR'], ['Germany', 51.2, 10.5, 'DE'],
+    ['Greece', 39.1, 21.8, 'GR'], ['Iceland', 65.0, -19.0, 'IS'],
+    ['India', 20.6, 79.0, 'IN'], ['Indonesia', -0.8, 113.9, 'ID'],
+    ['Iran', 32.4, 53.7, 'IR'], ['Iraq', 33.2, 43.7, 'IQ'],
+    ['Ireland', 53.4, -8.2, 'IE'], ['Israel', 31.0, 34.9, 'IL'],
+    ['Italy', 41.9, 12.6, 'IT'], ['Japan', 36.2, 138.3, 'JP'],
+    ['Kazakhstan', 48.0, 66.9, 'KZ'], ['Kenya', 0.0, 37.9, 'KE'],
+    ['Madagascar', -18.8, 46.9, 'MG'], ['Malaysia', 4.2, 102.0, 'MY'],
+    ['Mexico', 23.6, -102.6, 'MX'], ['Mongolia', 46.9, 103.8, 'MN'],
+    ['Morocco', 31.8, -7.1, 'MA'], ['Netherlands', 52.1, 5.3, 'NL'],
+    ['New Zealand', -40.9, 174.9, 'NZ'], ['Nigeria', 9.1, 8.7, 'NG'],
+    ['Norway', 60.5, 8.5, 'NO'], ['Pakistan', 30.4, 69.3, 'PK'],
+    ['Peru', -9.2, -75.0, 'PE'], ['Philippines', 12.9, 121.8, 'PH'],
+    ['Poland', 51.9, 19.1, 'PL'], ['Portugal', 39.4, -8.2, 'PT'],
+    ['Russia', 61.5, 105.3, 'RU'], ['Saudi Arabia', 23.9, 45.1, 'SA'],
+    ['South Africa', -30.6, 22.9, 'ZA'], ['South Korea', 35.9, 127.8, 'KR'],
+    ['Spain', 40.5, -3.7, 'ES'], ['Sweden', 60.1, 18.6, 'SE'],
+    ['Switzerland', 46.8, 8.2, 'CH'], ['Thailand', 15.9, 101.0, 'TH'],
+    ['Turkey', 39.0, 35.2, 'TR'], ['Ukraine', 48.4, 31.2, 'UA'],
+    ['United Kingdom', 55.4, -3.4, 'GB'], ['United States', 39.8, -98.6, 'US'],
+    ['Vietnam', 14.1, 108.3, 'VN']
+  ].map(function (c) {
+    return { name: c[0], lat: c[1], lon: c[2], code: c[3], key: c[0].toLowerCase() };
+  });
+
+  function flagOf(code) {
+    return String.fromCodePoint(
+      0x1F1E6 + code.charCodeAt(0) - 65,
+      0x1F1E6 + code.charCodeAt(1) - 65
+    );
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Coastlines — deliberately coarse [lon, lat] rings, enough for the
+   * continents to read at globe scale without shipping a map file.
+   * ------------------------------------------------------------------ */
+  var LAND = [
+    /* Africa */
+    [[-17,21],[-16,12],[-13,8],[-9,5],[-4,5],[1,6],[6,4],[9,4],[9,0],[12,-6],[13,-9],[12,-16],[15,-27],[18,-34],[25,-34],[31,-30],[33,-26],[40,-16],[41,-11],[40,-3],[43,0],[51,12],[44,12],[43,15],[39,15],[37,21],[34,28],[32,31],[25,32],[19,30],[11,34],[3,37],[-2,35],[-6,36],[-10,30],[-13,27]],
+    /* Eurasia */
+    [[-6,36],[-9,38],[-9,43],[-2,43],[-1,46],[-4,48],[0,49],[4,52],[7,53],[9,54],[10,57],[12,55],[15,54],[19,54],[21,56],[24,60],[22,63],[21,65],[24,66],[22,70],[28,71],[33,70],[40,68],[44,66],[52,70],[60,70],[68,68],[73,72],[80,73],[90,76],[100,77],[105,78],[112,74],[120,73],[130,72],[140,73],[146,70],[155,71],[165,69],[172,66],[180,65],[172,61],[163,58],[160,55],[156,51],[143,54],[141,46],[135,43],[130,43],[127,39],[126,35],[122,37],[121,40],[118,39],[121,32],[119,25],[110,21],[106,18],[108,11],[104,9],[100,6],[98,8],[99,12],[97,16],[94,18],[90,22],[87,21],[80,15],[77,8],[73,18],[70,21],[68,23],[62,25],[57,26],[54,25],[50,29],[52,24],[57,22],[54,17],[48,14],[45,13],[43,16],[39,21],[36,26],[34,28],[35,31],[36,36],[33,36],[30,37],[27,37],[26,40],[23,40],[20,40],[19,42],[16,42],[18,40],[16,38],[12,38],[13,42],[11,43],[8,44],[4,43],[0,40],[-1,37]],
+    /* North America */
+    [[-168,66],[-164,60],[-155,58],[-148,60],[-137,59],[-130,54],[-124,48],[-124,40],[-118,34],[-114,31],[-110,24],[-105,20],[-96,16],[-92,15],[-87,13],[-83,10],[-78,9],[-82,15],[-88,16],[-90,19],[-97,20],[-97,26],[-93,29],[-88,30],[-84,30],[-81,25],[-81,31],[-76,35],[-74,39],[-70,42],[-66,45],[-60,47],[-53,48],[-56,54],[-64,58],[-78,56],[-80,62],[-95,68],[-105,68],[-115,70],[-125,70],[-135,69],[-150,71],[-160,71]],
+    /* South America */
+    [[-78,8],[-72,12],[-64,11],[-60,8],[-52,5],[-44,-2],[-38,-5],[-35,-8],[-39,-13],[-40,-20],[-48,-25],[-53,-33],[-57,-38],[-62,-40],[-65,-45],[-68,-50],[-70,-54],[-75,-52],[-73,-45],[-73,-37],[-71,-30],[-70,-20],[-76,-14],[-81,-6],[-80,-2],[-78,1],[-77,4]],
+    /* Australia */
+    [[114,-22],[113,-26],[115,-34],[118,-35],[126,-32],[132,-32],[137,-35],[140,-38],[146,-39],[150,-37],[153,-30],[153,-25],[146,-19],[142,-11],[136,-12],[130,-12],[125,-14],[122,-17]],
+    /* Greenland */
+    [[-45,60],[-40,64],[-30,68],[-25,72],[-20,76],[-25,81],[-40,83],[-55,82],[-65,78],[-55,70],[-50,64]],
+    /* Great Britain */
+    [[-5,50],[1,51],[-1,54],[-3,58],[-5,58],[-6,55]],
+    /* Ireland */
+    [[-10,52],[-6,52],[-6,55],[-10,54]],
+    /* Iceland */
+    [[-22,64],[-14,65],[-15,66],[-22,66],[-24,65]],
+    /* Japan */
+    [[130,32],[132,34],[136,35],[140,36],[142,40],[141,45],[140,42],[137,37],[133,35],[130,34]],
+    /* Madagascar */
+    [[43,-12],[50,-15],[50,-25],[45,-25],[44,-20]],
+    /* New Zealand */
+    [[173,-35],[178,-38],[176,-41],[171,-44],[167,-46],[170,-43]],
+    /* Borneo */
+    [[109,2],[117,4],[119,-3],[114,-4],[110,-2]],
+    /* Sumatra */
+    [[95,5],[100,3],[106,-6],[102,-5]],
+    /* Java */
+    [[105,-6],[114,-8],[112,-8],[106,-7]],
+    /* New Guinea */
+    [[131,-1],[141,-3],[147,-8],[140,-9],[134,-8]],
+    /* Sri Lanka */
+    [[80,9],[82,7],[80,6],[79,8]],
+    /* Cuba */
+    [[-85,22],[-77,23],[-74,20],[-80,22]]
+  ];
+
+  /* Antarctica: a lumpy cap swept round the pole. */
+  (function () {
+    var ring = [], lon;
+    for (lon = -180; lon <= 180; lon += 10) {
+      ring.push([lon, -68 - 5 * Math.sin(lon * Math.PI / 45) - 3 * Math.cos(lon * Math.PI / 90)]);
+    }
+    for (lon = 180; lon >= -180; lon -= 30) ring.push([lon, -88]);
+    LAND.push(ring);
+  }());
+
+  /* ------------------------------------------------------------------ *
+   * Geo maths
+   * ------------------------------------------------------------------ */
+  var RAD = Math.PI / 180, EARTH_R = 6371;
+
+  function distanceKm(a, b) {
+    var dLat = (b.lat - a.lat) * RAD, dLon = (b.lon - a.lon) * RAD;
+    var la1 = a.lat * RAD, la2 = b.lat * RAD;
+    var h = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * EARTH_R * Math.asin(Math.min(1, Math.sqrt(h)));
+  }
+
+  function bearing(a, b) {
+    var la1 = a.lat * RAD, la2 = b.lat * RAD, dLon = (b.lon - a.lon) * RAD;
+    var y = Math.sin(dLon) * Math.cos(la2);
+    var x = Math.cos(la1) * Math.sin(la2) - Math.sin(la1) * Math.cos(la2) * Math.cos(dLon);
+    return (Math.atan2(y, x) / RAD + 360) % 360;
+  }
+
+  /* 0 = far side of the world, 1 = right on top of it. Drives every colour. */
+  function heatOf(km) { return Math.max(0, Math.min(1, 1 - km / 12000)); }
+
+  function mix(c1, c2, t) {
+    return 'rgb(' +
+      Math.round(c1[0] + (c2[0] - c1[0]) * t) + ',' +
+      Math.round(c1[1] + (c2[1] - c1[1]) * t) + ',' +
+      Math.round(c1[2] + (c2[2] - c1[2]) * t) + ')';
+  }
+
+  var COLD_RGB = [74, 127, 255], HOT_RGB = [255, 107, 74], GOLD_RGB = [255, 196, 74];
+
+  function heatColor(km) { return mix(COLD_RGB, HOT_RGB, heatOf(km)); }
+
+  /* ------------------------------------------------------------------ *
+   * Globe
+   * ------------------------------------------------------------------ */
+  var canvas = document.getElementById('globe'), ctx = canvas.getContext('2d');
+  var view = { lon: 10, lat: 12, zoom: 1 };
+  var spin = null;            /* active spin-to-country tween */
+  var idle = true;            /* slow drift until the player takes over */
+  var pulses = [];            /* {lat, lon, t0, color} */
+  var W = 0, H = 0, DPR = 1;
+  var theme = {};
+
+  function readTheme() {
+    var s = getComputedStyle(document.documentElement);
+    theme = {
+      ocean: s.getPropertyValue('--ocean').trim(),
+      oceanDeep: s.getPropertyValue('--ocean-deep').trim(),
+      land: s.getPropertyValue('--land').trim(),
+      grat: s.getPropertyValue('--grat').trim(),
+      rim: s.getPropertyValue('--rim').trim(),
+      bg: s.getPropertyValue('--bg').trim()
+    };
+  }
+
+  function resize() {
+    DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+    W = canvas.clientWidth;
+    H = canvas.clientHeight;
+    canvas.width = Math.round(W * DPR);
+    canvas.height = Math.round(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  function radius() { return Math.min(W, H) / 2 * 0.94 * view.zoom; }
+
+  /* Orthographic projection. z > 0 means the point faces us. */
+  function project(lat, lon) {
+    var phi = lat * RAD, lam = (lon + view.lon) * RAD, p0 = view.lat * RAD;
+    var x = Math.cos(phi) * Math.sin(lam);
+    var y0 = Math.sin(phi), z0 = Math.cos(phi) * Math.cos(lam);
+    var y = y0 * Math.cos(p0) - z0 * Math.sin(p0);
+    var z = y0 * Math.sin(p0) + z0 * Math.cos(p0);
+    var R = radius();
+    return { x: W / 2 + x * R, y: H / 2 - y * R, z: z, ux: x, uy: y };
+  }
+
+  /* Points on the far side get pinned to the limb so shapes stay closed. */
+  function tracePolygon(ring) {
+    var R = radius(), cx = W / 2, cy = H / 2, any = false, i, p, len;
+    ctx.beginPath();
+    for (i = 0; i < ring.length; i++) {
+      p = project(ring[i][1], ring[i][0]);
+      if (p.z > 0) {
+        any = true;
+      } else {
+        len = Math.sqrt(p.ux * p.ux + p.uy * p.uy) || 1;
+        p.x = cx + (p.ux / len) * R;
+        p.y = cy - (p.uy / len) * R;
+      }
+      if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    return any;
+  }
+
+  function drawGraticule() {
+    var lat, lon, step = 4, first, p;
+    ctx.strokeStyle = theme.grat;
+    ctx.lineWidth = 1;
+    for (lon = -180; lon < 180; lon += 30) {
+      first = true;
+      ctx.beginPath();
+      for (lat = -90; lat <= 90; lat += step) {
+        p = project(lat, lon);
+        if (p.z <= 0) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+    for (lat = -60; lat <= 60; lat += 30) {
+      first = true;
+      ctx.beginPath();
+      for (lon = -180; lon <= 180; lon += step) {
+        p = project(lat, lon);
+        if (p.z <= 0) { first = true; continue; }
+        if (first) { ctx.moveTo(p.x, p.y); first = false; } else ctx.lineTo(p.x, p.y);
+      }
+      ctx.stroke();
+    }
+  }
+
+  function drawMarker(country, color, alphaScale, ringT) {
+    var p = project(country.lat, country.lon);
+    if (p.z <= 0) return;
+    var R = radius(), r = Math.max(5, R * 0.055);
+    var fade = Math.min(1, p.z * 3.2) * (alphaScale === undefined ? 1 : alphaScale);
+
+    ctx.save();
+    ctx.globalAlpha = fade * 0.85;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.globalAlpha = fade;
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = color;
+    ctx.stroke();
+
+    /* soft glow */
+    ctx.globalAlpha = fade * 0.22;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r * 2.1, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    if (ringT !== undefined && ringT < 1) {
+      ctx.globalAlpha = fade * (1 - ringT);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * (1 + ringT * 2.6), 0, Math.PI * 2);
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = color;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function draw(now) {
+    var R = radius(), cx = W / 2, cy = H / 2, i, g;
+
+    ctx.clearRect(0, 0, W, H);
+
+    /* ocean sphere with an off-centre light */
+    g = ctx.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R);
+    g.addColorStop(0, theme.ocean);
+    g.addColorStop(1, theme.oceanDeep);
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.fillStyle = g;
+    ctx.fill();
+
+    /* clip everything else to the disc */
+    ctx.save();
+    ctx.clip();
+
+    ctx.fillStyle = theme.land;
+    for (i = 0; i < LAND.length; i++) {
+      if (tracePolygon(LAND[i])) ctx.fill();
+    }
+    drawGraticule();
+
+    /* guesses, coolest first so the hottest sits on top */
+    var sorted = state.guesses.slice().sort(function (a, b) { return b.km - a.km; });
+    for (i = 0; i < sorted.length; i++) {
+      drawMarker(sorted[i].country, heatColor(sorted[i].km), sorted[i].km === 0 ? 1 : 0.9);
+    }
+
+    /* target revealed in gold once the round is over */
+    if (state.over) {
+      drawMarker(state.target, 'rgb(' + GOLD_RGB.join(',') + ')', 1, (now % 1600) / 1600);
+    }
+
+    for (i = pulses.length - 1; i >= 0; i--) {
+      var t = (now - pulses[i].t0) / 620;
+      if (t >= 1) { pulses.splice(i, 1); continue; }
+      drawMarker(pulses[i].country, pulses[i].color, 1 - t * 0.4, t);
+    }
+
+    ctx.restore();
+
+    /* rim light */
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = theme.rim;
+    ctx.globalAlpha = 0.5;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  function shortestDelta(from, to) {
+    var d = (to - from) % 360;
+    if (d > 180) d -= 360;
+    if (d < -180) d += 360;
+    return d;
+  }
+
+  function spinTo(country) {
+    var targetLon = -country.lon;
+    var dLon = shortestDelta(view.lon, targetLon);
+    var dLat = country.lat - view.lat;
+    var travel = Math.min(1, (Math.abs(dLon) + Math.abs(dLat)) / 260);
+    spin = {
+      t0: performance.now(),
+      dur: 300 + travel * 420,
+      fromLon: view.lon, dLon: dLon,
+      fromLat: view.lat, dLat: dLat
+    };
+    idle = false;
+  }
+
+  function tick(now) {
+    if (spin) {
+      var t = Math.min(1, (now - spin.t0) / spin.dur);
+      var e = 1 - Math.pow(1 - t, 3);
+      view.lon = spin.fromLon + spin.dLon * e;
+      view.lat = spin.fromLat + spin.dLat * e;
+      if (t >= 1) spin = null;
+    } else if (idle) {
+      view.lon -= 0.12;
+    }
+    view.lat = Math.max(-80, Math.min(80, view.lat));
+    draw(now);
+    requestAnimationFrame(tick);
+  }
+
+  /* ---- drag / pinch ---- */
+  var pointers = {}, lastPinch = 0;
+
+  canvas.addEventListener('pointerdown', function (e) {
+    canvas.setPointerCapture(e.pointerId);
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    idle = false;
+    spin = null;
+    hideHint();
+  });
+
+  canvas.addEventListener('pointermove', function (e) {
+    if (!pointers[e.pointerId]) return;
+    var ids = Object.keys(pointers), prev = pointers[e.pointerId];
+
+    if (ids.length >= 2) {
+      pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+      var a = pointers[ids[0]], b = pointers[ids[1]];
+      var dist = Math.hypot(a.x - b.x, a.y - b.y);
+      if (lastPinch) view.zoom = Math.max(1, Math.min(2.8, view.zoom * (dist / lastPinch)));
+      lastPinch = dist;
+      return;
+    }
+
+    var scale = 0.28 / view.zoom;
+    view.lon += (e.clientX - prev.x) * scale;
+    view.lat += (e.clientY - prev.y) * scale;
+    pointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+  });
+
+  function endPointer(e) {
+    delete pointers[e.pointerId];
+    if (Object.keys(pointers).length < 2) lastPinch = 0;
+  }
+
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+
+  canvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    view.zoom = Math.max(1, Math.min(2.8, view.zoom * (1 - e.deltaY * 0.0015)));
+    hideHint();
+  }, { passive: false });
+
+  /* ------------------------------------------------------------------ *
+   * Game state
+   * ------------------------------------------------------------------ */
+  var MAX_GUESSES = 10;
+  var state = { target: null, guesses: [], over: false, won: false };
+
+  var elCounter = document.getElementById('counter');
+  var elInput = document.getElementById('input');
+  var elClear = document.getElementById('clear');
+  var elSubmit = document.getElementById('submit');
+  var elSuggest = document.getElementById('suggest');
+  var elHistory = document.getElementById('history');
+  var elFeature = document.getElementById('feature');
+  var elFeatureName = document.getElementById('featureName');
+  var elFeatureKm = document.getElementById('featureKm');
+  var elFeatureDir = document.getElementById('featureDir');
+  var elSheet = document.getElementById('sheet');
+  var elHint = document.getElementById('hint');
+  var elToast = document.getElementById('toast');
+
+  function hideHint() { elHint.classList.add('gone'); }
+
+  function toast(msg) {
+    elToast.textContent = msg;
+    elToast.classList.add('on');
+    clearTimeout(toast.t);
+    toast.t = setTimeout(function () { elToast.classList.remove('on'); }, 1700);
+  }
+
+  function stats() {
+    try {
+      return JSON.parse(localStorage.getItem('cc.stats')) || { played: 0, wins: 0, streak: 0 };
+    } catch (err) {
+      return { played: 0, wins: 0, streak: 0 };
+    }
+  }
+
+  function saveStats(s) {
+    try { localStorage.setItem('cc.stats', JSON.stringify(s)); } catch (err) { /* private mode */ }
+  }
+
+  function newGame() {
+    state.target = COUNTRIES[Math.floor(Math.random() * COUNTRIES.length)];
+    state.guesses = [];
+    state.over = false;
+    state.won = false;
+    pulses = [];
+    view.zoom = 1;
+    idle = true;
+    elSheet.classList.remove('on');
+    elFeature.classList.remove('on');
+    elHistory.innerHTML = '<div class="history__empty">No guesses yet. Every guess tells you how far it is from the secret country &mdash; and which way to head.</div>';
+    elInput.value = '';
+    elInput.disabled = false;
+    elClear.classList.remove('on');
+    elSubmit.disabled = true;
+    elHint.classList.remove('gone');
+    renderSuggest('');
+    updateCounter();
+  }
+
+  function updateCounter() {
+    var n = Math.min(state.guesses.length + 1, MAX_GUESSES);
+    elCounter.textContent = state.over ? state.guesses.length + ' / ' + MAX_GUESSES
+                                       : 'Guess ' + n + ' / ' + MAX_GUESSES;
+    elCounter.classList.toggle('low', !state.over && MAX_GUESSES - state.guesses.length <= 3);
+  }
+
+  function alreadyGuessed(country) {
+    return state.guesses.some(function (g) { return g.country.name === country.name; });
+  }
+
+  /* ---- autocomplete ---- */
+  function closeSuggest() {
+    elSuggest.classList.remove('on');
+    elSuggest.innerHTML = '';
+    elHistory.classList.remove('dim');
+  }
+
+  function renderSuggest(q) {
+    var query = q.trim().toLowerCase();
+    if (!query || state.over) { closeSuggest(); return; }
+
+    var matches = COUNTRIES.filter(function (c) { return c.key.indexOf(query) !== -1; })
+      .sort(function (a, b) { return a.key.indexOf(query) - b.key.indexOf(query); })
+      .slice(0, 6);
+
+    if (!matches.length) { closeSuggest(); return; }
+
+    elSuggest.innerHTML = matches.map(function (c) {
+      var i = c.key.indexOf(query);
+      var name = c.name.slice(0, i) + '<b>' + c.name.slice(i, i + query.length) + '</b>' + c.name.slice(i + query.length);
+      var used = alreadyGuessed(c);
+      return '<button type="button" data-name="' + c.name + '"' + (used ? ' disabled' : '') + '>' +
+             '<span class="flag">' + flagOf(c.code) + '</span><span>' + name + '</span>' +
+             (used ? '<span class="tag">guessed</span>' : '') + '</button>';
+    }).join('');
+    elSuggest.classList.add('on');
+    elHistory.classList.add('dim');
+  }
+
+  function topMatch() {
+    var btn = elSuggest.querySelector('button:not([disabled])');
+    return btn ? btn.getAttribute('data-name') : null;
+  }
+
+  elInput.addEventListener('input', function () {
+    elClear.classList.toggle('on', !!elInput.value);
+    renderSuggest(elInput.value);
+    elSubmit.disabled = !topMatch();
+  });
+
+  elInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); submit(); }
+  });
+
+  elClear.addEventListener('click', function () {
+    elInput.value = '';
+    elClear.classList.remove('on');
+    elSubmit.disabled = true;
+    renderSuggest('');
+    elInput.focus();
+  });
+
+  elSuggest.addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn || btn.disabled) return;
+    guess(btn.getAttribute('data-name'));
+  });
+
+  elSubmit.addEventListener('click', submit);
+
+  function submit() {
+    var name = topMatch();
+    if (!name) {
+      elInput.parentNode.classList.add('shake');
+      setTimeout(function () { elInput.parentNode.classList.remove('shake'); }, 320);
+      return;
+    }
+    guess(name);
+  }
+
+  /* ---- a guess ---- */
+  function guess(name) {
+    if (state.over) return;
+    var country = COUNTRIES.find(function (c) { return c.name === name; });
+    if (!country) return;
+    if (alreadyGuessed(country)) { toast('Already guessed ' + country.name); return; }
+
+    var km = Math.round(distanceKm(country, state.target));
+    var deg = km === 0 ? 0 : bearing(country, state.target);
+    var entry = { country: country, km: km, bearing: deg };
+    state.guesses.push(entry);
+
+    spinTo(country);
+    pulses.push({ country: country, color: heatColor(km), t0: performance.now() });
+    hideHint();
+
+    elInput.value = '';
+    elClear.classList.remove('on');
+    elSubmit.disabled = true;
+    renderSuggest('');
+    elInput.blur();
+
+    renderFeature(entry);
+    renderHistory();
+    updateCounter();
+
+    if (km === 0) finish(true);
+    else if (state.guesses.length >= MAX_GUESSES) finish(false);
+  }
+
+  function renderFeature(entry) {
+    var color = heatColor(entry.km);
+    elFeature.style.setProperty('--heat', color);
+    elFeature.style.setProperty('--fill', Math.round(heatOf(entry.km) * 100) + '%');
+    elFeatureName.textContent = flagOf(entry.country.code) + '  ' + entry.country.name;
+    elFeatureKm.textContent = entry.km.toLocaleString('en-US');
+    elFeatureDir.style.transform = 'rotate(' + entry.bearing + 'deg)';
+    elFeatureDir.style.opacity = entry.km === 0 ? 0.25 : 1;
+    elFeature.classList.add('on');
+  }
+
+  function renderHistory() {
+    if (!state.guesses.length) return;
+    var closest = state.guesses.reduce(function (a, b) { return b.km < a.km ? b : a; });
+    var rows = state.guesses.slice().reverse().map(function (g) {
+      var color = heatColor(g.km);
+      return '<div class="row" style="--heat:' + color + '">' +
+        '<span class="flag">' + flagOf(g.country.code) + '</span>' +
+        '<span class="row__name">' + g.country.name + '</span>' +
+        (g === closest && state.guesses.length > 1 ? '<span class="row__star">&#9733;</span>' : '') +
+        '<span class="row__km">' + g.km.toLocaleString('en-US') + ' km</span>' +
+        '<svg class="row__dir" viewBox="0 0 24 24" style="transform:rotate(' + g.bearing + 'deg);opacity:' +
+          (g.km === 0 ? 0.25 : 1) + '"><path d="M12 2 L18.5 21 L12 16.6 L5.5 21 Z"/></svg>' +
+        '</div>';
+    }).join('');
+    elHistory.innerHTML = rows;
+    elHistory.scrollTop = 0;
+  }
+
+  /* ---- end of round ---- */
+  var DIR_EMOJI = ['⬆️', '↗️', '➡️', '↘️',
+                   '⬇️', '↙️', '⬅️', '↖️'];
+
+  function shareGrid() {
+    var lines = state.guesses.map(function (g) {
+      /* only the winning guess earns a full row */
+      var filled = g.km === 0 ? 5 : Math.min(4, Math.round(heatOf(g.km) * 5));
+      var blocks = '';
+      for (var i = 0; i < 5; i++) blocks += (i < filled ? '🟩' : '⬜');
+      var arrow = g.km === 0 ? '🎉' : DIR_EMOJI[Math.round(g.bearing / 45) % 8];
+      return blocks + ' ' + arrow;
+    });
+    return 'Country Compass ' + (state.won ? state.guesses.length : 'X') + '/' + MAX_GUESSES +
+           '\n' + lines.join('\n');
+  }
+
+  function finish(won) {
+    state.over = true;
+    state.won = won;
+    elInput.disabled = true;
+    elSubmit.disabled = true;
+    closeSuggest();
+    updateCounter();
+
+    var s = stats();
+    s.played += 1;
+    if (won) { s.wins += 1; s.streak += 1; } else { s.streak = 0; }
+    saveStats(s);
+
+    setTimeout(function () { spinTo(state.target); }, won ? 260 : 420);
+
+    var closest = state.guesses.reduce(function (a, b) { return b.km < a.km ? b : a; });
+    document.getElementById('sheetTitle').textContent =
+      won ? 'Solved in ' + state.guesses.length + (state.guesses.length === 1 ? ' guess!' : ' guesses!')
+          : 'Out of guesses';
+    document.getElementById('sheetSub').textContent =
+      won ? 'The target was ' + state.target.name + '.'
+          : 'It was ' + state.target.name + ' ' + flagOf(state.target.code) + '.';
+
+    document.getElementById('sheetStats').innerHTML =
+      '<div class="stat"><span>Guesses used</span><b>' + state.guesses.length + ' / ' + MAX_GUESSES + '</b></div>' +
+      '<div class="stat"><span>Closest guess</span><b>' + closest.country.name + ' &middot; ' +
+        closest.km.toLocaleString('en-US') + ' km</b></div>' +
+      '<div class="stat"><span>Win streak</span><b>' + s.streak + '</b></div>' +
+      '<div class="stat"><span>Rounds played</span><b>' + s.played + '</b></div>';
+
+    document.getElementById('sheetGrid').textContent = shareGrid();
+
+    setTimeout(function () { elSheet.classList.add('on'); }, 640);
+  }
+
+  document.getElementById('againBtn').addEventListener('click', newGame);
+
+  document.getElementById('shareBtn').addEventListener('click', function () {
+    var text = shareGrid();
+    var ok = false;
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (err) { ok = false; }
+    toast(ok ? 'Grid copied' : 'Long-press the grid to copy');
+  });
+
+  /* ------------------------------------------------------------------ *
+   * Boot
+   * ------------------------------------------------------------------ */
+  readTheme();
+  resize();
+  newGame();
+  requestAnimationFrame(tick);
+
+  window.addEventListener('resize', resize);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onScheme = function () { readTheme(); };
+    if (mq.addEventListener) mq.addEventListener('change', onScheme);
+    else if (mq.addListener) mq.addListener(onScheme);
+  }
+}());
+</script>
+
+</body>
+</html>

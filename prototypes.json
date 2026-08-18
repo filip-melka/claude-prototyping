@@ -95,6 +95,18 @@
       "createdAt": "2026-08-17",
       "updatedAt": "2026-08-17",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-12",
+      "workItemId": "b88a9d75-276d-47aa-ad80-597f147eab59",
+      "title": "Country Compass",
+      "tagline": "Wordle for world geography — every guess reports how many kilometres it is from the secret country.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-12/index.html",
+      "version": 1,
+      "createdAt": "2026-08-18",
+      "updatedAt": "2026-08-18",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
