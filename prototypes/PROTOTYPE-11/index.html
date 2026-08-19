@@ -1,0 +1,1519 @@
+<!doctype html>
+<!--
+  Title Shot — PROTOTYPE-11
+  A career-mode boxing sim where boxing trivia is your fists. Climb the amateur
+  circuit, turn pro, and fight your way to a 12-round world title bout.
+
+  Self-contained: inline style and script only, no external requests. Career
+  progress lives in localStorage.
+
+  Layout references (Mobbin): Crypto.com Rewards+ station ladder and Mimo's
+  learning path for the locked / next-up / cleared card ladder, NBA and
+  Speechify quiz screens for the stacked answer rows under a run progress bar,
+  FotMob "Team vs team" for the tale-of-the-tape stat comparison, Riot Mobile
+  match details for the result header.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Title Shot</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #14161a;
+    --bg-2: #0e1013;
+    --surface: #1e2128;
+    --surface-2: #262a33;
+    --text: #f4f6fa;
+    --muted: #8d93a1;
+    --dim: #5d6472;
+    --border: #2c313b;
+    --red: #ff3b30;
+    --red-deep: #b81f17;
+    --cyan: #2fd9c4;
+    --cyan-deep: #148d7f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px rgba(0, 0, 0, .45);
+    --bronze: #c87a3c;
+    --silver: #b9c2d0;
+    --goldm: #ffc64a;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg: #eef0f4;
+      --bg-2: #e2e5ec;
+      --surface: #ffffff;
+      --surface-2: #f2f4f8;
+      --text: #14161a;
+      --muted: #626a7a;
+      --dim: #99a1b0;
+      --border: #dfe3ea;
+      --red: #e02a20;
+      --red-deep: #a8140d;
+      --cyan: #0fa895;
+      --cyan-deep: #0b7466;
+      --shadow: 0 1px 2px rgba(20, 22, 26, .06), 0 10px 30px rgba(20, 22, 26, .12);
+      --bronze: #a3612c;
+      --silver: #7d8798;
+      --goldm: #c78f00;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  /* Bold geometric-ish display face from what ships on the device. */
+  .display {
+    font-family: "SF Pro Display", "Avenir Next", "Segoe UI", Roboto, sans-serif;
+    font-weight: 800;
+    letter-spacing: -.02em;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    min-height: 100dvh;
+    max-width: 520px;
+    margin: 0 auto;
+    padding:
+      calc(env(safe-area-inset-top) + 10px)
+      calc(env(safe-area-inset-right) + 14px)
+      calc(env(safe-area-inset-bottom) + 10px)
+      calc(env(safe-area-inset-left) + 14px);
+  }
+
+  .app.shake { animation: shake .22s ease-in-out; }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-7px); }
+    45% { transform: translateX(6px); }
+    70% { transform: translateX(-3px); }
+  }
+
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex: none;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 16px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .app__title {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .app__body { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+
+  .screen { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  .screen.is-active { display: flex; animation: fade .22s ease both; }
+
+  @keyframes fade {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 16px;
+  }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 14px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-weight: 700;
+    min-height: 52px;
+    padding: 0 20px;
+    width: 100%;
+    cursor: pointer;
+  }
+
+  .btn:active { transform: scale(.98); }
+  .btn--fight {
+    background: var(--red);
+    color: #fff;
+    font-size: 19px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    min-height: 58px;
+    box-shadow: 0 8px 22px rgba(255, 59, 48, .3);
+  }
+  .btn--win { background: var(--cyan); color: #06231f; }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  /* ---------- rank medallion ---------- */
+  .medal {
+    --p: 0;
+    --metal: var(--bronze);
+    width: 64px;
+    height: 64px;
+    flex: none;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    background: conic-gradient(var(--metal) calc(var(--p) * 1%), var(--border) 0);
+    position: relative;
+  }
+  .medal::after {
+    content: "";
+    position: absolute;
+    inset: 5px;
+    border-radius: 999px;
+    background: var(--surface-2);
+  }
+  .medal span {
+    position: relative;
+    z-index: 1;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--metal);
+  }
+  .medal--sm { width: 44px; height: 44px; }
+  .medal--sm span { font-size: 14px; }
+
+  /* ---------- home ---------- */
+  .home {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+  }
+
+  .boxer {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .boxer__name { font-size: 26px; margin: 0; }
+  .boxer__rank {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .record {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .record div {
+    background: var(--surface-2);
+    border-radius: 12px;
+    padding: 10px 0;
+    text-align: center;
+  }
+  .record b { display: block; font-size: 24px; font-weight: 800; }
+  .record small { font-size: 10px; letter-spacing: .14em; color: var(--dim); text-transform: uppercase; }
+
+  .home__spacer { flex: 1; min-height: 12px; }
+
+  .segbar { display: flex; gap: 4px; margin-top: 10px; }
+  .segbar span {
+    flex: 1;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+  }
+  .segbar span.on { background: var(--cyan); }
+  .segbar span.now { background: var(--red); }
+
+  .next-up {
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  .next-up b { color: var(--text); }
+
+  /* ---------- career map ---------- */
+  .map {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 10px;
+    padding-bottom: 4px;
+  }
+
+  .ladder-head {
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    padding: 12px 2px 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .ladder-head::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .turn-pro {
+    text-align: center;
+    padding: 12px;
+    border-radius: 14px;
+    border: 1px dashed var(--border);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+  }
+  .turn-pro.is-live { border-color: var(--cyan); color: var(--cyan); }
+
+  .bout {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow);
+    padding: 12px;
+    color: inherit;
+    font: inherit;
+    appearance: none;
+  }
+  .bout + .bout::after,
+  .bout + .turn-pro::after { content: none; }
+
+  .bout--locked { opacity: .45; box-shadow: none; }
+  .bout--done { opacity: .6; box-shadow: none; }
+  .bout--next {
+    border-color: var(--red);
+    box-shadow: 0 0 0 1px var(--red), 0 10px 30px rgba(255, 59, 48, .22);
+  }
+  .bout--next:active { transform: scale(.99); }
+
+  .bout__mug {
+    width: 46px;
+    height: 46px;
+    flex: none;
+    border-radius: 12px;
+    background: var(--surface-2);
+    display: grid;
+    place-items: center;
+    color: var(--dim);
+  }
+  .bout--next .bout__mug { color: var(--red); }
+  .bout--done .bout__mug { color: var(--cyan); }
+
+  .bout__body { flex: 1; min-width: 0; }
+  .bout__name { font-weight: 700; font-size: 15px; }
+  .bout__meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  .bout__tag {
+    flex: none;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    padding: 5px 9px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--dim);
+  }
+  .bout--next .bout__tag { background: var(--red); color: #fff; }
+  .bout--done .bout__tag { background: transparent; color: var(--cyan); }
+
+  /* ---------- tale of the tape ---------- */
+  .tape { flex: 1; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
+
+  .tape__heads {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+  }
+  .tape__side { text-align: center; }
+  .tape__side h3 { margin: 8px 0 2px; font-size: 15px; }
+  .tape__side p { margin: 0; font-size: 12px; color: var(--muted); }
+  .tape__vs {
+    font-size: 13px;
+    font-weight: 800;
+    color: var(--red);
+    letter-spacing: .1em;
+  }
+
+  .tape__row {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .tape__row:first-child { border-top: 0; }
+  .tape__row span:nth-child(1) { text-align: left; }
+  .tape__row span:nth-child(3) { text-align: right; }
+  .tape__row em {
+    font-style: normal;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .sched {
+    text-align: center;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---------- fight ---------- */
+  .fight {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .round-line { text-align: center; }
+  .round-line b { font-size: 15px; letter-spacing: .1em; }
+
+  .scorecard {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .pip {
+    width: 14px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .pip--me { background: var(--cyan); border-color: var(--cyan); }
+  .pip--opp { background: var(--red); border-color: var(--red); }
+  .pip--now { box-shadow: 0 0 0 2px var(--dim); }
+
+  .bars { display: flex; gap: 10px; align-items: flex-end; }
+  .bar { flex: 1; min-width: 0; }
+  .bar__label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .bar__track {
+    height: 14px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .bar__fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .32s cubic-bezier(.2, .8, .3, 1);
+  }
+  .bar--me .bar__fill { background: linear-gradient(90deg, var(--cyan-deep), var(--cyan)); }
+  .bar--opp .bar__fill { background: linear-gradient(90deg, var(--red-deep), var(--red)); }
+  .bar.hit { animation: hit .18s ease; }
+  .bar.hit .bar__fill { background: #fff; }
+
+  @keyframes hit {
+    0% { transform: scale(1); }
+    45% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+
+  .fighters {
+    display: flex;
+    padding: 14px 4px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--dim);
+  }
+  .fighters svg { display: block; }
+  .fighters .me { color: var(--cyan); }
+  .fighters .opp { color: var(--red); transform: scaleX(-1); }
+  .fighters .mid { font-size: 11px; font-weight: 800; letter-spacing: .16em; color: var(--dim); }
+
+  .combo__label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 4px;
+  }
+  .combo__track { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .combo__fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--red-deep), var(--red));
+    transition: width .28s ease;
+  }
+  .combo.is-hot .combo__label { color: var(--red); }
+
+  /* Anchor the question near the bottom so the answers sit in the thumb zone. */
+  .q-card { padding: 14px 14px 16px; margin-top: auto; }
+  .q-tier {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+  .q-text { margin: 8px 0 0; font-size: 18px; font-weight: 700; line-height: 1.3; }
+
+  .answers { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+  .ans {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 50px;
+    padding: 8px 12px;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    appearance: none;
+  }
+  .ans:active { transform: scale(.99); }
+  .ans__key {
+    width: 24px;
+    height: 24px;
+    flex: none;
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    background: var(--surface);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--muted);
+  }
+  .ans--right {
+    background: var(--cyan);
+    border-color: var(--cyan);
+    color: #06231f;
+  }
+  .ans--right .ans__key { background: rgba(0, 0, 0, .14); color: #06231f; }
+  .ans--wrong {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+  }
+  .ans--wrong .ans__key { background: rgba(0, 0, 0, .18); color: #fff; }
+  .ans--mute { opacity: .4; }
+
+  .fight__feedback {
+    text-align: center;
+    min-height: 20px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .fight__feedback.good { color: var(--cyan); }
+  .fight__feedback.bad { color: var(--red); }
+
+  /* ---------- result ---------- */
+  .result { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow-y: auto; }
+  .result__hero { text-align: center; padding: 22px 16px; }
+  .result__verdict {
+    font-size: 30px;
+    line-height: 1.05;
+    margin: 6px 0 0;
+  }
+  .result__verdict.win { color: var(--cyan); }
+  .result__verdict.loss { color: var(--red); }
+  .result__verdict.draw { color: var(--muted); }
+  .result__sub { margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+
+  .rankmove {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .rankmove .to { color: var(--cyan); }
+  .rankmove .arrow { color: var(--dim); }
+
+  /* ---------- champion ---------- */
+  .champ {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-align: center;
+  }
+  .champ__stamp {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .32em;
+    text-transform: uppercase;
+    color: var(--goldm);
+    border: 2px solid var(--goldm);
+    border-radius: 10px;
+    padding: 8px 14px;
+    transform: rotate(-3deg);
+  }
+  .champ h2 { font-size: 34px; margin: 0; line-height: 1.05; }
+  .champ p { margin: 0; color: var(--muted); font-size: 14px; }
+
+  /* ---------- tab bar ---------- */
+  .tabbar {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    flex: none;
+  }
+  .tabbar[hidden] { display: none; }
+  .tab {
+    flex: 1;
+    min-height: 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: none;
+    border: 0;
+    color: var(--dim);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    cursor: pointer;
+    appearance: none;
+  }
+  .tab.is-on { color: var(--text); }
+  .tab:active { transform: scale(.97); }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom) + 88px);
+    transform: translate(-50%, 12px);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 16px;
+    border-radius: 999px;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease, transform .2s ease;
+    z-index: 20;
+  }
+  .toast.is-on { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="app__header">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="app__title">Title Shot</h1>
+  </header>
+
+  <main class="app__body">
+
+    <!-- APP MARKUP -->
+
+    <!-- ===== Home ===== -->
+    <section class="screen" id="scr-home">
+      <div class="home">
+        <div class="card">
+          <div class="boxer">
+            <div class="medal" id="home-medal"><span id="home-medal-txt">1</span></div>
+            <div>
+              <h2 class="boxer__name display">You</h2>
+              <span class="boxer__rank" id="home-rank">Amateur</span>
+            </div>
+          </div>
+          <div class="record">
+            <div><b class="display" id="rec-w">0</b><small>Won</small></div>
+            <div><b class="display" id="rec-l">0</b><small>Lost</small></div>
+            <div><b class="display" id="rec-d">0</b><small>Drawn</small></div>
+          </div>
+        </div>
+
+        <div class="card" id="home-note">
+          <div class="eyebrow">Career</div>
+          <p style="margin:6px 0 0;font-size:14px;color:var(--muted)" id="home-blurb">
+            Every round is one boxing question. Get it right and you land the punch.
+          </p>
+        </div>
+
+        <div class="card">
+          <div class="eyebrow" id="ladder-count">0 of 9 bouts cleared</div>
+          <div class="segbar" id="ladder-bar"></div>
+        </div>
+
+        <div class="home__spacer"></div>
+
+        <p class="next-up" id="home-next">Next up: <b>Marcus Webb</b> — 3 rounds</p>
+        <button class="btn btn--fight display" id="btn-continue">Continue Career</button>
+      </div>
+    </section>
+
+    <!-- ===== Career map ===== -->
+    <section class="screen" id="scr-map">
+      <div class="map" id="map-list"></div>
+    </section>
+
+    <!-- ===== Tale of the tape ===== -->
+    <section class="screen" id="scr-tape">
+      <div class="tape">
+        <div class="eyebrow" style="text-align:center">Tale of the Tape</div>
+
+        <div class="card">
+          <div class="tape__heads">
+            <div class="tape__side">
+              <div class="medal medal--sm" id="tape-medal" style="margin:0 auto"><span>1</span></div>
+              <h3 class="display">YOU</h3>
+              <p id="tape-me-rank">Amateur</p>
+            </div>
+            <div class="tape__vs display">VS</div>
+            <div class="tape__side">
+              <div class="bout__mug" style="margin:0 auto;width:44px;height:44px;border-radius:999px" id="tape-opp-mug"></div>
+              <h3 class="display" id="tape-opp-name">Marcus Webb</h3>
+              <p id="tape-opp-rank">Novice</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" id="tape-rows"></div>
+
+        <div class="sched" id="tape-sched">Scheduled for 3 rounds</div>
+
+        <div class="card" style="background:transparent;box-shadow:none;border-style:dashed">
+          <div class="eyebrow">How it is scored</div>
+          <p style="margin:6px 0 0;font-size:13px;color:var(--muted)">
+            One question per round. Answer right and you land the punch and take the round;
+            answer wrong and he does. Three in a row loads up a power punch.
+          </p>
+        </div>
+
+        <div class="home__spacer"></div>
+        <button class="btn btn--fight display" id="btn-fight">Fight</button>
+        <button class="btn" id="btn-tape-back" style="margin-top:8px;background:transparent;color:var(--muted);min-height:44px">Back to map</button>
+      </div>
+    </section>
+
+    <!-- ===== Fight ===== -->
+    <section class="screen" id="scr-fight">
+      <div class="fight">
+        <div class="round-line">
+          <b class="display" id="round-counter">ROUND 1 / 3</b>
+          <div class="scorecard" id="scorecard"></div>
+        </div>
+
+        <div class="fighters">
+          <span class="me" aria-hidden="true">
+            <svg width="58" height="58" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 8a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v4a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8Zm-2 1h1v6H5a3 3 0 0 1 0-6Zm4 10h8v2H9v-2Z"/>
+            </svg>
+          </span>
+          <span class="mid" id="fight-names">YOU &nbsp;·&nbsp; OPPONENT</span>
+          <span class="opp" aria-hidden="true">
+            <svg width="58" height="58" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7 8a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v4a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8Zm-2 1h1v6H5a3 3 0 0 1 0-6Zm4 10h8v2H9v-2Z"/>
+            </svg>
+          </span>
+        </div>
+
+        <div class="bars">
+          <div class="bar bar--me" id="bar-me">
+            <div class="bar__label"><span>You</span><span id="hp-me">100</span></div>
+            <div class="bar__track"><div class="bar__fill" id="fill-me" style="width:100%"></div></div>
+          </div>
+          <div class="bar bar--opp" id="bar-opp">
+            <div class="bar__label"><span id="opp-short">Opponent</span><span id="hp-opp">100</span></div>
+            <div class="bar__track"><div class="bar__fill" id="fill-opp" style="width:100%"></div></div>
+          </div>
+        </div>
+
+        <div class="combo" id="combo">
+          <div class="combo__label"><span>Power</span><span id="combo-txt">No combo</span></div>
+          <div class="combo__track"><div class="combo__fill" id="combo-fill"></div></div>
+        </div>
+
+        <div class="card q-card">
+          <div class="q-tier" id="q-tier">Easy</div>
+          <p class="q-text" id="q-text">Question</p>
+          <div class="answers" id="answers"></div>
+        </div>
+
+        <div class="fight__feedback" id="feedback"></div>
+      </div>
+    </section>
+
+    <!-- ===== Result ===== -->
+    <section class="screen" id="scr-result">
+      <div class="result">
+        <div class="card result__hero">
+          <div class="eyebrow" id="result-eyebrow">Result</div>
+          <h2 class="result__verdict display" id="result-verdict">WIN BY KO</h2>
+          <p class="result__sub" id="result-sub">Round 3</p>
+        </div>
+
+        <div class="card">
+          <div class="eyebrow">Your record</div>
+          <div class="record" style="margin-top:10px">
+            <div><b class="display" id="res-w">1</b><small>Won</small></div>
+            <div><b class="display" id="res-l">0</b><small>Lost</small></div>
+            <div><b class="display" id="res-d">0</b><small>Drawn</small></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="eyebrow" style="text-align:center;margin-bottom:8px">Ranking</div>
+          <div class="rankmove" id="rankmove"></div>
+        </div>
+
+        <div class="card">
+          <div class="eyebrow" style="text-align:center">Official scorecard</div>
+          <div class="scorecard" id="result-card" style="margin-top:10px"></div>
+          <p style="margin:10px 0 0;text-align:center;font-size:13px;color:var(--muted)" id="result-rounds"></p>
+        </div>
+
+        <div class="home__spacer"></div>
+        <button class="btn btn--fight display" id="btn-result-go">Continue</button>
+      </div>
+    </section>
+
+    <!-- ===== Champion ===== -->
+    <section class="screen" id="scr-champ">
+      <div class="champ">
+        <svg width="176" height="120" viewBox="0 0 112 76" aria-hidden="true">
+          <rect x="2" y="26" width="108" height="22" rx="6" fill="currentColor" opacity=".16"/>
+          <rect x="30" y="14" width="52" height="46" rx="12" fill="var(--goldm)"/>
+          <circle cx="56" cy="37" r="15" fill="#14161a" opacity=".22"/>
+          <circle cx="56" cy="37" r="11" fill="var(--goldm)"/>
+          <rect x="8" y="30" width="22" height="14" rx="4" fill="var(--goldm)" opacity=".65"/>
+          <rect x="82" y="30" width="22" height="14" rx="4" fill="var(--goldm)" opacity=".65"/>
+        </svg>
+        <div class="champ__stamp">World Champion</div>
+        <h2 class="display">The belt is yours</h2>
+        <p id="champ-record">Final record 9-0-0</p>
+        <div style="width:100%;max-width:320px;margin-top:8px">
+          <button class="btn btn--win display" id="btn-champ-home">Back to career</button>
+          <button class="btn" id="btn-reset" style="margin-top:8px;background:transparent;color:var(--muted);min-height:44px">Start a new career</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- /APP MARKUP -->
+
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab is-on" id="tab-map" type="button">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 21V3"/><circle cx="12" cy="5" r="2.4"/><circle cx="12" cy="12" r="2.4"/><circle cx="12" cy="19" r="2.4"/>
+      </svg>
+      Career
+    </button>
+    <button class="tab" id="tab-home" type="button">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1v-9.5Z"/>
+      </svg>
+      Home
+    </button>
+  </nav>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// APP LOGIC
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- data */
+
+  var OPPONENTS = [
+    { name: 'Marcus Webb',          record: '2-1',   rank: 'Novice',           rounds: 3,  pro: false, tier: 'e',  power: 0.85, style: 'Raw beginner' },
+    { name: 'Danny Cruz',           record: '5-2',   rank: 'Regional #8',      rounds: 3,  pro: false, tier: 'e',  power: 0.95, style: 'Busy jabber' },
+    { name: 'Ray "Lightning" Alu',  record: '9-1',   rank: 'Regional #3',      rounds: 3,  pro: false, tier: 'e',  power: 1.05, style: 'Speed merchant' },
+    { name: 'Sam Okafor',           record: '14-0',  rank: 'Amateur Champion', rounds: 3,  pro: false, tier: 'em', power: 1.15, style: 'Unbeaten southpaw' },
+    { name: 'Jamie Torres',         record: '4-3-1', rank: 'Unranked Pro',     rounds: 6,  pro: true,  tier: 'm',  power: 0.95, style: 'Awkward spoiler' },
+    { name: 'Victor Reyes',         record: '11-1',  rank: 'Regional Title',   rounds: 8,  pro: true,  tier: 'm',  power: 1.0, style: 'Body puncher' },
+    { name: 'Kelvin Boone',         record: '18-2',  rank: 'World #8',         rounds: 10, pro: true,  tier: 'mh', power: 1.05, style: 'Pressure fighter' },
+    { name: 'Ezekiel Grant',        record: '22-1',  rank: 'World #2',         rounds: 10, pro: true,  tier: 'h',  power: 1.1, style: 'Slick counter-puncher' },
+    { name: 'Aleksander Volkov',    record: '31-0',  rank: 'World Champion',   rounds: 12, pro: true,  tier: 'h',  power: 1.15, style: 'Complete champion' }
+  ];
+
+  // RANKS[n] is your rank once you have beaten n opponents.
+  var RANKS = [
+    'Amateur', 'Amateur #9', 'Amateur #4', 'Amateur #2', 'Amateur Champion',
+    'Unranked Pro', 'Regional Champion', 'World #7', 'World #3', 'World Champion'
+  ];
+
+  var QUESTIONS = [
+    // ---- easy ----
+    { t: 'e', q: 'Which boxer is universally known as "The Greatest"?', a: ['Muhammad Ali', 'Joe Frazier', 'Sonny Liston', 'George Foreman'], c: 0 },
+    { t: 'e', q: 'How long is a round in professional boxing?', a: ['Two minutes', 'Three minutes', 'Four minutes', 'Five minutes'], c: 1 },
+    { t: 'e', q: 'What does the abbreviation "KO" stand for?', a: ['Knockout', 'Knockdown', 'Knuckle out', 'Keep order'], c: 0 },
+    { t: 'e', q: 'How many judges score a professional title fight?', a: ['One', 'Two', 'Three', 'Five'], c: 2 },
+    { t: 'e', q: 'Where is a boxer forbidden to punch?', a: ['The arms', 'Below the belt', 'The shoulders', 'The gloves'], c: 1 },
+    { t: 'e', q: 'Which nickname belongs to Mike Tyson?', a: ['"Sugar"', '"Golden Boy"', '"Iron"', '"The Hitman"'], c: 2 },
+    { t: 'e', q: 'Which sport is nicknamed "the sweet science"?', a: ['Fencing', 'Boxing', 'Wrestling', 'Judo'], c: 1 },
+    { t: 'e', q: 'How many ropes enclose a standard boxing ring?', a: ['Two', 'Three', 'Four', 'Six'], c: 2 },
+    { t: 'e', q: 'What is a "southpaw"?', a: ['A left-handed boxer', 'A body shot', 'A ring official', 'A type of glove'], c: 0 },
+    { t: 'e', q: 'How far does a referee count before ruling a knockout?', a: ['Five', 'Eight', 'Ten', 'Twelve'], c: 2 },
+    { t: 'e', q: 'Which piece of equipment protects a boxer’s teeth?', a: ['Headguard', 'Mouthguard', 'Hand wrap', 'Cup'], c: 1 },
+    { t: 'e', q: 'What colours are the two corners a boxer is assigned?', a: ['Red and blue', 'Black and white', 'Green and gold', 'Purple and orange'], c: 0 },
+    { t: 'e', q: 'Which is the heaviest professional weight class?', a: ['Cruiserweight', 'Middleweight', 'Heavyweight', 'Welterweight'], c: 2 },
+    { t: 'e', q: 'What does "TKO" stand for?', a: ['Total knockout', 'Technical knockout', 'Ten-count knockout', 'Tied knockout'], c: 1 },
+    { t: 'e', q: 'How long is the rest between professional rounds?', a: ['Thirty seconds', 'One minute', 'Ninety seconds', 'Two minutes'], c: 1 },
+    { t: 'e', q: 'For an orthodox boxer, which hand throws the jab?', a: ['The left', 'The right', 'Either, alternating', 'Neither — the jab is a step'], c: 0 },
+    { t: 'e', q: 'What is the punch thrown upward at close range called?', a: ['Jab', 'Hook', 'Uppercut', 'Cross'], c: 2 },
+    { t: 'e', q: 'Which official is inside the ring during the fight?', a: ['The referee', 'The timekeeper', 'The judge', 'The matchmaker'], c: 0 },
+
+    // ---- medium ----
+    { t: 'm', q: 'Which weight class sits at a 154 lb limit?', a: ['Welterweight', 'Light middleweight', 'Middleweight', 'Super middleweight'], c: 1 },
+    { t: 'm', q: 'What is the welterweight limit?', a: ['140 lb', '147 lb', '154 lb', '160 lb'], c: 1 },
+    { t: 'm', q: 'Who did Buster Douglas famously knock out in Tokyo in 1990?', a: ['Evander Holyfield', 'Mike Tyson', 'Riddick Bowe', 'Lennox Lewis'], c: 1 },
+    { t: 'm', q: 'What is the middleweight limit?', a: ['154 lb', '160 lb', '168 lb', '175 lb'], c: 1 },
+    { t: 'm', q: 'Which fighter boxed under the nickname "Money"?', a: ['Floyd Mayweather Jr.', 'Adrien Broner', 'Shane Mosley', 'Zab Judah'], c: 0 },
+    { t: 'm', q: 'Manny Pacquiao comes from which country?', a: ['Indonesia', 'Thailand', 'The Philippines', 'Mexico'], c: 2 },
+    { t: 'm', q: 'Which New York venue is called boxing’s "Mecca"?', a: ['Barclays Center', 'Madison Square Garden', 'Yankee Stadium', 'Radio City'], c: 1 },
+    { t: 'm', q: 'Which heavyweight made a record 25 title defences?', a: ['Joe Louis', 'Rocky Marciano', 'Larry Holmes', 'Jack Dempsey'], c: 0 },
+    { t: 'm', q: 'Which brothers both held heavyweight world titles in the 2000s?', a: ['The Charlos', 'The Klitschkos', 'The Fury cousins', 'The Spinks brothers'], c: 1 },
+    { t: 'm', q: '"The Thrilla in Manila" pitted Muhammad Ali against whom?', a: ['George Foreman', 'Ken Norton', 'Joe Frazier', 'Larry Holmes'], c: 2 },
+    { t: 'm', q: 'Who handed Muhammad Ali his first professional defeat, in 1971?', a: ['Sonny Liston', 'Joe Frazier', 'Ken Norton', 'Leon Spinks'], c: 1 },
+    { t: 'm', q: 'Who bit Evander Holyfield’s ear in their 1997 rematch?', a: ['Riddick Bowe', 'Mike Tyson', 'Michael Moorer', 'Lennox Lewis'], c: 1 },
+    { t: 'm', q: 'Which sanctioning body awards a famously green belt?', a: ['WBA', 'IBF', 'WBO', 'WBC'], c: 3 },
+    { t: 'm', q: 'What is the lightweight limit?', a: ['130 lb', '135 lb', '140 lb', '147 lb'], c: 1 },
+    { t: 'm', q: 'Rocky Marciano retired with which professional record?', a: ['49-0', '45-2', '50-1', '52-0'], c: 0 },
+    { t: 'm', q: 'Which British heavyweight won gold at London 2012?', a: ['Tyson Fury', 'Anthony Joshua', 'Dillian Whyte', 'Daniel Dubois'], c: 1 },
+    { t: 'm', q: 'What is a "bolo punch"?', a: ['A looping windmill punch', 'A blocked jab', 'A body clinch', 'A referee signal'], c: 0 },
+    { t: 'm', q: 'Sugar Ray Robinson is most often called the greatest ever at which weight?', a: ['Heavyweight', 'Welterweight', 'Flyweight', 'Cruiserweight'], c: 1 },
+
+    // ---- hard ----
+    { t: 'h', q: 'What year did Ali beat Foreman in the Rumble in the Jungle?', a: ['1971', '1974', '1976', '1978'], c: 1 },
+    { t: 'h', q: 'In which city was the Rumble in the Jungle staged?', a: ['Lagos', 'Nairobi', 'Kinshasa', 'Accra'], c: 2 },
+    { t: 'h', q: 'Who was the first heavyweight champion of the gloved era?', a: ['John L. Sullivan', 'James J. Corbett', 'Bob Fitzsimmons', 'Jim Jeffries'], c: 1 },
+    { t: 'h', q: 'Which Manchester fighter boxed as "The Hitman"?', a: ['Ricky Hatton', 'Amir Khan', 'Carl Froch', 'Joe Calzaghe'], c: 0 },
+    { t: 'h', q: 'Who did Sugar Ray Leonard outpoint in the 1987 "Super Fight"?', a: ['Thomas Hearns', 'Roberto Durán', 'Marvin Hagler', 'Wilfred Benitez'], c: 2 },
+    { t: 'h', q: 'In what year did Mike Tyson become the youngest heavyweight champion?', a: ['1985', '1986', '1987', '1988'], c: 1 },
+    { t: 'h', q: 'Who retired with a 50-0 professional record?', a: ['Floyd Mayweather Jr.', 'Andre Ward', 'Joe Calzaghe', 'Terence Crawford'], c: 0 },
+    { t: 'h', q: 'Who beat Muhammad Ali in his final professional fight, in 1981?', a: ['Larry Holmes', 'Trevor Berbick', 'Leon Spinks', 'Earnie Shavers'], c: 1 },
+    { t: 'h', q: 'Which Panamanian great was known as "Manos de Piedra"?', a: ['Roberto Durán', 'Eusebio Pedroza', 'Ismael Laguna', 'Guillermo Jones'], c: 0 },
+    { t: 'h', q: 'Durán’s 1980 "No más" fight was against which opponent?', a: ['Thomas Hearns', 'Marvin Hagler', 'Sugar Ray Leonard', 'Wilfred Benitez'], c: 2 },
+    { t: 'h', q: 'Which class sits directly between flyweight and bantamweight?', a: ['Light flyweight', 'Super flyweight', 'Super bantamweight', 'Featherweight'], c: 1 },
+    { t: 'h', q: 'Which heavyweight was nicknamed "The Brown Bomber"?', a: ['Jack Johnson', 'Joe Louis', 'Ezzard Charles', 'Sonny Liston'], c: 1 },
+    { t: 'h', q: 'Who was stripped of the heavyweight title in 1967 for refusing army induction?', a: ['Muhammad Ali', 'Floyd Patterson', 'Jimmy Ellis', 'Joe Frazier'], c: 0 },
+    { t: 'h', q: 'Which Ukrainian became undisputed heavyweight champion in 2024?', a: ['Vasiliy Lomachenko', 'Oleksandr Usyk', 'Wladimir Klitschko', 'Serhii Bohachuk'], c: 1 },
+    { t: 'h', q: 'Which American won undisputed titles at 140 and 147 lb in the four-belt era?', a: ['Errol Spence Jr.', 'Terence Crawford', 'Keith Thurman', 'Danny Garcia'], c: 1 },
+    { t: 'h', q: 'The Queensberry Rules that shaped modern boxing were codified in which country?', a: ['The United States', 'France', 'England', 'Ireland'], c: 2 },
+    { t: 'h', q: 'What is the super middleweight limit?', a: ['160 lb', '168 lb', '175 lb', '190 lb'], c: 1 }
+  ];
+
+  var TIER_LABEL = { e: 'Easy', m: 'Medium', h: 'Hard' };
+  var STORE_KEY = 'titleshot.career.v1';
+
+  /* --------------------------------------------------------------- state */
+
+  var career = load();
+  var bout = null;
+  var lastResult = null;
+
+  function blankCareer() {
+    return { w: 0, l: 0, d: 0, progress: 0, champion: false };
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE_KEY);
+      if (!raw) return blankCareer();
+      var parsed = JSON.parse(raw);
+      var c = blankCareer();
+      ['w', 'l', 'd', 'progress'].forEach(function (k) {
+        if (typeof parsed[k] === 'number' && parsed[k] >= 0) c[k] = parsed[k] | 0;
+      });
+      c.progress = Math.min(c.progress, OPPONENTS.length);
+      c.champion = !!parsed.champion;
+      return c;
+    } catch (err) {
+      return blankCareer();
+    }
+  }
+
+  function save() {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(career)); } catch (err) { /* private mode */ }
+  }
+
+  /* ------------------------------------------------------------ elements */
+
+  var $ = function (id) { return document.getElementById(id); };
+  var app = $('app');
+  var tabbar = $('tabbar');
+  var toastEl = $('toast');
+  var toastTimer = null;
+
+  var SCREENS = ['home', 'map', 'tape', 'fight', 'result', 'champ'];
+  var current = 'home';
+
+  function show(name) {
+    current = name;
+    SCREENS.forEach(function (s) {
+      $('scr-' + s).classList.toggle('is-active', s === name);
+    });
+    var onTabs = name === 'home' || name === 'map';
+    tabbar.hidden = !onTabs;
+    $('tab-home').classList.toggle('is-on', name === 'home');
+    $('tab-map').classList.toggle('is-on', name === 'map');
+    window.scrollTo(0, 0);
+  }
+
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, 1600);
+  }
+
+  function shake() {
+    app.classList.remove('shake');
+    void app.offsetWidth;
+    app.classList.add('shake');
+  }
+
+  /* ----------------------------------------------------------- medallion */
+
+  function metalFor(progress) {
+    if (progress >= 7) return 'var(--goldm)';
+    if (progress >= 4) return 'var(--silver)';
+    return 'var(--bronze)';
+  }
+
+  function paintMedal(el, txtEl) {
+    var pct = Math.round((career.progress / OPPONENTS.length) * 100);
+    el.style.setProperty('--p', pct);
+    el.style.setProperty('--metal', metalFor(career.progress));
+    if (txtEl) txtEl.textContent = career.champion ? '★' : String(career.progress);
+  }
+
+  /* ---------------------------------------------------------------- home */
+
+  function renderHome() {
+    $('rec-w').textContent = career.w;
+    $('rec-l').textContent = career.l;
+    $('rec-d').textContent = career.d;
+    $('home-rank').textContent = RANKS[career.progress];
+    paintMedal($('home-medal'), $('home-medal-txt'));
+
+    var segs = '';
+    for (var i = 0; i < OPPONENTS.length; i++) {
+      segs += '<span class="' + (i < career.progress ? 'on' : (i === career.progress ? 'now' : '')) + '"></span>';
+    }
+    $('ladder-bar').innerHTML = segs;
+    $('ladder-count').textContent = career.progress + ' of ' + OPPONENTS.length + ' bouts cleared';
+
+    var next = OPPONENTS[career.progress];
+    if (next) {
+      $('home-next').innerHTML = 'Next up: <b>' + esc(next.name) + '</b> — ' + next.rounds + ' rounds';
+      $('btn-continue').textContent = career.progress === 0 ? 'Start Career' : 'Continue Career';
+      $('home-blurb').textContent = next.pro
+        ? 'Pro ranks. Longer fights, harder questions — one slip hands over the round.'
+        : 'Every round is one boxing question. Get it right and you land the punch.';
+    } else {
+      $('home-next').innerHTML = 'The ladder is finished. <b>You hold the world title.</b>';
+      $('btn-continue').textContent = 'View the belt';
+      $('home-blurb').textContent = 'Nothing left to climb. Start a new career from the champion screen.';
+    }
+  }
+
+  /* ----------------------------------------------------------------- map */
+
+  function mugSvg() {
+    return '<svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">' +
+      '<path d="M7 8a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v4a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8Zm-2 1h1v6H5a3 3 0 0 1 0-6Zm4 10h8v2H9v-2Z"/></svg>';
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (ch) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch];
+    });
+  }
+
+  function renderMap() {
+    var list = $('map-list');
+    list.innerHTML = '';
+
+    // The container is column-reverse, so appending walks bottom-to-top.
+    append(list, head('Amateur Circuit'));
+    OPPONENTS.forEach(function (opp, i) {
+      if (i === 4) {
+        var div = document.createElement('div');
+        div.className = 'turn-pro' + (career.progress === 4 ? ' is-live' : '');
+        div.textContent = 'Turn Pro';
+        list.appendChild(div);
+        append(list, head('Pro Rankings'));
+      }
+      list.appendChild(boutCard(opp, i));
+    });
+  }
+
+  function append(list, node) { list.appendChild(node); }
+
+  function head(text) {
+    var h = document.createElement('div');
+    h.className = 'ladder-head';
+    h.textContent = text;
+    return h;
+  }
+
+  function boutCard(opp, i) {
+    var state = i < career.progress ? 'done' : (i === career.progress ? 'next' : 'locked');
+    var el = document.createElement(state === 'next' ? 'button' : 'div');
+    el.className = 'bout bout--' + state;
+    if (state === 'next') el.type = 'button';
+
+    var tag = state === 'done' ? '✓ Beaten' : (state === 'next' ? 'Next up' : 'Locked');
+    el.innerHTML =
+      '<div class="bout__mug">' + (state === 'locked' ? lockSvg() : mugSvg()) + '</div>' +
+      '<div class="bout__body">' +
+        '<div class="bout__name">' + esc(opp.name) + '</div>' +
+        '<div class="bout__meta">' + esc(opp.record) + ' · ' + esc(opp.rank) + ' · ' + opp.rounds + ' RD</div>' +
+      '</div>' +
+      '<div class="bout__tag">' + tag + '</div>';
+
+    if (state === 'next') {
+      el.addEventListener('click', function () { openTape(i); });
+    } else if (state === 'locked') {
+      el.addEventListener('click', function () { toast('Beat ' + OPPONENTS[career.progress].name + ' first'); });
+    }
+    return el;
+  }
+
+  function lockSvg() {
+    return '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+      '<rect x="4" y="10" width="16" height="10" rx="2.5"/><path d="M8 10V7.5a4 4 0 0 1 8 0V10"/></svg>';
+  }
+
+  /* ------------------------------------------------------- tale of tape */
+
+  function dots(n) {
+    var s = '';
+    for (var i = 0; i < 5; i++) s += i < n ? '●' : '○';
+    return s;
+  }
+
+  function streakText() {
+    if (career.progress === 0) return 'Debut';
+    return career.progress + '-fight win streak';
+  }
+
+  function openTape(i) {
+    var opp = OPPONENTS[i];
+    bout = { idx: i, opp: opp };
+
+    $('tape-opp-name').textContent = opp.name;
+    $('tape-opp-rank').textContent = opp.rank;
+    $('tape-opp-mug').innerHTML = mugSvg();
+    $('tape-me-rank').textContent = RANKS[career.progress];
+    paintMedal($('tape-medal'), $('tape-medal').querySelector('span'));
+    $('tape-sched').textContent = 'Scheduled for ' + opp.rounds + ' rounds';
+
+    var myDots = Math.min(5, 2 + Math.floor(career.progress / 3));
+    var oppDots = Math.max(1, Math.min(5, Math.round((opp.power - 0.7) * 10)));
+    var rows = [
+      ['Record', career.w + '-' + career.l + '-' + career.d, opp.record],
+      ['Standing', RANKS[career.progress], opp.rank],
+      ['Form', streakText(), opp.pro ? 'Seasoned pro' : 'Amateur'],
+      ['Style', 'Counter-puncher', opp.style],
+      ['Danger', dots(myDots), dots(oppDots)],
+      ['Questions', TIER_LABEL[opp.tier[0]], opp.tier.length > 1 ? TIER_LABEL[opp.tier[1]] + ' mix' : TIER_LABEL[opp.tier[0]]]
+    ];
+    $('tape-rows').innerHTML = rows.map(function (r) {
+      return '<div class="tape__row"><span>' + esc(r[1]) + '</span><em>' + esc(r[0]) + '</em><span>' + esc(r[2]) + '</span></div>';
+    }).join('');
+
+    show('tape');
+  }
+
+  /* --------------------------------------------------------------- fight */
+
+  function shuffled(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+
+  function drawQuestions(tiers, n) {
+    var pool = [];
+    tiers.split('').forEach(function (t) {
+      pool = pool.concat(QUESTIONS.filter(function (q) { return q.t === t; }));
+    });
+    var picked = shuffled(pool);
+    while (picked.length < n) picked = picked.concat(shuffled(pool));
+    return picked.slice(0, n);
+  }
+
+  function startFight() {
+    var opp = bout.opp;
+    var rounds = opp.rounds;
+    bout.rounds = rounds;
+    bout.round = 0;
+    bout.myHp = 100;
+    bout.oppHp = 100;
+    bout.card = [];
+    bout.combo = 0;
+    bout.locked = false;
+    bout.questions = drawQuestions(opp.tier, rounds);
+    // A clean sweep should stop the fight a round or two early: a KO.
+    bout.myDmg = Math.ceil(100 / (rounds * 0.8));
+    bout.oppDmg = Math.ceil((100 / (rounds * 0.8)) * opp.power);
+
+    $('opp-short').textContent = opp.name.split(' ')[0];
+    $('fight-names').textContent = 'YOU  ·  ' + opp.name.toUpperCase();
+    paintHp();
+    paintCombo();
+    show('fight');
+    nextRound();
+  }
+
+  function paintHp() {
+    $('hp-me').textContent = Math.max(0, bout.myHp);
+    $('hp-opp').textContent = Math.max(0, bout.oppHp);
+    $('fill-me').style.width = Math.max(0, bout.myHp) + '%';
+    $('fill-opp').style.width = Math.max(0, bout.oppHp) + '%';
+  }
+
+  function paintCombo() {
+    var pct = Math.min(100, (bout.combo / 3) * 100);
+    $('combo-fill').style.width = pct + '%';
+    $('combo').classList.toggle('is-hot', bout.combo >= 3);
+    $('combo-txt').textContent = bout.combo === 0 ? 'No combo'
+      : (bout.combo >= 3 ? bout.combo + ' in a row — power punch' : bout.combo + ' in a row');
+  }
+
+  function paintScorecard() {
+    var html = '';
+    for (var i = 0; i < bout.rounds; i++) {
+      var cls = 'pip';
+      if (bout.card[i] === 'me') cls += ' pip--me';
+      else if (bout.card[i] === 'opp') cls += ' pip--opp';
+      if (i === bout.round) cls += ' pip--now';
+      html += '<span class="' + cls + '"></span>';
+    }
+    $('scorecard').innerHTML = html;
+  }
+
+  function nextRound() {
+    var q = bout.questions[bout.round];
+    $('round-counter').textContent = 'ROUND ' + (bout.round + 1) + ' / ' + bout.rounds;
+    paintScorecard();
+    $('q-tier').textContent = TIER_LABEL[q.t] + ' · ' + (bout.opp.pro ? 'Pro' : 'Amateur');
+    $('q-text').textContent = q.q;
+    $('feedback').textContent = '';
+    $('feedback').className = 'fight__feedback';
+
+    var order = shuffled(q.a.map(function (text, i) { return { text: text, right: i === q.c }; }));
+    bout.order = order;
+    var keys = ['A', 'B', 'C', 'D'];
+    var wrap = $('answers');
+    wrap.innerHTML = '';
+    order.forEach(function (opt, i) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ans';
+      b.innerHTML = '<span class="ans__key">' + keys[i] + '</span><span>' + esc(opt.text) + '</span>';
+      b.addEventListener('click', function () { answer(i); });
+      wrap.appendChild(b);
+    });
+    bout.locked = false;
+  }
+
+  function answer(i) {
+    if (bout.locked) return;
+    bout.locked = true;
+
+    var buttons = Array.prototype.slice.call($('answers').children);
+    var right = bout.order[i].right;
+    var rightIdx = bout.order.findIndex(function (o) { return o.right; });
+
+    buttons.forEach(function (b, n) {
+      if (n === rightIdx) b.classList.add('ans--right');
+      else if (n === i) b.classList.add('ans--wrong');
+      else b.classList.add('ans--mute');
+    });
+
+    if (right) {
+      bout.combo += 1;
+      var power = bout.combo >= 3;
+      var dmg = Math.round(bout.myDmg * (power ? 1.4 : 1));
+      bout.oppHp = Math.max(0, bout.oppHp - dmg);
+      bout.card[bout.round] = 'me';
+      land($('bar-opp'));
+      say(power ? 'Power punch! −' + dmg : 'Clean shot −' + dmg, 'good');
+    } else {
+      bout.combo = 0;
+      bout.myHp = Math.max(0, bout.myHp - bout.oppDmg);
+      bout.card[bout.round] = 'opp';
+      land($('bar-me'));
+      say('He counters — you take ' + bout.oppDmg, 'bad');
+    }
+
+    paintHp();
+    paintCombo();
+    paintScorecard();
+
+    setTimeout(function () {
+      if (bout.oppHp <= 0) return finish('ko');
+      if (bout.myHp <= 0) return finish('tko');
+      bout.round += 1;
+      if (bout.round >= bout.rounds) return finish('decision');
+      nextRound();
+    }, 1150);
+  }
+
+  function land(barEl) {
+    barEl.classList.remove('hit');
+    void barEl.offsetWidth;
+    barEl.classList.add('hit');
+    shake();
+    setTimeout(function () { barEl.classList.remove('hit'); }, 200);
+  }
+
+  function say(text, kind) {
+    var el = $('feedback');
+    el.textContent = text;
+    el.className = 'fight__feedback ' + kind;
+  }
+
+  /* -------------------------------------------------------------- result */
+
+  function finish(how) {
+    var mine = bout.card.filter(function (x) { return x === 'me'; }).length;
+    var theirs = bout.card.filter(function (x) { return x === 'opp'; }).length;
+    var fought = bout.round + 1;
+    var outcome, verdict, sub;
+
+    if (how === 'ko') {
+      outcome = 'win';
+      verdict = 'WIN BY KO';
+      sub = 'Round ' + fought + ' — ' + bout.opp.name + ' does not beat the count.';
+    } else if (how === 'tko') {
+      outcome = 'loss';
+      verdict = 'TKO LOSS';
+      sub = 'Round ' + fought + ' — the referee waves it off.';
+    } else if (mine > theirs) {
+      outcome = 'win';
+      verdict = 'WIN BY DECISION';
+      sub = mine + ' rounds to ' + theirs + ' on the cards.';
+    } else if (theirs > mine) {
+      outcome = 'loss';
+      verdict = 'LOSS BY DECISION';
+      sub = theirs + ' rounds to ' + mine + ' on the cards.';
+    } else {
+      outcome = 'draw';
+      verdict = 'DRAW';
+      sub = 'Even at ' + mine + ' rounds apiece.';
+    }
+
+    var fromRank = RANKS[career.progress];
+    if (outcome === 'win') {
+      career.w += 1;
+      if (bout.idx === career.progress) career.progress += 1;
+      if (career.progress >= OPPONENTS.length) career.champion = true;
+    } else if (outcome === 'loss') {
+      career.l += 1;
+    } else {
+      career.d += 1;
+    }
+    save();
+    var toRank = RANKS[career.progress];
+
+    lastResult = { outcome: outcome, champion: outcome === 'win' && career.champion };
+
+    $('result-eyebrow').textContent = bout.opp.name + ' · ' + bout.rounds + ' rounds';
+    var v = $('result-verdict');
+    v.textContent = verdict;
+    v.className = 'result__verdict display ' + outcome;
+    $('result-sub').textContent = sub;
+    $('res-w').textContent = career.w;
+    $('res-l').textContent = career.l;
+    $('res-d').textContent = career.d;
+
+    var recap = '';
+    for (var r = 0; r < bout.rounds; r++) {
+      recap += '<span class="pip' + (bout.card[r] === 'me' ? ' pip--me' : (bout.card[r] === 'opp' ? ' pip--opp' : '')) + '"></span>';
+    }
+    $('result-card').innerHTML = recap;
+    $('result-rounds').textContent = mine + ' rounds to ' + theirs +
+      (how === 'decision' ? '' : ' — stopped in round ' + fought);
+
+    $('rankmove').innerHTML = fromRank === toRank
+      ? '<span>' + esc(fromRank) + '</span><span class="arrow">·</span><span style="color:var(--muted)">No movement</span>'
+      : '<span style="color:var(--muted)">' + esc(fromRank) + '</span><span class="arrow">→</span><span class="to">' + esc(toRank) + '</span>';
+
+    var go = $('btn-result-go');
+    if (lastResult.champion) go.textContent = 'Collect the belt';
+    else if (outcome === 'win') go.textContent = 'Continue';
+    else go.textContent = 'Try Again';
+
+    show('result');
+  }
+
+  function renderChamp() {
+    $('champ-record').textContent = 'Final record ' + career.w + '-' + career.l + '-' + career.d;
+  }
+
+  /* --------------------------------------------------------------- wiring */
+
+  $('btn-continue').addEventListener('click', function () {
+    if (career.progress >= OPPONENTS.length) { renderChamp(); show('champ'); return; }
+    openTape(career.progress);
+  });
+
+  $('btn-fight').addEventListener('click', startFight);
+  $('btn-tape-back').addEventListener('click', function () { renderMap(); show('map'); });
+
+  $('btn-result-go').addEventListener('click', function () {
+    if (lastResult && lastResult.champion) { renderChamp(); show('champ'); return; }
+    if (lastResult && lastResult.outcome !== 'win') { openTape(bout.idx); return; }
+    renderHome();
+    renderMap();
+    show('map');
+  });
+
+  $('btn-champ-home').addEventListener('click', function () { renderHome(); show('home'); });
+
+  $('btn-reset').addEventListener('click', function () {
+    career = blankCareer();
+    save();
+    renderHome();
+    renderMap();
+    toast('New career started');
+    show('home');
+  });
+
+  $('tab-home').addEventListener('click', function () { renderHome(); show('home'); });
+  $('tab-map').addEventListener('click', function () { renderMap(); show('map'); });
+
+  renderHome();
+  renderMap();
+  show('home');
+})();
+// /APP LOGIC
+</script>
+
+</body>
+</html>

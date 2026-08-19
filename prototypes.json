@@ -97,6 +97,18 @@
       "changelog": ["v1 — initial prototype"]
     },
     {
+      "id": "PROTOTYPE-11",
+      "workItemId": "8b7cd49e-fc6e-4924-a870-f319de31dcad",
+      "title": "Title Shot",
+      "tagline": "Box your way to a world title — every round is one boxing question, right answers land the punch.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-11/index.html",
+      "version": 1,
+      "createdAt": "2026-08-19",
+      "updatedAt": "2026-08-19",
+      "changelog": ["v1 — initial prototype"]
+    },
+    {
       "id": "PROTOTYPE-12",
       "workItemId": "b88a9d75-276d-47aa-ad80-597f147eab59",
       "title": "Country Compass",
