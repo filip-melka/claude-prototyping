@@ -1,0 +1,1070 @@
+<!doctype html>
+<!--
+  PROTOTYPE-9 — Shift
+  Swap one card into a four-letter word to forge a new one. Self-contained: no
+  network of any kind, inline style and script only.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Shift</title>
+<style>
+  :root {
+    --bg: #f6f6f7;
+    --surface: #ffffff;
+    --raise: #ffffff;
+    --tray: #edeef1;
+    --text: #17171a;
+    --muted: #6b6b76;
+    --faint: #9c9ca8;
+    --border: #e3e3e8;
+    --accent: #4f46e5;
+    --accent-soft: #eceafd;
+    --accent-text: #ffffff;
+    --ok: #14875a;
+    --ok-soft: #e2f5ec;
+    --bad: #c92c3d;
+    --bad-soft: #fdeaec;
+    --warn: #b4640a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .06), 0 8px 24px rgba(0, 0, 0, .06);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .07), 0 3px 8px rgba(0, 0, 0, .05);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0e11;
+      --surface: #17171c;
+      --raise: #23232b;
+      --tray: #101014;
+      --text: #f2f2f5;
+      --muted: #9a9aa6;
+      --faint: #71717e;
+      --border: #2a2a32;
+      --accent: #8b7dff;
+      --accent-soft: #251f4a;
+      --accent-text: #0e0e11;
+      --ok: #4ad991;
+      --ok-soft: #12301f;
+      --bad: #ff7a86;
+      --bad-soft: #3a1319;
+      --warn: #ffb454;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .4);
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .5), 0 3px 8px rgba(0, 0, 0, .35);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 12px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 16px)
+      calc(env(safe-area-inset-left) + 16px);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex: none;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .back { position: relative; }
+
+  /* keeps the template's 34px look but a 44px hit area */
+  .back::after { content: ""; position: absolute; inset: -5px; border-radius: 999px; }
+
+  .back:active { transform: scale(.94); }
+
+  .app__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+  }
+
+  .app__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 16px;
+    background: var(--accent);
+    color: var(--accent-text);
+    font: inherit;
+    font-weight: 650;
+    min-height: 52px;
+    padding: 0 20px;
+    width: 100%;
+    cursor: pointer;
+    transition: transform .12s ease;
+  }
+
+  .btn:active { transform: scale(.98); }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--muted);
+    min-height: 46px;
+    font-weight: 550;
+  }
+
+  /* ---------- screens ---------- */
+
+  .screen { display: none; flex: 1; flex-direction: column; min-height: 0; }
+  .screen.is-active { display: flex; animation: screen-in .3s cubic-bezier(.2, .8, .3, 1); }
+
+  @keyframes screen-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* ---------- letter tiles + cards ---------- */
+
+  .tiles {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .tile {
+    appearance: none;
+    flex: 1 1 0;
+    max-width: 74px;
+    aspect-ratio: 5 / 6;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: var(--raise);
+    box-shadow: var(--shadow);
+    color: var(--text);
+    font: inherit;
+    font-size: 34px;
+    font-weight: 700;
+    letter-spacing: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform .14s ease, border-color .14s ease, background .14s ease;
+  }
+
+  .tile:active { transform: scale(.96); }
+
+  /* live drop targets once a card is picked */
+  .is-arming .tile {
+    border-color: var(--accent);
+    border-style: dashed;
+    background: var(--accent-soft);
+  }
+
+  .tile.is-pop { animation: pop .34s cubic-bezier(.2, 1.5, .4, 1); }
+  .tile.is-bad { animation: shake .34s ease; border-color: var(--bad); background: var(--bad-soft); }
+
+  @keyframes pop {
+    0%   { transform: scale(.7) rotateX(60deg); opacity: .3; }
+    60%  { transform: scale(1.08); opacity: 1; }
+    100% { transform: none; }
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    45% { transform: translateX(5px); }
+    70% { transform: translateX(-3px); }
+  }
+
+  .hand {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    width: 100%;
+    flex: none;
+  }
+
+  .card {
+    appearance: none;
+    flex: 1 1 0;
+    max-width: 62px;
+    aspect-ratio: 4 / 5;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--raise);
+    box-shadow: var(--shadow-sm);
+    color: var(--text);
+    font: inherit;
+    font-size: 23px;
+    font-weight: 650;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform .16s cubic-bezier(.2, .9, .3, 1), background .16s ease, border-color .16s ease, color .16s ease;
+  }
+
+  .card:active { transform: translateY(-4px) scale(.97); }
+
+  .card.is-picked {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+    transform: translateY(-10px) scale(1.06);
+    box-shadow: var(--shadow);
+  }
+
+  .card.is-dealt { animation: deal .38s cubic-bezier(.2, 1.3, .4, 1); }
+
+  @keyframes deal {
+    0%   { transform: translateY(16px) scale(.6); opacity: 0; }
+    100% { transform: none; opacity: 1; }
+  }
+
+  /* ---------- home ---------- */
+
+  .home { flex: 1; display: flex; flex-direction: column; gap: 18px; }
+
+  .demo {
+    padding: 30px 16px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    border-radius: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+
+  .demo .tile {
+    pointer-events: none;
+    max-width: 62px;
+    font-size: 28px;
+    background: var(--bg);
+    box-shadow: none;
+  }
+
+  .demo__caption {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .home__title {
+    margin: 0 0 8px;
+    font-size: 27px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+  }
+
+  .home__text {
+    margin: 0;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .steps li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+
+  .steps__n {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .home__foot { margin-top: auto; display: flex; flex-direction: column; gap: 12px; padding-top: 8px; }
+
+  .beststrip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .beststrip strong {
+    font-size: 19px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- play ---------- */
+
+  .hud {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+    flex: none;
+  }
+
+  .chain {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .chain__num {
+    font-size: 21px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .chain__label {
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  .chain.is-pop { animation: pop .34s cubic-bezier(.2, 1.5, .4, 1); }
+
+  .timer { position: relative; width: 56px; height: 56px; flex: none; }
+
+  .timer__ring { width: 100%; height: 100%; transform: rotate(-90deg); }
+
+  .timer__ring circle {
+    fill: none;
+    stroke-width: 5;
+    stroke-linecap: round;
+  }
+
+  .timer__track { stroke: var(--border); }
+
+  .timer__fill {
+    stroke: var(--accent);
+    stroke-dasharray: 150.8;
+    stroke-dashoffset: 0;
+  }
+
+  .timer__num {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 19px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .timer[data-level="warn"] .timer__fill { stroke: var(--warn); }
+  .timer[data-level="warn"] .timer__num  { color: var(--warn); }
+  .timer[data-level="crit"] .timer__fill { stroke: var(--bad); }
+  .timer[data-level="crit"] .timer__num  { color: var(--bad); }
+  .timer[data-level="crit"] { animation: throb 1s ease-in-out infinite; }
+
+  @keyframes throb {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.07); }
+  }
+
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    min-height: 0;
+  }
+
+  /* the tail of the chain so far, fading out with distance */
+  .recent {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 22px;
+    font-size: 12.5px;
+    font-weight: 650;
+    letter-spacing: .1em;
+    color: var(--faint);
+  }
+
+  .recent span { transition: opacity .2s ease; }
+
+  .feedback {
+    margin: 0;
+    min-height: 22px;
+    font-size: 14.5px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--muted);
+  }
+
+  .feedback[data-tone="ok"]  { color: var(--ok); }
+  .feedback[data-tone="bad"] { color: var(--bad); }
+
+  /* bottom tray anchors the thumb zone */
+  .tray {
+    flex: none;
+    border-radius: 22px;
+    background: var(--tray);
+    border: 1px solid var(--border);
+    padding: 14px 12px 10px;
+  }
+
+  .handhint {
+    margin: 10px 0 0;
+    text-align: center;
+    font-size: 11.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    flex: none;
+  }
+
+  /* ---------- game over ---------- */
+
+  .over { flex: 1; display: flex; flex-direction: column; gap: 14px; text-align: center; }
+
+  .over__reason {
+    margin: 18px 0 0;
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .hero { display: flex; flex-direction: column; align-items: center; }
+
+  .hero__num {
+    font-size: 88px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: -.04em;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    animation: pop .5s cubic-bezier(.2, 1.4, .4, 1);
+  }
+
+  .hero__label {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 650;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .badge {
+    margin: 0 auto;
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: var(--ok-soft);
+    color: var(--ok);
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: .04em;
+  }
+
+  .trailwrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 14px;
+    overflow-y: auto;
+    max-height: 34vh;
+  }
+
+  .section-label {
+    margin: 0 0 10px;
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .trail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .chip {
+    padding: 6px 11px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: .09em;
+    animation: chip-in .3s ease backwards;
+  }
+
+  .chip--seed { background: var(--bg); color: var(--muted); }
+
+  .arrow {
+    color: var(--faint);
+    font-size: 12px;
+    animation: chip-in .3s ease backwards;
+  }
+
+  @keyframes chip-in {
+    from { opacity: 0; transform: scale(.8); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .over__foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="app__header">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="app__title">Shift</h1>
+  </header>
+
+  <main class="app__body">
+
+    <!-- ---------- Home ---------- -->
+    <section class="screen is-active" id="screenHome">
+      <div class="home">
+        <div class="demo" aria-hidden="true">
+          <div class="tiles" id="demoTiles"></div>
+          <p class="demo__caption" id="demoCaption">&nbsp;</p>
+        </div>
+
+        <div>
+          <h2 class="home__title">Forge a chain</h2>
+          <p class="home__text">
+            One four-letter word, five letter cards, twenty seconds a turn. Swap a card in to make
+            a new word and the clock resets — chase the longest chain you can.
+          </p>
+        </div>
+
+        <ol class="steps">
+          <li><span class="steps__n">1</span> Tap a letter card from your hand.</li>
+          <li><span class="steps__n">2</span> Tap the letter in the word it replaces.</li>
+          <li><span class="steps__n">3</span> Real word? Chain up, fresh card, clock resets.</li>
+        </ol>
+
+        <div class="home__foot">
+          <div class="beststrip"><span>Best chain</span><strong id="homeBest">0</strong></div>
+          <button class="btn" id="btnStart">Start Game</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- Play ---------- -->
+    <section class="screen" id="screenPlay">
+      <div class="hud">
+        <div class="chain" id="chainChip">
+          <span class="chain__num" id="chainNum">0</span>
+          <span class="chain__label">chain</span>
+        </div>
+        <div class="timer" id="timer" data-level="ok" role="timer" aria-label="Seconds left">
+          <svg class="timer__ring" viewBox="0 0 56 56" aria-hidden="true">
+            <circle class="timer__track" cx="28" cy="28" r="24"></circle>
+            <circle class="timer__fill" id="timerFill" cx="28" cy="28" r="24"></circle>
+          </svg>
+          <span class="timer__num" id="timerNum">20</span>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div class="recent" id="recent" aria-hidden="true"></div>
+        <div class="tiles" id="wordTiles"></div>
+        <p class="feedback" id="feedback" data-tone="idle" aria-live="polite">Tap a card, then a letter.</p>
+      </div>
+
+      <div class="tray">
+        <div class="hand" id="hand"></div>
+        <p class="handhint">Your hand</p>
+      </div>
+    </section>
+
+    <!-- ---------- Game Over ---------- -->
+    <section class="screen" id="screenOver">
+      <div class="over">
+        <p class="over__reason" id="overReason">Time&rsquo;s up</p>
+
+        <div class="hero">
+          <span class="hero__num" id="finalChain">0</span>
+          <span class="hero__label">word chain</span>
+        </div>
+
+        <p class="badge" id="newBest" hidden>New best chain!</p>
+
+        <div class="trailwrap">
+          <p class="section-label">Words you forged</p>
+          <div class="trail" id="trail"></div>
+        </div>
+
+        <div class="over__foot">
+          <div class="beststrip"><span>Best chain</span><strong id="overBest">0</strong></div>
+          <button class="btn" id="btnAgain">Play Again</button>
+          <button class="btn btn--ghost" id="btnHome">Home</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<script>
+  // ---------- dictionary ----------
+  // Common four-letter words. Every entry is reachable, and most sit in a dense
+  // one-letter-substitution neighbourhood, which is what keeps the chain alive.
+  var DICT = new Set("able ache acid acre aged aide airy ajar akin also alto amid ants apex aqua arch area arid army atom aunt auto away axes axis baby back bade bags bail bait bake bald bale ball balm band bane bang bank bans barb bard bare bark barn bars base bash bask bass bath bats bead beak beam bean bear beat beds beef been beer bees beet bell belt bend bent best beta bias bide bike bile bill bind bird bite bits blob blot blow blue blur boar boat body boil bold bolt bomb bond bone bony book boom boon boot bore born boss both bout bowl bows brag bran brat brew brim brow buck buds bugs bulb bulk bull bump bunk buns bunt burn burp bury bush bust busy butt buys cabs cafe cage cake calf call calm came camp cane cans cape caps card care carp cars cart case cash cask cast cats cave cell cent chap char chat chef chew chic chin chip chop chow chum cite city clad clam clan clap claw clay clip clog clot club clue coal coat code coil coin coke cold colt comb come cone cook cool cope cops copy cord core cork corn cost cots coup cove cows cozy crab crag cram crew crib crop crow cube cubs cues cuff cult cups curb curd cure curl curt cusp cute cuts dabs dads daft dais dame damp dare dark darn dart dash data date dawn days daze dead deaf deal dean dear debt deck deed deem deep deer defy dell demo dens dent deny desk dial dice died dies diet dime dine ding dips dirt dish disk dive dock does dogs doll dome done doom door dope dose dote dots dour dove down doze drab drag dram draw drew drip drop drug drum dual duck duct dude duel dues duet duke dull duly dumb dump dune dunk dusk dust duty dyed dyes each earl earn ears ease east easy eats echo edge edit eels eggs egos eked emit ends envy epic even ever evil exam exit eyed eyes face fact fade fads fail fair fake fall fame fang fans fare farm fast fate fawn faze fear feat feed feel fees feet fell felt fend fern feud fibs figs file fill film find fine fins fire firm fish fist fits five fizz flag flak flap flat flaw flea fled flee flew flex flip flit flog flop flow flue foal foam foes fogs foil fold folk fond font food fool foot ford fore fork form fort foul four fowl foxy free fret frog from fuel full fume fund funk furl fury fuse fuss gain gait gala gale gall game gang gaps garb gash gasp gate gave gaze gear gems gene gent germ gift gild gilt gird girl gist give glad glee glen glib glow glue glum gnat goad goal goat gold golf gone gong good goof gore gory gown grab gram gray grew grey grid grim grin grip grit grow grub gulf gull gulp guns guru gush gust guts guys gyms hack hail hair hale half hall halo halt hand hang hard hare hark harm harp hash hate hats haul have hawk hays haze head heal heap hear heat heed heel heir held hell helm help hemp hens herb herd here hero hers hide high hike hill hilt hind hint hire hiss hits hive hoax hold hole holy home hone honk hood hoof hook hoop hoot hope hops horn hose host hour howl hubs hued hues huge hulk hull hums hunt hurl hurt hush husk huts hymn iced ices icon idea idle idly idol inch inks inns into ions iota iris iron isle itch item jabs jade jail jams jars jaws jazz jeep jeer jest jets jibe jigs jinx jobs jogs join joke jolt jots joys judo jugs jump junk jury just jute keel keen keep kegs kelp kept keys kick kids kiln kilt kind king kiss kite kits knee knew knit knob knot know labs lace lack lacy lads lady laid lair lake lamb lame lamp land lane laps lard lark lash last late lava lawn laws lays lazy lead leaf leak lean leap left legs lend lens lent less lest lets levy liar lice lick lids lied lien lies life lift like lily limb lime limp line link lint lion lips lisp list live load loaf loan lobe lock lode loft logo logs lone long look loom loop loot lord lore lose loss lost lots loud love lows luck lugs lull lump lung lure lurk lush lust lute lynx mace made maid mail maim main make male mall malt mane many maps mare mark mars mash mask mass mast mate math maul maze mead meal mean meat meek meet meld melt memo mend menu mere mesh mess mice mild mile milk mill mime mind mine mint mire miss mist mite moan moat mock mode mold mole molt monk mood moon moor moot more morn moss most moth move mown much muck mugs mule mull mums murk muse mush musk must mute myth nabs nags nail name nape naps nave navy near neat neck need neon nerd nest nets news newt next nibs nice nick nine nips node nods none nook noon norm nose nosy note noun nuke null numb nuns nuts oaks oars oath obey oboe odds odes odor offs ogre oils oily okay omen omit once ones only onto onyx open opts opus oral orbs ores ouch ours oust outs oval oven over owed owes owls owns pace pack pact pads page paid pail pain pair pale palm pane pang pans pant papa pare park part pass past pate path pats pave pawn paws pays peak peal pear peas peat peck peek peel peer pegs pelt pens pent perk perm pest pets pews pick pier pies pigs pike pile pill pine ping pink pins pint pipe pips pits pity plan play plea pled plod plop plot plow ploy plug plum plus pods poem poet poke pole poll polo pomp pond pony pool poor pope pore pork port pose posh post pots pour pout pray prep prey prim prod prom prop pros prow puck puff pull pulp pump punk puns punt pupa pups pure purr push puts putt quad quay quit quiz race rack racy raft rage rags raid rail rain rake ramp rang rank rant raps rapt rare rash rasp rate rats rave rays raze read real ream reap rear redo reds reed reef reek reel rein rely rend rent rest ribs rice rich ride rids rife rift rigs rile rims rind ring rink riot ripe rise risk rite road roam roar robe robs rock rode rods roil role roll romp roof rook room root rope rose rosy rote rows rubs ruby rude rugs ruin rule rump rung runs runt ruse rush rust ruts sack safe saga sage said sail sake sale salt same sand sane sang sank sash save sawn saws scab scam scan scar seal seam sear seas seat sect seed seek seem seen seep sees self sell semi send sent sets sewn shed shim shin ship shoe shop shot show shun shut sick side sift sigh sign silk sill silo silt sing sink sins sips sire site sits size skew skid skim skin skip skis slab slam slap slat sled slew slid slim slip slit slob slog slot slow slug slum slur smog smug snag snap snip snob snow snub snug soak soap soar sock soda sofa soft soil sold sole solo some song sons soon soot sore sort soul soup sour sown sows soya spam span spar spas spat sped spin spit spot spry spun spur stab stag star stay stem step stew stir stop stow stub stud stun subs such suds sued sues suit sulk sung sunk suns sure surf swab swam swan swap sway swim swum tabs tack tact tags tail take tale talk tall tame tamp tank tans tape taps tare tarp tars tart task taut taxi teak teal team tear teas tech teem teen tell tend tens tent term tern test text than that thaw thee them then they thin this thud thug thus tick tide tidy tied tier ties tile till tilt time tine tint tiny tips tire toad toes toil told toll tomb tone tons took tool toot tops tore torn tort toss tour tout town toys tram trap tray tree trek trim trio trip trod trot true tuba tube tuck tuft tugs tuna tune turf turn tusk tutu twig twin twos type typo ugly undo unit unto upon urge urns used user uses vain vale vane vans vase vast veal veer veil vein vend vent verb very vest veto vets vial vibe vice view vile vine visa void volt vote vows wade wads waft wage wags waif wail wait wake walk wall wand wane want ward ware warm warn warp wars wart wary wash wasp wave wavy waxy ways weak wean wear webs weds weed week weep weld well welt went wept were west what when whet whim whip whir whiz whom wick wide wife wigs wild will wilt wind wine wing wink wins wipe wire wiry wise wish wisp with wits woes woke wolf womb wood wool word wore work worm worn wove wrap wren writ yard yarn yawn yaws yeah year yell yelp yoga yoke yolk your yule zeal zero zest zinc zone zoom zoos".split(" "));
+
+  // Openers with plenty of live substitutions in at least three positions.
+  var SEEDS = "bake bale ball bane bans bare bars bash bear beat bent best boot cake came cane care cars case cave cone core dare deal dear dine done fame fare fore hale hall hare heal hear hell lame lane lent lest line lone lore mail male mane mare mash mate mile mine more pale pane pans pare pate pats pear pent pest pine pins pits pore rate rear rent ride rile sale same sane sear seat seed sore tale tare tars tent tine tore wake wane ward ware wars wart wave went wine wire wore".split(" ");
+
+  // Draw weights, proportional to how often a letter completes a valid swap
+  // somewhere in the dictionary. Q is left out — it is a dead card at this length.
+  var WEIGHTS = {
+    a: 4, b: 5, c: 4, d: 6, e: 5, f: 4, g: 4, h: 4, i: 3, j: 1, k: 3, l: 7, m: 5,
+    n: 5, o: 3, p: 7, r: 7, s: 7, t: 7, u: 2, v: 2, w: 4, x: 1, y: 2, z: 1
+  };
+
+  var POOL = [];
+  Object.keys(WEIGHTS).forEach(function (c) {
+    for (var i = 0; i < WEIGHTS[c]; i++) POOL.push(c);
+  });
+
+  var TURN_MS = 20000;
+  var HAND_SIZE = 5;
+  var BEST_KEY = "shift.bestChain";
+
+  // ---------- elements ----------
+  var el = {
+    screens: { home: document.getElementById("screenHome"), play: document.getElementById("screenPlay"), over: document.getElementById("screenOver") },
+    demoTiles: document.getElementById("demoTiles"),
+    demoCaption: document.getElementById("demoCaption"),
+    homeBest: document.getElementById("homeBest"),
+    btnStart: document.getElementById("btnStart"),
+    wordTiles: document.getElementById("wordTiles"),
+    hand: document.getElementById("hand"),
+    feedback: document.getElementById("feedback"),
+    chainChip: document.getElementById("chainChip"),
+    chainNum: document.getElementById("chainNum"),
+    timer: document.getElementById("timer"),
+    timerFill: document.getElementById("timerFill"),
+    timerNum: document.getElementById("timerNum"),
+    recent: document.getElementById("recent"),
+    overReason: document.getElementById("overReason"),
+    finalChain: document.getElementById("finalChain"),
+    newBest: document.getElementById("newBest"),
+    trail: document.getElementById("trail"),
+    overBest: document.getElementById("overBest"),
+    btnAgain: document.getElementById("btnAgain"),
+    btnHome: document.getElementById("btnHome")
+  };
+
+  var RING = 150.8; // 2 * pi * r, r = 24
+
+  // ---------- best score (localStorage, tolerant of file:// lockdown) ----------
+  function readBest() {
+    try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; }
+  }
+
+  function writeBest(v) {
+    try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* private mode — score just won't persist */ }
+  }
+
+  var best = readBest();
+
+  // ---------- state ----------
+  var word = "", hand = [], chain = 0, trail = [], used = new Set();
+  var picked = null, deadline = 0, remaining = TURN_MS, running = false, raf = 0;
+
+  function rnd(n) { return Math.floor(Math.random() * n); }
+  function drawLetter() { return POOL[rnd(POOL.length)]; }
+
+  // Every (card, position) pair that makes a valid, not-yet-used word.
+  function movesFor(w, h) {
+    var out = [];
+    for (var c = 0; c < h.length; c++) {
+      for (var i = 0; i < 4; i++) {
+        if (h[c] === w[i]) continue;
+        var cand = w.slice(0, i) + h[c] + w.slice(i + 1);
+        if (DICT.has(cand) && !used.has(cand)) out.push([c, i]);
+      }
+    }
+    return out;
+  }
+
+  function hasMove() { return movesFor(word, hand).length > 0; }
+
+  // Replace one card. Random first; if that would strand the hand, look for a
+  // letter that keeps at least one swap alive.
+  function dealInto(idx) {
+    var c = drawLetter();
+    var probe = hand.slice();
+    probe[idx] = c;
+    if (movesFor(word, probe).length === 0) {
+      var order = POOL.slice().sort(function () { return Math.random() - 0.5; });
+      for (var k = 0; k < order.length; k++) {
+        probe[idx] = order[k];
+        if (movesFor(word, probe).length > 0) { c = order[k]; break; }
+      }
+    }
+    hand[idx] = c;
+  }
+
+  // ---------- rendering ----------
+  // The last few words behind the current one, so the chain is visible as it builds.
+  function renderRecent() {
+    el.recent.innerHTML = "";
+    var tail = trail.slice(Math.max(0, trail.length - 4), trail.length - 1);
+    tail.forEach(function (w, i) {
+      var s = document.createElement("span");
+      s.textContent = w.toUpperCase();
+      s.style.opacity = String(0.35 + 0.2 * i);
+      el.recent.appendChild(s);
+      var a = document.createElement("span");
+      a.textContent = "→";
+      a.style.opacity = String(0.3 + 0.2 * i);
+      el.recent.appendChild(a);
+    });
+  }
+
+  function renderWord(popIndex) {
+    renderRecent();
+    el.wordTiles.innerHTML = "";
+    for (var i = 0; i < 4; i++) {
+      var b = document.createElement("button");
+      b.className = "tile" + (i === popIndex ? " is-pop" : "");
+      b.type = "button";
+      b.textContent = word[i].toUpperCase();
+      b.setAttribute("aria-label", "Letter " + (i + 1) + ", " + word[i].toUpperCase());
+      b.dataset.index = String(i);
+      b.addEventListener("click", onTileTap);
+      el.wordTiles.appendChild(b);
+    }
+  }
+
+  function renderHand(dealtIndex) {
+    el.hand.innerHTML = "";
+    for (var i = 0; i < hand.length; i++) {
+      var b = document.createElement("button");
+      b.className = "card" + (i === picked ? " is-picked" : "") + (i === dealtIndex ? " is-dealt" : "");
+      b.type = "button";
+      b.textContent = hand[i].toUpperCase();
+      b.setAttribute("aria-label", "Card " + hand[i].toUpperCase());
+      b.setAttribute("aria-pressed", String(i === picked));
+      b.dataset.index = String(i);
+      b.addEventListener("click", onCardTap);
+      el.hand.appendChild(b);
+    }
+    el.screens.play.classList.toggle("is-arming", picked !== null);
+  }
+
+  function say(text, tone) {
+    el.feedback.textContent = text;
+    el.feedback.dataset.tone = tone || "idle";
+  }
+
+  function renderTimer(msLeft) {
+    var secs = Math.ceil(msLeft / 1000);
+    el.timerNum.textContent = String(secs);
+    var frac = Math.max(0, Math.min(1, msLeft / TURN_MS));
+    el.timerFill.style.strokeDashoffset = String(RING * (1 - frac));
+    el.timer.dataset.level = msLeft <= 4000 ? "crit" : (msLeft <= 8000 ? "warn" : "ok");
+  }
+
+  function showScreen(name) {
+    Object.keys(el.screens).forEach(function (k) {
+      el.screens[k].classList.toggle("is-active", k === name);
+    });
+  }
+
+  // ---------- clock ----------
+  function resetClock() {
+    remaining = TURN_MS;
+    deadline = performance.now() + TURN_MS;
+    renderTimer(TURN_MS);
+  }
+
+  function tick(now) {
+    if (!running) return;
+    remaining = Math.max(0, deadline - now);
+    renderTimer(remaining);
+    if (remaining <= 0) { endGame("Time’s up"); return; }
+    raf = requestAnimationFrame(tick);
+  }
+
+  function startClock() {
+    running = true;
+    resetClock();
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(tick);
+  }
+
+  // Don't burn the clock while the phone is locked or the tab is backgrounded.
+  document.addEventListener("visibilitychange", function () {
+    if (!running) return;
+    if (document.hidden) {
+      remaining = Math.max(0, deadline - performance.now());
+      cancelAnimationFrame(raf);
+    } else {
+      deadline = performance.now() + remaining;
+      raf = requestAnimationFrame(tick);
+    }
+  });
+
+  // ---------- interaction ----------
+  function onCardTap(e) {
+    if (!running) return;
+    var i = parseInt(e.currentTarget.dataset.index, 10);
+    picked = (picked === i) ? null : i;
+    renderHand(null);
+    if (picked === null) say("Tap a card, then a letter.", "idle");
+    else say("Now tap the letter to replace.", "idle");
+  }
+
+  function rejectTile(index, message) {
+    var tile = el.wordTiles.children[index];
+    tile.classList.remove("is-bad");
+    void tile.offsetWidth; // restart the animation
+    tile.classList.add("is-bad");
+    setTimeout(function () { tile.classList.remove("is-bad"); }, 420);
+    say(message, "bad");
+  }
+
+  function onTileTap(e) {
+    if (!running) return;
+    var i = parseInt(e.currentTarget.dataset.index, 10);
+
+    if (picked === null) { say("Pick a card first.", "bad"); return; }
+
+    var letter = hand[picked];
+    if (letter === word[i]) { rejectTile(i, "That letter is already " + letter.toUpperCase() + "."); return; }
+
+    var cand = word.slice(0, i) + letter + word.slice(i + 1);
+    if (!DICT.has(cand)) { rejectTile(i, cand.toUpperCase() + " — not a word, try again."); return; }
+    if (used.has(cand)) { rejectTile(i, "You already forged " + cand.toUpperCase() + "."); return; }
+
+    acceptSwap(cand, i, picked);
+  }
+
+  function acceptSwap(next, tileIndex, cardIndex) {
+    word = next;
+    used.add(next);
+    trail.push(next);
+    chain += 1;
+
+    el.chainNum.textContent = String(chain);
+    el.chainChip.classList.remove("is-pop");
+    void el.chainChip.offsetWidth;
+    el.chainChip.classList.add("is-pop");
+
+    picked = null;
+    renderWord(tileIndex);
+    dealInto(cardIndex);
+    renderHand(cardIndex);
+    say("Nice swap — " + next.toUpperCase() + "!", "ok");
+    resetClock();
+
+    // A fresh hand can still be a dead end if the word itself has run out.
+    if (!hasMove()) {
+      running = false;
+      cancelAnimationFrame(raf);
+      setTimeout(function () { endGame("No moves left"); }, 850);
+    }
+  }
+
+  // ---------- game flow ----------
+  function startGame() {
+    chain = 0;
+    trail = [];
+    used = new Set();
+    picked = null;
+
+    for (var attempt = 0; attempt < 60; attempt++) {
+      word = SEEDS[rnd(SEEDS.length)];
+      used = new Set([word]);
+      hand = [];
+      for (var i = 0; i < HAND_SIZE; i++) hand.push(drawLetter());
+      if (hasMove()) break;
+      dealInto(0);           // nudge one card into something playable
+      if (hasMove()) break;
+    }
+
+    trail.push(word);
+    el.chainNum.textContent = "0";
+    renderWord(-1);
+    renderHand(null);
+    say("Tap a card, then a letter.", "idle");
+    showScreen("play");
+    stopDemo();
+    startClock();
+  }
+
+  function endGame(reason) {
+    running = false;
+    cancelAnimationFrame(raf);
+    picked = null;
+    el.screens.play.classList.remove("is-arming");
+
+    el.overReason.textContent = reason;
+    el.finalChain.textContent = String(chain);
+
+    var isBest = chain > best && chain > 0;
+    if (isBest) { best = chain; writeBest(best); }
+    el.newBest.hidden = !isBest;
+    el.overBest.textContent = String(best);
+    el.homeBest.textContent = String(best);
+
+    el.trail.innerHTML = "";
+    trail.forEach(function (w, i) {
+      var delay = Math.min(i * 28, 520) + "ms";
+      if (i > 0) {
+        var a = document.createElement("span");
+        a.className = "arrow";
+        a.textContent = "→";
+        a.style.animationDelay = delay;   // arrow rides in with the word it points to
+        el.trail.appendChild(a);
+      }
+      var chip = document.createElement("span");
+      chip.className = "chip" + (i === 0 ? " chip--seed" : "");
+      chip.textContent = w.toUpperCase();
+      chip.style.animationDelay = delay;
+      el.trail.appendChild(chip);
+    });
+
+    showScreen("over");
+  }
+
+  // ---------- home demo ----------
+  // Loops a real chain so the mechanic reads at a glance.
+  var DEMO = ["care", "cars", "bars", "barn", "bare", "bake", "cake"];
+  var demoStep = 0, demoTimer = 0;
+
+  function paintDemo(w, changed) {
+    el.demoTiles.innerHTML = "";
+    for (var i = 0; i < 4; i++) {
+      var d = document.createElement("div");
+      d.className = "tile" + (i === changed ? " is-pop" : "");
+      d.textContent = w[i].toUpperCase();
+      el.demoTiles.appendChild(d);
+    }
+  }
+
+  function stepDemo() {
+    var prev = DEMO[demoStep % DEMO.length];
+    demoStep += 1;
+    var next = DEMO[demoStep % DEMO.length];
+    var at = -1;
+    for (var i = 0; i < 4; i++) if (prev[i] !== next[i]) at = i;
+    paintDemo(next, at);
+    el.demoCaption.textContent = prev.toUpperCase() + " → " + next.toUpperCase();
+  }
+
+  function startDemo() {
+    var at = demoStep % DEMO.length;
+    var from = DEMO[(at - 1 + DEMO.length) % DEMO.length];
+    paintDemo(DEMO[at], -1);
+    el.demoCaption.textContent = from.toUpperCase() + " → " + DEMO[at].toUpperCase();
+    clearInterval(demoTimer);
+    demoTimer = setInterval(stepDemo, 1500);
+  }
+
+  function stopDemo() { clearInterval(demoTimer); }
+
+  // ---------- wiring ----------
+  el.btnStart.addEventListener("click", startGame);
+  el.btnAgain.addEventListener("click", startGame);
+  el.btnHome.addEventListener("click", function () {
+    showScreen("home");
+    startDemo();
+  });
+
+  el.homeBest.textContent = String(best);
+  startDemo();
+</script>
+
+</body>
+</html>

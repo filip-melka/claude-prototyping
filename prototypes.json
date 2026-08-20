@@ -97,6 +97,18 @@
       "changelog": ["v1 — initial prototype"]
     },
     {
+      "id": "PROTOTYPE-9",
+      "workItemId": "18eb561d-1de3-48a3-9465-2a0a2efd9dcd",
+      "title": "Shift",
+      "tagline": "Swap one card into a four-letter word to forge a new one — twenty seconds a turn.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-9/index.html",
+      "version": 1,
+      "createdAt": "2026-08-20",
+      "updatedAt": "2026-08-20",
+      "changelog": ["v1 — initial prototype"]
+    },
+    {
       "id": "PROTOTYPE-11",
       "workItemId": "8b7cd49e-fc6e-4924-a870-f319de31dcad",
       "title": "Title Shot",
