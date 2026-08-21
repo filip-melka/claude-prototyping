@@ -109,6 +109,18 @@
       "changelog": ["v1 — initial prototype"]
     },
     {
+      "id": "PROTOTYPE-10",
+      "workItemId": "2237bee4-3b74-4f6e-8c3a-b9a8577a96b0",
+      "title": "Conqueror",
+      "tagline": "Quiz your way through history's great conquerors — every right answer buys a piece of the next era.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-10/index.html",
+      "version": 1,
+      "createdAt": "2026-08-21",
+      "updatedAt": "2026-08-21",
+      "changelog": ["v1 — initial prototype"]
+    },
+    {
       "id": "PROTOTYPE-11",
       "workItemId": "8b7cd49e-fc6e-4924-a870-f319de31dcad",
       "title": "Title Shot",
