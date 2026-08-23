@@ -143,6 +143,18 @@
       "createdAt": "2026-08-18",
       "updatedAt": "2026-08-18",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-13",
+      "workItemId": "b06696d0-7628-402e-90f6-3d603eea8fa6",
+      "title": "QR Studio",
+      "tagline": "An ad-free QR generator that treats codes as something worth designing — tint them, brand them, batch them from a CSV.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-13/index.html",
+      "version": 1,
+      "createdAt": "2026-08-23",
+      "updatedAt": "2026-08-23",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
