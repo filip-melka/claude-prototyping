@@ -1,0 +1,1528 @@
+<!doctype html>
+<!--
+  PROTOTYPE-14 — Combo Caller
+  A boxing bag-work interval timer that calls real combos out loud.
+  Screens: Home (presets) → Setup (steppers) → Session (full-bleed timer) → Summary.
+
+  Self-contained: inline <style> and <script> only, no external requests.
+  Phone first: ~390x844, safe-area aware, tap targets >= 44px.
+
+  UI grounded in real iOS patterns (Mobbin): Vibecode's interval-timer card
+  (countdown ring, WORK/REST/ROUNDS meta row, restart / play / skip cluster),
+  Gymshark's rest timer (glowing ring + SKIP pill), pushr's session screen
+  (huge numeral, small label above, floating circular controls), timespent's
+  Interval Timer settings rows (label left, value + −/+ right), Runna's
+  segmented round bar, and Bevel / The Outsiders' post-workout stat grid.
+
+  Audio is synthesized (Web Audio bell + SpeechSynthesis voice) — no files.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Combo Caller</title>
+<style>
+  /* ---------------------------------------------------------------- tokens */
+  :root {
+    --bg: #ececea;
+    --surface: #ffffff;
+    --surface-2: #f4f4f2;
+    --text: #101010;
+    --muted: #6f6f6c;
+    --line: #d3d3ce;
+    --line-strong: #101010;
+    --red: #D71C14;
+    --red-ink: #ffffff;
+    --flash: #0a0a0a;
+    --flash-max: .92;
+
+    /* interval palettes */
+    --combo-bg: #FBE3E0;
+    --combo-fg: #14100f;
+    --combo-dim: #8a5d58;
+    --combo-key: #C4160E;
+
+    --power-bg: #DEDEDA;
+    --power-fg: #121212;
+    --power-dim: #676763;
+    --power-key: #2f2f2c;
+
+    --rest-bg: #D9E8FA;
+    --rest-fg: #0d1721;
+    --rest-dim: #5b7085;
+    --rest-key: #1462B8;
+
+    --ready-bg: #E4E4E0;
+    --ready-fg: #121212;
+    --ready-dim: #676763;
+    --ready-key: #D71C14;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #111111;
+      --surface: #1a1a1a;
+      --surface-2: #171717;
+      --text: #f4f4f2;
+      --muted: #8f8f8a;
+      --line: #2e2e2c;
+      --line-strong: #f4f4f2;
+      --red: #E4231B;
+      --red-ink: #ffffff;
+      --flash: #ffffff;
+      --flash-max: .88;
+
+      --combo-bg: #2C0906;
+      --combo-fg: #ffffff;
+      --combo-dim: #C08C86;
+      --combo-key: #E4231B;
+
+      --power-bg: #191919;
+      --power-fg: #ffffff;
+      --power-dim: #8f8f8a;
+      --power-key: #d8d8d2;
+
+      --rest-bg: #06182C;
+      --rest-fg: #ffffff;
+      --rest-dim: #7e9bBB;
+      --rest-key: #2E8BF0;
+
+      --ready-bg: #141414;
+      --ready-fg: #ffffff;
+      --ready-dim: #8f8f8a;
+      --ready-key: #E4231B;
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+    background: var(--bg);
+  }
+
+  body {
+    color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Heavy condensed display face, built from what phones already ship. */
+  .cond {
+    font-family: "HelveticaNeue-CondensedBlack", "Helvetica Neue", "Arial Narrow",
+                 Impact, "Haettenschweiler", system-ui, sans-serif;
+    font-weight: 900;
+    font-stretch: 75%;
+    letter-spacing: -.015em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .kicker {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+  }
+
+  /* ---------------------------------------------------------------- shell */
+  .screen {
+    position: fixed;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+  .screen.is-on { display: flex; }
+
+  .pad {
+    padding:
+      calc(env(safe-area-inset-top) + 14px)
+      calc(env(safe-area-inset-right) + 18px)
+      calc(env(safe-area-inset-bottom) + 18px)
+      calc(env(safe-area-inset-left) + 18px);
+  }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+    flex: none;
+  }
+
+  .icon-btn {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    margin: 0 -10px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    text-decoration: none;
+    font: inherit;
+    cursor: pointer;
+  }
+  .icon-btn:active { opacity: .5; }
+  .icon-btn svg { width: 22px; height: 22px; display: block; }
+
+  .wordmark {
+    flex: 1;
+    margin: 0;
+    font-size: 21px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .wordmark em {
+    font-style: normal;
+    color: var(--red);
+  }
+
+  /* ---------------------------------------------------------------- home */
+  .home-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 20px;
+    min-height: 0;
+  }
+
+  .preset {
+    appearance: none;
+    -webkit-appearance: none;
+    display: block;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: var(--text);
+    background: var(--surface);
+    border: 2px solid var(--line);
+    border-radius: 0;
+    padding: 16px 18px;
+    cursor: pointer;
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    transition: border-color .12s linear, background .12s linear;
+  }
+  .preset:active { transform: scale(.995); }
+  .preset[aria-pressed="true"] {
+    border-color: var(--red);
+    background: var(--surface);
+  }
+  .preset[aria-pressed="true"]::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 6px;
+    background: var(--red);
+  }
+
+  .preset__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .preset__name {
+    font-size: 30px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .preset__badge {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--red);
+    opacity: 0;
+  }
+  .preset[aria-pressed="true"] .preset__badge { opacity: 1; }
+
+  .preset__desc {
+    margin: 8px 0 14px;
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 5px 8px;
+  }
+  @media (prefers-color-scheme: dark) {
+    .chip { background: #232323; }
+  }
+
+  .home-foot {
+    flex: none;
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+  }
+
+  .btn {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 2px solid var(--line-strong);
+    border-radius: 0;
+    background: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    min-height: 56px;
+    padding: 0 20px;
+    cursor: pointer;
+  }
+  .btn:active { opacity: .6; }
+  .btn--primary {
+    flex: 1;
+    background: var(--red);
+    border-color: var(--red);
+    color: var(--red-ink);
+    font-size: 17px;
+  }
+  .btn--ghost { flex: none; }
+  .btn--block { flex: none; width: 100%; }
+
+  .fineprint {
+    flex: none;
+    margin: 12px 0 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--muted);
+  }
+
+  /* ---------------------------------------------------------------- setup */
+  .setup-title {
+    flex: none;
+    margin: 18px 0 6px;
+    font-size: 34px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+  .setup-sub {
+    flex: none;
+    margin: 0 0 18px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .rows {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-top: 1px solid var(--line);
+    min-height: 0;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 64px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .row__label { flex: 1; min-width: 0; }
+  .row__name {
+    font-size: 15px;
+    font-weight: 700;
+  }
+  .row__hint {
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .row__value {
+    font-size: 24px;
+    line-height: 1;
+    min-width: 62px;
+    text-align: right;
+  }
+
+  .stepper { display: flex; flex: none; }
+  .step {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 46px;
+    height: 46px;
+    border: 2px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+  }
+  .step + .step { border-left-width: 0; }
+  .step:active { background: var(--red); border-color: var(--red); color: var(--red-ink); }
+  .step[disabled] { opacity: .3; }
+
+  .total {
+    flex: none;
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 18px 0 16px;
+  }
+  .total__value { font-size: 30px; line-height: 1; }
+
+  /* --------------------------------------------------------------- session */
+  #screenSession {
+    background: var(--ready-bg);
+    color: var(--ready-fg);
+    transition: background-color .25s linear, color .25s linear;
+  }
+  #screenSession[data-phase="combo"] { background: var(--combo-bg); color: var(--combo-fg); }
+  #screenSession[data-phase="power"] { background: var(--power-bg); color: var(--power-fg); }
+  #screenSession[data-phase="work"]  { background: var(--combo-bg); color: var(--combo-fg); }
+  #screenSession[data-phase="rest"]  { background: var(--rest-bg);  color: var(--rest-fg);  }
+
+  #screenSession { --key: var(--ready-key); --dim: var(--ready-dim); }
+  #screenSession[data-phase="combo"] { --key: var(--combo-key); --dim: var(--combo-dim); }
+  #screenSession[data-phase="power"] { --key: var(--power-key); --dim: var(--power-dim); }
+  #screenSession[data-phase="work"]  { --key: var(--combo-key); --dim: var(--combo-dim); }
+  #screenSession[data-phase="rest"]  { --key: var(--rest-key);  --dim: var(--rest-dim);  }
+
+  .sess-top {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 44px;
+  }
+  .sess-round {
+    flex: 1;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+  }
+  #screenSession .icon-btn { color: currentColor; opacity: .65; }
+
+  .segbar {
+    flex: none;
+    display: flex;
+    gap: 3px;
+    margin: 12px 0 0;
+    height: 4px;
+  }
+  .seg {
+    flex: 1;
+    background: currentColor;
+    opacity: .18;
+    transition: opacity .2s linear;
+  }
+  .seg.is-done { opacity: .55; }
+  .seg.is-now { opacity: 1; background: var(--key); }
+
+  .sess-mid {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    gap: 4px;
+  }
+
+  .dial {
+    position: relative;
+    width: min(74vw, 288px);
+    aspect-ratio: 1;
+    flex: none;
+    display: grid;
+    place-items: center;
+  }
+  .dial svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial .track { fill: none; stroke: currentColor; opacity: .16; stroke-width: 5; }
+  .dial .prog  { fill: none; stroke: var(--key); stroke-width: 5; transition: stroke-dashoffset .12s linear; }
+
+  .dial__inner { position: relative; text-align: center; }
+
+  .phase-label {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--key);
+    margin-bottom: 2px;
+  }
+  .count {
+    font-size: clamp(84px, 25vw, 122px);
+    line-height: .86;
+  }
+  .count--sm { font-size: clamp(56px, 17vw, 84px); }
+
+  .combo-slot {
+    flex: none;
+    width: 100%;
+    min-height: 96px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 6px 4px 0;
+  }
+  .combo-num {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: .28em;
+    color: var(--key);
+    min-height: 16px;
+  }
+  .combo-name {
+    font-size: clamp(26px, 8.2vw, 40px);
+    line-height: 1.02;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+  .combo-hint {
+    font-size: 12px;
+    color: var(--dim);
+    margin-top: 6px;
+    min-height: 16px;
+  }
+  .combo-pop { animation: pop .28s cubic-bezier(.2,1.4,.4,1); }
+  @keyframes pop {
+    from { transform: scale(.9); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+
+  .nextup {
+    flex: none;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--dim);
+    min-height: 16px;
+    margin-bottom: 12px;
+  }
+
+  .controls {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 22px;
+  }
+  .ctrl {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 60px;
+    height: 60px;
+    border: 2px solid currentColor;
+    border-radius: 0;
+    background: none;
+    color: inherit;
+    opacity: .7;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    cursor: pointer;
+  }
+  .ctrl:active { opacity: 1; }
+  .ctrl svg { width: 22px; height: 22px; display: block; fill: currentColor; }
+  .ctrl--main {
+    width: 84px;
+    height: 84px;
+    background: var(--key);
+    border-color: var(--key);
+    color: #fff;
+    opacity: 1;
+  }
+  @media (prefers-color-scheme: light) {
+    #screenSession[data-phase="power"] .ctrl--main { color: #fff; }
+  }
+  .ctrl--main svg { width: 30px; height: 30px; }
+  .ctrl--main:active { transform: scale(.95); }
+
+  .paused-tag {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: -26px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .28em;
+    text-transform: uppercase;
+    color: var(--key);
+    display: none;
+  }
+  .is-paused .paused-tag { display: block; }
+  .is-paused .dial .prog { opacity: .45; }
+
+  /* --------------------------------------------------------------- summary */
+  .sum-head { flex: none; margin-top: 26px; }
+  .sum-kicker { color: var(--red); }
+  .sum-title {
+    margin: 6px 0 0;
+    font-size: 46px;
+    line-height: .92;
+    text-transform: uppercase;
+  }
+
+  .stats {
+    flex: 0 1 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+    margin: 22px 0 0;
+    align-content: start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    min-height: 0;
+  }
+  .stat {
+    background: var(--surface);
+    padding: 18px 16px;
+    min-height: 104px;
+  }
+  .stat__k {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .stat__v {
+    font-size: 40px;
+    line-height: 1;
+    margin-top: 10px;
+  }
+  .stat__v small { font-size: 17px; margin-left: 2px; }
+  .stat--hero { grid-column: 1 / -1; }
+  .stat--hero .stat__v { font-size: 58px; color: var(--red); }
+
+  .sum-foot { flex: none; display: flex; gap: 10px; margin-top: auto; padding-top: 16px; }
+
+  /* ---------------------------------------------------------------- sheet */
+  .sheet-wrap {
+    position: fixed;
+    inset: 0;
+    display: none;
+    z-index: 40;
+  }
+  .sheet-wrap.is-on { display: block; }
+  .sheet-scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,.55);
+  }
+  .sheet {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    max-width: 560px;
+    margin: 0 auto;
+    background: var(--surface);
+    border-top: 3px solid var(--red);
+    padding:
+      18px
+      calc(env(safe-area-inset-right) + 18px)
+      calc(env(safe-area-inset-bottom) + 18px)
+      calc(env(safe-area-inset-left) + 18px);
+    animation: rise .22s cubic-bezier(.2,.9,.3,1);
+  }
+  @keyframes rise { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+  .sheet h2 {
+    margin: 0 0 4px;
+    font-size: 24px;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .switch {
+    appearance: none;
+    -webkit-appearance: none;
+    flex: none;
+    width: 76px;
+    height: 44px;
+    border: 2px solid var(--line-strong);
+    background: none;
+    padding: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+  }
+  .switch i {
+    display: block;
+    width: 28px;
+    height: 30px;
+    background: var(--line-strong);
+    transition: transform .16s cubic-bezier(.2,.9,.3,1);
+  }
+  .switch[aria-checked="true"] { border-color: var(--red); background: var(--red); }
+  .switch[aria-checked="true"] i { background: #fff; transform: translateX(34px); }
+
+  .seg-choice { display: flex; flex: none; }
+  .seg-choice button {
+    appearance: none;
+    -webkit-appearance: none;
+    min-width: 46px;
+    height: 44px;
+    border: 2px solid var(--line);
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .seg-choice button + button { border-left-width: 0; }
+  .seg-choice button[aria-pressed="true"] {
+    background: var(--red);
+    border-color: var(--red);
+    color: var(--red-ink);
+  }
+
+  /* ---------------------------------------------------------------- flash */
+  .flash {
+    position: fixed;
+    inset: 0;
+    background: var(--flash);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 60;
+  }
+  .flash.is-hit { animation: hit .15s linear; }
+  @keyframes hit {
+    0%   { opacity: var(--flash-max); }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flash.is-hit, .combo-pop, .sheet { animation: none; }
+    .dial .prog { transition: none; }
+  }
+
+  /* Short phones: give the dial less room, keep controls reachable. */
+  @media (max-height: 700px) {
+    .dial { width: min(58vw, 220px); }
+    .count { font-size: clamp(64px, 19vw, 92px); }
+    .combo-slot { min-height: 76px; }
+    .ctrl--main { width: 72px; height: 72px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================================================================== HOME -->
+<section class="screen pad is-on" id="screenHome">
+  <div class="topbar">
+    <a class="icon-btn" href="../../index.html" aria-label="Back to gallery">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M15 5 8 12l7 7"/></svg>
+    </a>
+    <h1 class="wordmark cond">Combo<em>&nbsp;Caller</em></h1>
+    <button class="icon-btn" id="btnSettings" aria-label="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/></svg>
+    </button>
+  </div>
+
+  <div class="home-body">
+    <button class="preset" id="presetBag" data-preset="bag" aria-pressed="true">
+      <div class="preset__row">
+        <span class="preset__name cond">Bag Work</span>
+        <span class="preset__badge">Selected</span>
+      </div>
+      <p class="preset__desc">Alternates <strong>Combo</strong> and <strong>Power</strong>. A corner-man calls a real combination out loud through every Combo block.</p>
+      <div class="chips">
+        <span class="chip" data-slot="bag-combo">30s combo</span>
+        <span class="chip" data-slot="bag-power">30s power</span>
+        <span class="chip" data-slot="bag-rounds">8 rounds</span>
+        <span class="chip" data-slot="bag-rest">15s rest</span>
+      </div>
+    </button>
+
+    <button class="preset" id="presetRound" data-preset="round" aria-pressed="false">
+      <div class="preset__row">
+        <span class="preset__name cond">Boxing Round</span>
+        <span class="preset__badge">Selected</span>
+      </div>
+      <p class="preset__desc">A plain round timer. Bell in, bell out, no calling — for sparring, shadow work or skipping.</p>
+      <div class="chips">
+        <span class="chip" data-slot="round-work">3:00 round</span>
+        <span class="chip" data-slot="round-rounds">12 rounds</span>
+        <span class="chip" data-slot="round-rest">1:00 rest</span>
+      </div>
+    </button>
+  </div>
+
+  <p class="fineprint" id="homeTotal">Total session 9:45 · turn the ringer on, the bell and the calls come through the speaker.</p>
+
+  <div class="home-foot">
+    <button class="btn btn--ghost" id="btnAdjust">Adjust</button>
+    <button class="btn btn--primary" id="btnStartHome">Start</button>
+  </div>
+</section>
+
+<!-- ==================================================================== SETUP -->
+<section class="screen pad" id="screenSetup">
+  <div class="topbar">
+    <button class="icon-btn" id="setupBack" aria-label="Back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M15 5 8 12l7 7"/></svg>
+    </button>
+    <span class="kicker" style="flex:1;color:var(--muted)">Adjust</span>
+  </div>
+
+  <h2 class="setup-title cond" id="setupTitle">Bag Work</h2>
+  <p class="setup-sub" id="setupSub">Two work blocks per round, then a rest.</p>
+
+  <div class="rows" id="setupRows"><!-- built by script --></div>
+
+  <div class="total">
+    <span class="kicker" style="color:var(--muted)">Total session</span>
+    <span class="total__value cond" id="setupTotal">9:45</span>
+  </div>
+
+  <button class="btn btn--primary btn--block" id="btnStartSetup">Start</button>
+</section>
+
+<!-- ================================================================== SESSION -->
+<section class="screen pad" id="screenSession" data-phase="ready">
+  <div class="sess-top">
+    <span class="sess-round" id="sessRound">Round 1 / 8</span>
+    <button class="icon-btn" id="btnQuit" aria-label="End session">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <div class="segbar" id="segbar"></div>
+
+  <div class="sess-mid">
+    <div class="dial">
+      <svg viewBox="0 0 300 300" aria-hidden="true">
+        <circle class="track" cx="150" cy="150" r="140"/>
+        <circle class="prog" id="ring" cx="150" cy="150" r="140"/>
+      </svg>
+      <div class="dial__inner">
+        <div class="phase-label" id="phaseLabel">Get ready</div>
+        <div class="count cond" id="count">5</div>
+      </div>
+    </div>
+
+    <div class="combo-slot">
+      <div class="combo-num cond" id="comboNum"></div>
+      <div class="combo-name cond" id="comboName">Bag work</div>
+      <div class="combo-hint" id="comboHint">First bell in five</div>
+    </div>
+  </div>
+
+  <div class="nextup" id="nextUp"></div>
+
+  <div class="controls" style="position:relative">
+    <span class="paused-tag" id="pausedTag">Paused</span>
+    <button class="ctrl" id="btnBack" aria-label="Restart this interval">
+      <svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a5.5 5.5 0 1 1-5.5 5.5H4A8 8 0 1 0 12 5z"/></svg>
+    </button>
+    <button class="ctrl ctrl--main" id="btnPause" aria-label="Pause">
+      <svg viewBox="0 0 24 24" id="pauseIcon"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>
+    </button>
+    <button class="ctrl" id="btnSkip" aria-label="Skip interval">
+      <svg viewBox="0 0 24 24"><path d="M5 4l11 8-11 8zM17 4h3v16h-3z"/></svg>
+    </button>
+  </div>
+</section>
+
+<!-- ================================================================== SUMMARY -->
+<section class="screen pad" id="screenSummary">
+  <div class="sum-head">
+    <div class="kicker sum-kicker" id="sumKicker">Bag work</div>
+    <h2 class="sum-title cond" id="sumTitle">Session<br>Complete</h2>
+  </div>
+
+  <div class="stats">
+    <div class="stat stat--hero">
+      <div class="stat__k">Total work time</div>
+      <div class="stat__v cond" id="sumWork">8:00</div>
+    </div>
+    <div class="stat">
+      <div class="stat__k">Rounds completed</div>
+      <div class="stat__v cond" id="sumRounds">8<small>/8</small></div>
+    </div>
+    <div class="stat">
+      <div class="stat__k">Combos thrown</div>
+      <div class="stat__v cond" id="sumCombos">32</div>
+    </div>
+    <div class="stat">
+      <div class="stat__k">Time on the clock</div>
+      <div class="stat__v cond" id="sumElapsed">9:45</div>
+    </div>
+    <div class="stat">
+      <div class="stat__k">Most called</div>
+      <div class="stat__v cond" id="sumTop" style="font-size:34px;line-height:1.05">1-2</div>
+    </div>
+  </div>
+
+  <div class="sum-foot">
+    <button class="btn btn--ghost" id="btnHome">Home</button>
+    <button class="btn btn--primary" id="btnAgain">Again</button>
+  </div>
+</section>
+
+<!-- ================================================================== SETTINGS -->
+<div class="sheet-wrap" id="sheet">
+  <div class="sheet-scrim" id="sheetScrim"></div>
+  <div class="sheet">
+    <h2 class="cond">Settings</h2>
+    <p class="setup-sub" style="margin-bottom:14px">Everything resets when you reload.</p>
+
+    <div class="row">
+      <div class="row__label">
+        <div class="row__name">Voice calls</div>
+        <div class="row__hint">Speak the combo out loud</div>
+      </div>
+      <button class="switch" id="swVoice" role="switch" aria-checked="true" aria-label="Voice calls"><i></i></button>
+    </div>
+
+    <div class="row">
+      <div class="row__label">
+        <div class="row__name">Bell</div>
+        <div class="row__hint">Sound on every interval change</div>
+      </div>
+      <button class="switch" id="swBell" role="switch" aria-checked="true" aria-label="Bell"><i></i></button>
+    </div>
+
+    <div class="row">
+      <div class="row__label">
+        <div class="row__name">Five-second lead-in</div>
+        <div class="row__hint">Get to the bag before round one</div>
+      </div>
+      <button class="switch" id="swLead" role="switch" aria-checked="true" aria-label="Lead-in"><i></i></button>
+    </div>
+
+    <div class="row" style="border-bottom:0">
+      <div class="row__label">
+        <div class="row__name">Call a combo every</div>
+        <div class="row__hint">Inside each Combo block</div>
+      </div>
+      <div class="seg-choice" id="segEvery">
+        <button data-every="6" aria-pressed="false">6s</button>
+        <button data-every="8" aria-pressed="true">8s</button>
+        <button data-every="12" aria-pressed="false">12s</button>
+      </div>
+    </div>
+
+    <button class="btn btn--primary btn--block" id="sheetDone" style="margin-top:14px">Done</button>
+  </div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =============================================================== combos */
+  /* Numbering is standard boxing: 1 jab, 2 cross, 3 lead hook,
+     4 rear hook, 5 lead uppercut, 6 rear uppercut. */
+  var COMBOS = [
+    { num: '1-2',        name: 'Jab · Cross',                       say: 'Jab, cross' },
+    { num: '1-1-2',      name: 'Jab · Jab · Cross',                 say: 'Double jab, cross' },
+    { num: '1-2-3',      name: 'Jab · Cross · Hook',                say: 'Jab, cross, hook' },
+    { num: '1-2-5-2',    name: 'Jab · Cross · Uppercut · Cross',    say: 'Jab, cross, uppercut, cross' },
+    { num: '2-3-2',      name: 'Cross · Hook · Cross',              say: 'Cross, hook, cross' },
+    { num: '1-6-3',      name: 'Jab · Rear Upper · Hook',           say: 'Jab, rear uppercut, hook' },
+    { num: '1-2-3-2',    name: 'Jab · Cross · Hook · Cross',        say: 'Jab, cross, hook, cross' },
+    { num: '3-2',        name: 'Hook · Cross',                      say: 'Hook, cross' },
+    { num: '1-1',        name: 'Double Jab',                        say: 'Double jab' },
+    { num: '2-3-6',      name: 'Cross · Hook · Rear Upper',         say: 'Cross, hook, rear uppercut' },
+    { num: '1-2 · slip', name: 'Jab · Cross · Slip · Cross',        say: 'Jab, cross, slip, cross' },
+    { num: '1-2b-3',     name: 'Jab · Body Cross · Hook',           say: 'Jab, cross to the body, hook' },
+    { num: '5-2-3',      name: 'Upper · Cross · Hook',              say: 'Uppercut, cross, hook' },
+    { num: '1-4-3',      name: 'Jab · Rear Hook · Lead Hook',       say: 'Jab, rear hook, lead hook' },
+    { num: '1-2 · roll', name: 'Jab · Cross · Roll · Hook',         say: 'Jab, cross, roll, hook' },
+    { num: '1-3b-2',     name: 'Jab · Body Hook · Cross',           say: 'Jab, hook to the body, cross' }
+  ];
+
+  /* ================================================================ state */
+  var cfg = {
+    bag:   { combo: 30, power: 30, rounds: 8,  rest: 15 },
+    round: { work: 180,             rounds: 12, rest: 60 }
+  };
+
+  var opts = { voice: true, bell: true, lead: true, every: 8 };
+
+  var S = {
+    preset: 'bag',
+    queue: [],
+    idx: -1,
+    endsAt: 0,
+    left: 0,
+    dur: 1,
+    running: false,
+    ticker: null,
+    marks: [],
+    lastCombo: -1,
+    counts: {},
+    stats: { work: 0, combos: 0, rounds: 0, elapsed: 0 }
+  };
+
+  var RING_C = 2 * Math.PI * 140;
+
+  /* ================================================================= util */
+  function $(id) { return document.getElementById(id); }
+  function now() { return (window.performance && performance.now) ? performance.now() : Date.now(); }
+
+  function mmss(sec) {
+    sec = Math.max(0, Math.round(sec));
+    var m = Math.floor(sec / 60), s = sec % 60;
+    return m + ':' + (s < 10 ? '0' : '') + s;
+  }
+  function label(sec) {
+    return sec >= 60 ? mmss(sec) : sec + 's';
+  }
+
+  /* ================================================================ audio */
+  var ctx = null, master = null;
+
+  function unlockAudio() {
+    try {
+      if (!ctx) {
+        var AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        ctx = new AC();
+        master = ctx.createGain();
+        master.gain.value = 0.9;
+        master.connect(ctx.destination);
+      }
+      if (ctx.state === 'suspended') ctx.resume();
+      // A silent blip so iOS treats the context as user-started.
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      g.gain.value = 0.0001;
+      o.connect(g).connect(master);
+      o.start(); o.stop(ctx.currentTime + 0.02);
+    } catch (e) { /* audio is a nicety, never a blocker */ }
+  }
+
+  /* A boxing bell: inharmonic partials, hard attack, long metallic tail. */
+  function bell(f0, gain, when) {
+    if (!ctx || !opts.bell) return;
+    var t = ctx.currentTime + (when || 0);
+    var parts = [1, 2.02, 2.97, 4.13, 5.42, 6.8];
+    var amps  = [1, 0.62, 0.42, 0.28, 0.18, 0.11];
+    for (var i = 0; i < parts.length; i++) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = f0 * parts[i];
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.0002, gain * amps[i]), t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 1.9 / (1 + i * 0.55));
+      o.connect(g).connect(master);
+      o.start(t);
+      o.stop(t + 2.2);
+    }
+  }
+
+  /* A dry wood clack for the Power block — clearly not the bell. */
+  function clack() {
+    if (!ctx || !opts.bell) return;
+    var t = ctx.currentTime;
+    var len = Math.floor(ctx.sampleRate * 0.12);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 6);
+    var src = ctx.createBufferSource(); src.buffer = buf;
+    var bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1250; bp.Q.value = 1.4;
+    var g = ctx.createGain(); g.gain.value = 0.85;
+    src.connect(bp).connect(g).connect(master);
+    src.start(t);
+    // A low thud underneath so it reads as a hit, not a hiss.
+    var o = ctx.createOscillator(), og = ctx.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(180, t);
+    o.frequency.exponentialRampToValueAtTime(70, t + 0.13);
+    og.gain.setValueAtTime(0.5, t);
+    og.gain.exponentialRampToValueAtTime(0.0001, t + 0.16);
+    o.connect(og).connect(master); o.start(t); o.stop(t + 0.2);
+  }
+
+  function tickBeep() {
+    if (!ctx || !opts.bell) return;
+    var t = ctx.currentTime;
+    var o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    o.connect(g).connect(master); o.start(t); o.stop(t + 0.12);
+  }
+
+  function say(text) {
+    if (!opts.voice || !('speechSynthesis' in window)) return;
+    try {
+      var u = new SpeechSynthesisUtterance(text);
+      u.rate = 1.06;
+      u.pitch = 0.95;
+      u.volume = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* no voice, no problem */ }
+  }
+  function primeVoice() {
+    if (!('speechSynthesis' in window)) return;
+    try {
+      var u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      window.speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  function flash() {
+    var f = $('flash');
+    f.classList.remove('is-hit');
+    void f.offsetWidth;
+    f.classList.add('is-hit');
+  }
+
+  /* =============================================================== screens */
+  function show(id) {
+    var all = ['screenHome', 'screenSetup', 'screenSession', 'screenSummary'];
+    for (var i = 0; i < all.length; i++) $(all[i]).classList.toggle('is-on', all[i] === id);
+    window.scrollTo(0, 0);
+  }
+
+  /* ================================================================= home */
+  function presetTotal(p) {
+    var c = cfg[p], t;
+    if (p === 'bag') t = c.rounds * (c.combo + c.power) + (c.rounds - 1) * c.rest;
+    else t = c.rounds * c.work + (c.rounds - 1) * c.rest;
+    return t + (opts.lead ? 5 : 0);
+  }
+
+  function paintHome() {
+    var b = cfg.bag, r = cfg.round;
+    document.querySelector('[data-slot="bag-combo"]').textContent = label(b.combo) + ' combo';
+    document.querySelector('[data-slot="bag-power"]').textContent = label(b.power) + ' power';
+    document.querySelector('[data-slot="bag-rounds"]').textContent = b.rounds + ' rounds';
+    document.querySelector('[data-slot="bag-rest"]').textContent = label(b.rest) + ' rest';
+    document.querySelector('[data-slot="round-work"]').textContent = label(r.work) + ' round';
+    document.querySelector('[data-slot="round-rounds"]').textContent = r.rounds + ' rounds';
+    document.querySelector('[data-slot="round-rest"]').textContent = label(r.rest) + ' rest';
+
+    $('presetBag').setAttribute('aria-pressed', String(S.preset === 'bag'));
+    $('presetRound').setAttribute('aria-pressed', String(S.preset === 'round'));
+    $('homeTotal').textContent = 'Total session ' + mmss(presetTotal(S.preset)) +
+      ' · turn the ringer on, the bell and the calls come through the speaker.';
+  }
+
+  /* ================================================================ setup */
+  var FIELDS = {
+    bag: [
+      { key: 'combo',  name: 'Combo length', hint: 'Called combinations',      min: 10, max: 180, step: 5, time: true },
+      { key: 'power',  name: 'Power length', hint: 'Your own hard shots',      min: 10, max: 180, step: 5, time: true },
+      { key: 'rounds', name: 'Rounds',       hint: 'Combo + power = 1 round',  min: 1,  max: 20,  step: 1, time: false },
+      { key: 'rest',   name: 'Rest',         hint: 'Between rounds',           min: 5,  max: 120, step: 5, time: true }
+    ],
+    round: [
+      { key: 'work',   name: 'Round length', hint: 'Bell to bell',             min: 30, max: 300, step: 15, time: true },
+      { key: 'rounds', name: 'Rounds',       hint: '',                         min: 1,  max: 20,  step: 1,  time: false },
+      { key: 'rest',   name: 'Rest',         hint: 'Between rounds',           min: 10, max: 180, step: 5,  time: true }
+    ]
+  };
+
+  function buildSetup() {
+    var p = S.preset, list = FIELDS[p], wrap = $('setupRows');
+    wrap.innerHTML = '';
+    $('setupTitle').textContent = p === 'bag' ? 'Bag Work' : 'Boxing Round';
+    $('setupSub').textContent = p === 'bag'
+      ? 'Two work blocks per round, then a rest.'
+      : 'One work block per round, then a rest.';
+
+    list.forEach(function (f) {
+      var row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML =
+        '<div class="row__label"><div class="row__name"></div><div class="row__hint"></div></div>' +
+        '<div class="row__value cond"></div>' +
+        '<div class="stepper">' +
+          '<button class="step" type="button" data-dir="-1" aria-label="Decrease">&minus;</button>' +
+          '<button class="step" type="button" data-dir="1" aria-label="Increase">+</button>' +
+        '</div>';
+      row.querySelector('.row__name').textContent = f.name;
+      row.querySelector('.row__hint').textContent = f.hint;
+      var val = row.querySelector('.row__value');
+
+      function paint() {
+        var v = cfg[p][f.key];
+        val.textContent = f.time ? label(v) : String(v);
+        row.querySelectorAll('.step')[0].disabled = v <= f.min;
+        row.querySelectorAll('.step')[1].disabled = v >= f.max;
+      }
+      row.querySelector('.stepper').addEventListener('click', function (e) {
+        var b = e.target.closest('.step');
+        if (!b || b.disabled) return;
+        var dir = Number(b.getAttribute('data-dir'));
+        var v = cfg[p][f.key] + dir * f.step;
+        cfg[p][f.key] = Math.min(f.max, Math.max(f.min, v));
+        paint();
+        paintSetupTotal();
+        paintHome();
+      });
+      paint();
+      wrap.appendChild(row);
+    });
+    paintSetupTotal();
+  }
+
+  function paintSetupTotal() { $('setupTotal').textContent = mmss(presetTotal(S.preset)); }
+
+  /* ============================================================== session */
+  function buildQueue() {
+    var q = [], p = S.preset, c = cfg[p], r;
+    if (opts.lead) q.push({ type: 'ready', dur: 5, round: 1 });
+    for (r = 1; r <= c.rounds; r++) {
+      if (p === 'bag') {
+        q.push({ type: 'combo', dur: c.combo, round: r });
+        q.push({ type: 'power', dur: c.power, round: r });
+      } else {
+        q.push({ type: 'work', dur: c.work, round: r });
+      }
+      if (r < c.rounds) q.push({ type: 'rest', dur: c.rest, round: r });
+    }
+    return q;
+  }
+
+  var PHASE = {
+    ready: { label: 'Get ready',  next: 'Get ready' },
+    combo: { label: 'Combo' },
+    power: { label: 'Power' },
+    work:  { label: 'Round' },
+    rest:  { label: 'Rest' }
+  };
+
+  function buildSegbar() {
+    var bar = $('segbar'), rounds = cfg[S.preset].rounds;
+    bar.innerHTML = '';
+    for (var i = 0; i < rounds; i++) {
+      var s = document.createElement('span');
+      s.className = 'seg';
+      bar.appendChild(s);
+    }
+  }
+
+  function paintSegbar(round, done) {
+    var kids = $('segbar').children;
+    for (var i = 0; i < kids.length; i++) {
+      kids[i].className = 'seg' +
+        (i < round - 1 || (i === round - 1 && done) ? ' is-done' : '') +
+        (i === round - 1 && !done ? ' is-now' : '');
+    }
+  }
+
+  function startSession() {
+    unlockAudio();
+    primeVoice();
+    S.queue = buildQueue();
+    S.idx = -1;
+    S.running = true;
+    S.counts = {};
+    S.lastCombo = -1;
+    S.stats = { work: 0, combos: 0, rounds: 0, elapsed: 0 };
+    buildSegbar();
+    show('screenSession');
+    advance();
+    if (S.ticker) clearInterval(S.ticker);
+    S.ticker = setInterval(tick, 100);
+  }
+
+  function enter(i) {
+    var it = S.queue[i];
+    S.idx = i;
+    S.dur = it.dur;
+    S.left = it.dur;
+    S.endsAt = now() + it.dur * 1000;
+    S.marks = [];
+
+    var sess = $('screenSession');
+    sess.setAttribute('data-phase', it.type);
+    $('phaseLabel').textContent = PHASE[it.type].label;
+
+    var isCombo = it.type === 'combo';
+    var isRest = it.type === 'rest';
+    var rounds = cfg[S.preset].rounds;
+
+    $('sessRound').textContent = it.type === 'ready'
+      ? 'Get to the bag'
+      : 'Round ' + it.round + ' / ' + rounds;
+    paintSegbar(it.round, isRest);
+
+    // Combo call schedule, expressed as "remaining seconds" thresholds so a
+    // pause can never desync it from the clock.
+    if (isCombo) {
+      for (var t = it.dur; t > 2; t -= opts.every) S.marks.push(t);
+    } else if (it.type === 'ready') {
+      S.marks = [3, 2, 1];
+    }
+
+    // Transition sound + the white flash the bell always carries.
+    if (it.type === 'combo' || it.type === 'work') {
+      bell(660, 0.32); bell(660, 0.26, 0.28);
+      flash();
+      if (it.round === rounds) say('Last round');
+    } else if (it.type === 'power') {
+      clack();
+      flash();
+      say('Power');
+    } else if (it.type === 'rest') {
+      bell(430, 0.3);
+      flash();
+      say('Rest');
+    }
+
+    // Static copy for non-combo blocks.
+    if (!isCombo) {
+      $('comboNum').textContent = '';
+      $('comboName').textContent =
+        it.type === 'ready' ? 'Gloves on' :
+        it.type === 'power' ? 'Your combos' :
+        it.type === 'rest'  ? 'Breathe' : 'Work the bag';
+      $('comboHint').textContent =
+        it.type === 'ready' ? 'First bell in five' :
+        it.type === 'power' ? 'Hard shots, keep your hands up' :
+        it.type === 'rest'  ? 'Shake it out, next round is coming' :
+                              'Move your feet between shots';
+    } else {
+      $('comboHint').textContent = 'Throw it, then reset';
+    }
+
+    paintNext();
+    paintCount();
+  }
+
+  function paintNext() {
+    var nx = S.queue[S.idx + 1];
+    $('nextUp').textContent = nx
+      ? 'Next · ' + PHASE[nx.type].label + ' ' + label(nx.dur)
+      : 'Next · Final bell';
+  }
+
+  function callCombo() {
+    var i;
+    do { i = Math.floor(Math.random() * COMBOS.length); }
+    while (COMBOS.length > 1 && i === S.lastCombo);
+    S.lastCombo = i;
+    var c = COMBOS[i];
+    S.stats.combos++;
+    S.counts[i] = (S.counts[i] || 0) + 1;
+
+    var num = $('comboNum'), name = $('comboName');
+    num.textContent = c.num;
+    name.textContent = c.name;
+    name.classList.remove('combo-pop');
+    void name.offsetWidth;
+    name.classList.add('combo-pop');
+    say(c.say);
+  }
+
+  function advance() {
+    var prev = S.queue[S.idx];
+    if (prev && (prev.type === 'combo' || prev.type === 'power' || prev.type === 'work')) {
+      S.stats.work += prev.dur;
+      if (prev.type === 'power' || prev.type === 'work') S.stats.rounds++;
+    }
+    if (prev) S.stats.elapsed += prev.dur;
+
+    if (S.idx + 1 >= S.queue.length) return finish();
+    enter(S.idx + 1);
+  }
+
+  function tick() {
+    if (!S.running) return;
+    S.left = Math.max(0, (S.endsAt - now()) / 1000);
+
+    while (S.marks.length && S.left <= S.marks[0]) {
+      S.marks.shift();
+      var it = S.queue[S.idx];
+      if (it.type === 'combo') callCombo();
+      else tickBeep();
+    }
+
+    paintCount();
+    if (S.left <= 0) advance();
+  }
+
+  function paintCount() {
+    var el = $('count');
+    var secs = Math.ceil(S.left - 0.001);
+    if (secs < 0) secs = 0;
+    var txt = S.dur >= 60 ? mmss(secs) : String(secs);
+    if (el.textContent !== txt) el.textContent = txt;
+    el.classList.toggle('count--sm', txt.length > 2);
+
+    var p = S.dur > 0 ? (S.left / S.dur) : 0;
+    var ring = $('ring');
+    ring.setAttribute('stroke-dasharray', RING_C);
+    ring.setAttribute('stroke-dashoffset', String(RING_C * (1 - p)));
+  }
+
+  function setPaused(paused) {
+    var sess = $('screenSession');
+    if (paused) {
+      S.running = false;
+      S.left = Math.max(0, (S.endsAt - now()) / 1000);
+      sess.classList.add('is-paused');
+      $('pauseIcon').setAttribute('d', 'M7 4l13 8-13 8z');
+      $('btnPause').setAttribute('aria-label', 'Resume');
+      if ('speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    } else {
+      S.endsAt = now() + S.left * 1000;
+      S.running = true;
+      sess.classList.remove('is-paused');
+      $('pauseIcon').setAttribute('d', 'M6 4h4v16H6zM14 4h4v16h-4z');
+      $('btnPause').setAttribute('aria-label', 'Pause');
+      if (ctx && ctx.state === 'suspended') ctx.resume();
+    }
+  }
+
+  function finish() {
+    S.running = false;
+    if (S.ticker) { clearInterval(S.ticker); S.ticker = null; }
+    bell(660, 0.34); bell(660, 0.3, 0.3); bell(660, 0.28, 0.6);
+    flash();
+    say('Session complete');
+
+    var rounds = cfg[S.preset].rounds;
+    $('sumKicker').textContent = S.preset === 'bag' ? 'Bag work' : 'Boxing round';
+    $('sumWork').textContent = mmss(S.stats.work);
+    $('sumRounds').innerHTML = S.stats.rounds + '<small>/' + rounds + '</small>';
+    $('sumCombos').textContent = S.stats.combos;
+    $('sumElapsed').textContent = mmss(S.stats.elapsed);
+
+    var top = -1, best = 0;
+    for (var k in S.counts) if (S.counts[k] > best) { best = S.counts[k]; top = Number(k); }
+    var topEl = $('sumTop');
+    if (top < 0) {
+      topEl.textContent = '—';
+      topEl.style.fontSize = '40px';
+    } else {
+      topEl.style.fontSize = '34px';
+      topEl.textContent = '';
+      topEl.appendChild(document.createTextNode(COMBOS[top].num));
+      var sub = document.createElement('div');
+      sub.style.cssText = 'font-size:12px;font-weight:600;letter-spacing:0;color:var(--muted);margin-top:6px';
+      sub.textContent = COMBOS[top].name + ' ×' + best;
+      topEl.appendChild(sub);
+    }
+
+    show('screenSummary');
+  }
+
+  function quit() {
+    S.running = false;
+    if (S.ticker) { clearInterval(S.ticker); S.ticker = null; }
+    if ('speechSynthesis' in window) { try { window.speechSynthesis.cancel(); } catch (e) {} }
+    show('screenHome');
+  }
+
+  /* ================================================================ wiring */
+  function pickPreset(p) {
+    S.preset = p;
+    paintHome();
+  }
+
+  $('presetBag').addEventListener('click', function () { pickPreset('bag'); });
+  $('presetRound').addEventListener('click', function () { pickPreset('round'); });
+
+  $('btnAdjust').addEventListener('click', function () { buildSetup(); show('screenSetup'); });
+  $('setupBack').addEventListener('click', function () { show('screenHome'); });
+
+  $('btnStartHome').addEventListener('click', startSession);
+  $('btnStartSetup').addEventListener('click', startSession);
+
+  $('btnPause').addEventListener('click', function () { setPaused(S.running); });
+  $('btnSkip').addEventListener('click', function () {
+    if (!S.queue.length) return;
+    setPaused(false);
+    advance();
+  });
+  $('btnBack').addEventListener('click', function () {
+    if (S.idx < 0) return;
+    setPaused(false);
+    // Restart the current block; tapping it in the first second steps back one.
+    var target = (S.dur - S.left < 1 && S.idx > 0) ? S.idx - 1 : S.idx;
+    if (target !== S.idx) {
+      var prev = S.queue[target];
+      S.stats.elapsed = Math.max(0, S.stats.elapsed - prev.dur);
+      if (prev.type === 'combo' || prev.type === 'power' || prev.type === 'work') {
+        S.stats.work = Math.max(0, S.stats.work - prev.dur);
+        if (prev.type === 'power' || prev.type === 'work') S.stats.rounds = Math.max(0, S.stats.rounds - 1);
+      }
+    }
+    enter(target);
+  });
+  $('btnQuit').addEventListener('click', quit);
+
+  $('btnHome').addEventListener('click', function () { show('screenHome'); });
+  $('btnAgain').addEventListener('click', startSession);
+
+  /* settings sheet */
+  function toggle(btn, key) {
+    btn.addEventListener('click', function () {
+      opts[key] = btn.getAttribute('aria-checked') !== 'true';
+      btn.setAttribute('aria-checked', String(opts[key]));
+      paintHome();
+      paintSetupTotal();
+    });
+  }
+  toggle($('swVoice'), 'voice');
+  toggle($('swBell'), 'bell');
+  toggle($('swLead'), 'lead');
+
+  $('segEvery').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b) return;
+    opts.every = Number(b.getAttribute('data-every'));
+    var kids = this.children;
+    for (var i = 0; i < kids.length; i++) kids[i].setAttribute('aria-pressed', String(kids[i] === b));
+  });
+
+  $('btnSettings').addEventListener('click', function () { $('sheet').classList.add('is-on'); });
+  $('sheetScrim').addEventListener('click', function () { $('sheet').classList.remove('is-on'); });
+  $('sheetDone').addEventListener('click', function () { $('sheet').classList.remove('is-on'); });
+
+  // A backgrounded phone throttles timers; re-sync the clock on return.
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && S.running) tick();
+  });
+
+  paintHome();
+  $('ring').setAttribute('stroke-dasharray', RING_C);
+  $('ring').setAttribute('stroke-dashoffset', '0');
+})();
+</script>
+
+</body>
+</html>

@@ -155,6 +155,18 @@
       "createdAt": "2026-08-23",
       "updatedAt": "2026-08-23",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-14",
+      "workItemId": "3322caa6-184e-4c60-8fca-cd5af4ef09ac",
+      "title": "Combo Caller",
+      "tagline": "A corner-man in your pocket — it calls a real combination every time the Combo bell rings.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-14/index.html",
+      "version": 1,
+      "createdAt": "2026-08-24",
+      "updatedAt": "2026-08-24",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
