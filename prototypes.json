@@ -167,6 +167,18 @@
       "createdAt": "2026-08-24",
       "updatedAt": "2026-08-24",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-15",
+      "workItemId": "b1f4a65e-a38d-4080-bccd-17a5de25ffbf",
+      "title": "Vault Word",
+      "tagline": "Père Fouras locks a word behind four riddles — guess early or watch the treasure drain.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-15/index.html",
+      "version": 1,
+      "createdAt": "2026-08-25",
+      "updatedAt": "2026-08-25",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }

@@ -1,0 +1,1575 @@
+<!doctype html>
+<!--
+  PROTOTYPE-15 — Vault Word
+  A word-guessing game in the spirit of Fort Boyard's Père Fouras: four cryptic
+  clues per word, a treasure pot that drains while you think. Self-contained:
+  inline style and script only, no network of any kind.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Vault Word</title>
+<style>
+  /* ---- palette -------------------------------------------------------- */
+  /* Light: a candle-lit parchment reading of the same dungeon. */
+  :root {
+    --bg: #e9dfcd;
+    --bg-deep: #dccfb8;
+    --plaque: #f6efe1;
+    --plaque-hi: rgba(255, 255, 255, .9);
+    --plaque-lo: rgba(90, 66, 38, .22);
+    --tile: #f7f1e4;
+    --tile-edge: #cdbda2;
+    --text: #2c2118;
+    --muted: #6f5f4c;
+    --faint: #9a8a74;
+    --gold: #8a5c12;
+    --amber: #b9781f;
+    --amber-soft: rgba(185, 120, 31, .16);
+    --key: #f7f1e6;
+    --key-edge: #cfc1a9;
+    --key-text: #3a2c20;
+    --rule: rgba(90, 66, 38, .18);
+    --seal: #9c3f2f;
+    --shadow: 0 1px 2px rgba(72, 52, 28, .16), 0 10px 26px rgba(72, 52, 28, .14);
+    --door: linear-gradient(150deg, #cbbb9f, #ab9977 60%, #bfae90);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1512;
+      --bg-deep: #120e0b;
+      --plaque: #241d18;
+      --plaque-hi: rgba(255, 226, 178, .09);
+      --plaque-lo: rgba(0, 0, 0, .6);
+      --tile: #221b16;
+      --tile-edge: #3b3027;
+      --text: #ece1cf;
+      --muted: #a89a86;
+      --faint: #7d7061;
+      --gold: #e8c77a;
+      --amber: #d99a3f;
+      --amber-soft: rgba(217, 154, 63, .16);
+      --key: #2b231d;
+      --key-edge: #3d3229;
+      --key-text: #ddd0be;
+      --rule: rgba(232, 199, 122, .14);
+      --seal: #c4593f;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .55), 0 12px 30px rgba(0, 0, 0, .45);
+      --door: linear-gradient(150deg, #362b23, #241c16 60%, #2f251d);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  /* A soft torch pool at the top of the room, and a darker floor. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 60% at 50% -10%, var(--amber-soft), transparent 62%),
+      radial-gradient(140% 80% at 50% 115%, var(--bg-deep), transparent 60%);
+    z-index: 0;
+  }
+
+  .serif { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif; }
+
+  /* ---- shell ---------------------------------------------------------- */
+  .app {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .back {
+    position: fixed;
+    top: calc(env(safe-area-inset-top) + 10px);
+    left: calc(env(safe-area-inset-left) + 12px);
+    z-index: 60;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--plaque);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+    box-shadow: var(--shadow);
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .screen {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    padding:
+      calc(env(safe-area-inset-top) + 12px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 14px)
+      calc(env(safe-area-inset-left) + 16px);
+    min-height: 100dvh;
+  }
+
+  .screen.is-active { display: flex; }
+
+  /* ---- buttons -------------------------------------------------------- */
+  .btn {
+    appearance: none;
+    border: 0;
+    border-radius: 13px;
+    background: var(--amber);
+    color: #201810;
+    font: inherit;
+    font-weight: 650;
+    letter-spacing: .01em;
+    min-height: 50px;
+    padding: 0 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, .28), 0 8px 20px rgba(0, 0, 0, .18);
+  }
+
+  .btn:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0, 0, 0, .28); }
+  .btn[disabled] { opacity: .42; box-shadow: none; }
+  .btn--block { width: 100%; }
+
+  .btn--ghost {
+    background: var(--key);
+    color: var(--key-text);
+    border: 1px solid var(--key-edge);
+    font-weight: 600;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, .18);
+  }
+
+  /* ---- intro ---------------------------------------------------------- */
+  .intro {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 0;
+  }
+
+  .intro__mark {
+    width: 96px;
+    height: 96px;
+    border-radius: 22px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 22px;
+    background: var(--door);
+    border: 1px solid var(--tile-edge);
+    box-shadow: var(--shadow), inset 0 1px 0 var(--plaque-hi);
+    position: relative;
+  }
+
+  .intro__mark::after {
+    content: "";
+    position: absolute;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 3px solid var(--amber);
+    border-right-color: transparent;
+    border-bottom-color: transparent;
+    transform: rotate(28deg);
+    opacity: .9;
+  }
+
+  .intro__mark span {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: var(--amber);
+    box-shadow: 0 0 18px var(--amber);
+  }
+
+  .intro__title {
+    font-size: 38px;
+    line-height: 1.05;
+    letter-spacing: .04em;
+    margin: 0 0 10px;
+    color: var(--gold);
+    text-transform: uppercase;
+  }
+
+  .intro__sub {
+    margin: 0 0 6px;
+    color: var(--muted);
+    font-size: 15.5px;
+    max-width: 20em;
+  }
+
+  .intro__rules {
+    list-style: none;
+    margin: 26px 0 30px;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .intro__rules li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border-radius: 13px;
+    background: var(--plaque);
+    border: 1px solid var(--rule);
+    font-size: 14px;
+    color: var(--muted);
+    text-align: left;
+  }
+
+  .intro__rules b { color: var(--text); font-weight: 650; }
+
+  .intro__rules i {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    background: var(--amber-soft);
+    font-style: normal;
+    font-size: 14px;
+  }
+
+  /* ---- vault: HUD ----------------------------------------------------- */
+  .hud { flex: none; }
+
+  .hud__row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 34px;
+  }
+
+  .hud__spacer { flex: none; width: 34px; }
+
+  .hud__label {
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .hud__value {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+    min-width: 34px;
+  }
+
+  .hud__round {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--muted);
+    padding: 5px 11px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+    background: var(--plaque);
+  }
+
+  .meterwrap { position: relative; margin-top: 8px; }
+
+  /* Torch-flicker: a 2-3% pulse on the glow behind the meter only. */
+  .meterwrap::before {
+    content: "";
+    position: absolute;
+    inset: -14px -8px;
+    border-radius: 20px;
+    background: radial-gradient(60% 140% at 30% 50%, var(--amber-soft), transparent 70%);
+    animation: flicker 3.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  @keyframes flicker {
+    0%, 100% { opacity: 1; }
+    38% { opacity: .97; }
+    62% { opacity: .975; }
+  }
+
+  .meter {
+    position: relative;
+    display: flex;
+    gap: 3px;
+    height: 12px;
+    padding: 2px;
+    border-radius: 8px;
+    background: var(--tile);
+    border: 1px solid var(--tile-edge);
+    box-shadow: inset 0 1px 3px var(--plaque-lo);
+  }
+
+  .meter__seg {
+    flex: 1;
+    border-radius: 3px;
+    background: var(--plaque-lo);
+    overflow: hidden;
+  }
+
+  .meter__fill {
+    display: block;
+    height: 100%;
+    width: 100%;
+    border-radius: 3px;
+    background: linear-gradient(180deg, var(--gold), var(--amber));
+    transform-origin: left center;
+    transition: transform .3s ease;
+  }
+
+  .meter.is-low .meter__fill { background: linear-gradient(180deg, #e08a5a, var(--seal)); }
+
+  /* ---- vault: word tiles ---------------------------------------------- */
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 20px;
+    padding: 12px 0;
+    min-height: 0;
+  }
+
+  .tiles {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .tile {
+    width: var(--tile-w, 32px);
+    height: calc(var(--tile-w, 32px) * 1.24);
+    border-radius: 7px;
+    display: grid;
+    place-items: center;
+    background: var(--tile);
+    border: 1px solid var(--tile-edge);
+    box-shadow: inset 0 1px 0 var(--plaque-hi), 0 2px 0 var(--plaque-lo);
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    font-size: calc(var(--tile-w, 32px) * .58);
+    font-weight: 700;
+    color: var(--text);
+    text-transform: uppercase;
+    transition: transform .12s ease, border-color .2s ease, color .2s ease;
+  }
+
+  .tile.is-empty::after {
+    content: "";
+    width: 52%;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--tile-edge);
+  }
+
+  .tile.is-typed {
+    border-color: var(--amber);
+    animation: pop .13s ease;
+  }
+
+  /* Letters the stone itself gave up at clue 4 — locked, aged gold. */
+  .tile.is-locked {
+    color: var(--gold);
+    background: linear-gradient(180deg, var(--amber-soft), transparent);
+    border-color: var(--amber);
+  }
+
+  @keyframes pop {
+    0% { transform: scale(.9); }
+    100% { transform: scale(1); }
+  }
+
+  .tiles.is-wrong { animation: shake .38s ease; }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    18% { transform: translateX(-8px); }
+    42% { transform: translateX(7px); }
+    68% { transform: translateX(-4px); }
+    86% { transform: translateX(2px); }
+  }
+
+  /* ---- vault: clue plaque --------------------------------------------- */
+  .clue__meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 0 2px;
+  }
+
+  .clue__stage {
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .clue__stage b { color: var(--amber); font-weight: 700; }
+
+  .ring {
+    margin-left: auto;
+    position: relative;
+    width: 44px;
+    height: 44px;
+    flex: none;
+    display: grid;
+    place-items: center;
+  }
+
+  .ring svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .ring__track { fill: none; stroke: var(--plaque-lo); stroke-width: 3; }
+
+  .ring__arc {
+    fill: none;
+    stroke: var(--amber);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transition: stroke-dashoffset .95s linear, stroke .3s ease;
+  }
+
+  .ring.is-low .ring__arc { stroke: var(--seal); }
+
+  .ring__num {
+    position: relative;
+    font-size: 14px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+  }
+
+  .ring.is-low .ring__num { color: var(--seal); }
+
+  /* Carved stone: pure CSS bevel, no images. */
+  .plaque {
+    position: relative;
+    overflow: hidden;
+    border-radius: 14px;
+    padding: 20px 18px;
+    min-height: 150px;
+    display: grid;
+    place-items: center;
+    background: var(--plaque);
+    border: 1px solid var(--tile-edge);
+    box-shadow:
+      inset 0 2px 0 var(--plaque-hi),
+      inset 0 -2px 6px var(--plaque-lo),
+      inset 2px 0 4px var(--plaque-lo),
+      inset -2px 0 4px var(--plaque-lo),
+      var(--shadow);
+  }
+
+  .plaque::before {
+    content: "";
+    position: absolute;
+    inset: 7px;
+    border-radius: 9px;
+    border: 1px solid var(--rule);
+    pointer-events: none;
+  }
+
+  .plaque__text {
+    position: relative;
+    margin: 0;
+    text-align: center;
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    font-style: italic;
+    font-size: 18px;
+    line-height: 1.45;
+    color: var(--muted);
+    transition: opacity .18s ease, filter .18s ease, transform .18s ease;
+  }
+
+  .plaque__text.is-out {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(6px);
+  }
+
+  /* Cage bars drop and lift over the plaque on every clue change. */
+  .cage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    gap: 0;
+    pointer-events: none;
+    opacity: 0;
+  }
+
+  .cage i {
+    flex: 1;
+    margin: 0 3px;
+    border-radius: 0 0 4px 4px;
+    background: linear-gradient(180deg, var(--tile-edge), var(--faint));
+    box-shadow: inset 1px 0 0 var(--plaque-hi);
+    transform: translateY(-110%);
+  }
+
+  .cage.is-sweeping { opacity: 1; }
+  .cage.is-sweeping i { animation: cage .4s ease-in-out both; }
+
+  @keyframes cage {
+    0% { transform: translateY(-110%); }
+    45% { transform: translateY(0); }
+    58% { transform: translateY(0); }
+    100% { transform: translateY(-110%); }
+  }
+
+  .verdict {
+    height: 18px;
+    margin-top: 9px;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--seal);
+    opacity: 0;
+    transition: opacity .2s ease;
+  }
+
+  .verdict.is-on { opacity: 1; }
+  .verdict.is-note { color: var(--amber); }
+
+  /* ---- vault: keyboard ------------------------------------------------ */
+  /* The keyboard sits on its own raised tray, so the bottom third reads as
+     one surface rather than buttons floating on the floor of the room. */
+  .pad {
+    flex: none;
+    margin: 0 -8px;
+    padding: 12px 8px 0;
+    border-radius: 18px 18px 0 0;
+    background: var(--bg-deep);
+    border-top: 1px solid var(--rule);
+    box-shadow: 0 -10px 26px rgba(0, 0, 0, .18);
+  }
+
+  .kb {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 8px;
+  }
+
+  .kb__row {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+  }
+
+  .key {
+    appearance: none;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 48px;
+    border-radius: 8px;
+    border: 1px solid var(--key-edge);
+    background: var(--key);
+    color: var(--key-text);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 0 var(--plaque-lo);
+  }
+
+  .key:active { transform: translateY(1px); box-shadow: none; }
+
+  .actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .actions .btn { min-height: 52px; padding: 0 12px; }
+
+  #foursaBtn {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    line-height: 1.1;
+    font-size: 13px;
+    padding: 0 13px;
+  }
+
+  #foursaBtn em {
+    font-style: normal;
+    font-size: 10.5px;
+    letter-spacing: .06em;
+    color: var(--faint);
+  }
+
+  #guessBtn { flex: 1; }
+
+  #delBtn {
+    flex: none;
+    width: 58px;
+    font-size: 18px;
+  }
+
+  /* ---- vault opened --------------------------------------------------- */
+  .opened { text-align: center; }
+
+  .opened__body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    min-height: 0;
+  }
+
+  .doors {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    display: flex;
+    pointer-events: none;
+  }
+
+  .door {
+    width: 50%;
+    height: 100%;
+    background: var(--door);
+    border-right: 1px solid var(--plaque-lo);
+    box-shadow: inset 0 0 60px rgba(0, 0, 0, .35);
+    position: relative;
+  }
+
+  .door::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 26px;
+    height: 26px;
+    margin-top: -13px;
+    border-radius: 999px;
+    border: 3px solid var(--amber);
+    opacity: .55;
+  }
+
+  .door--l::after { right: -13px; }
+  .door--r::after { left: -13px; }
+  .door--l { animation: doorL .75s cubic-bezier(.55, .06, .28, 1) both; }
+  .door--r { animation: doorR .75s cubic-bezier(.55, .06, .28, 1) both; }
+
+  @keyframes doorL {
+    0% { transform: translateX(0); }
+    12% { transform: translateX(2%); }
+    100% { transform: translateX(-102%); }
+  }
+
+  @keyframes doorR {
+    0% { transform: translateX(0); }
+    12% { transform: translateX(-2%); }
+    100% { transform: translateX(102%); }
+  }
+
+  .opened__kicker {
+    margin: 0 0 14px;
+    font-size: 11.5px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .wordreveal {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 1px;
+    margin-bottom: 26px;
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: .03em;
+    color: var(--gold);
+    text-transform: uppercase;
+    text-shadow: 0 0 26px var(--amber-soft);
+  }
+
+  .wordreveal span {
+    animation: riseIn .42s ease both;
+  }
+
+  .is-sealed .wordreveal { color: var(--muted); text-shadow: none; }
+
+  @keyframes riseIn {
+    0% { opacity: 0; transform: translateY(14px) scale(.9); }
+    100% { opacity: 1; transform: none; }
+  }
+
+  .prize {
+    position: relative;
+    display: inline-flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    margin: 0 auto 8px;
+  }
+
+  .prize__num {
+    font-size: 62px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -.03em;
+    color: var(--amber);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .is-sealed .prize__num { color: var(--muted); }
+
+  .prize__unit {
+    font-size: 12px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .sparks { position: absolute; inset: -18px -30px; pointer-events: none; }
+
+  .sparks i {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--gold);
+    opacity: 0;
+    animation: spark .9s ease-out both;
+  }
+
+  @keyframes spark {
+    0% { opacity: 0; transform: scale(.2); }
+    30% { opacity: 1; }
+    100% { opacity: 0; transform: scale(1) translate(var(--dx), var(--dy)); }
+  }
+
+  .opened__meta {
+    margin: 0 0 22px;
+    font-size: 14.5px;
+    color: var(--muted);
+  }
+
+  .opened__meta b { color: var(--text); font-weight: 650; }
+
+  .runtotal {
+    margin: 0 auto 26px;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: var(--plaque);
+    border: 1px solid var(--rule);
+    font-size: 13px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .runtotal b {
+    font-size: 19px;
+    letter-spacing: -.01em;
+    text-transform: none;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .opened__foot { flex: none; padding-top: 8px; }
+
+  /* ---- summary -------------------------------------------------------- */
+  .summary { justify-content: flex-start; }
+
+  .summary__head {
+    text-align: center;
+    padding: 22px 0 20px;
+    margin-top: 34px;
+    border-radius: 18px;
+    background: var(--plaque);
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow);
+  }
+
+  .summary__kicker {
+    margin: 0 0 6px;
+    font-size: 11.5px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .summary__total {
+    font-size: 66px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -.035em;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .summary__grade {
+    margin: 10px 0 0;
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--muted);
+  }
+
+  .stats {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+  }
+
+  .stat {
+    flex: 1;
+    text-align: center;
+    padding: 12px 8px;
+    border-radius: 13px;
+    background: var(--plaque);
+    border: 1px solid var(--rule);
+  }
+
+  .stat b {
+    display: block;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat span {
+    font-size: 10.5px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .summary__list {
+    display: grid;
+    gap: 8px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 14px;
+    border-radius: 13px;
+    background: var(--plaque);
+    border: 1px solid var(--rule);
+  }
+
+  .row.is-best { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber-soft); }
+
+  .row__word {
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .row.is-sealed .row__word { color: var(--faint); text-decoration: line-through; }
+
+  .row__clue {
+    font-size: 10.5px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding: 3px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--rule);
+  }
+
+  .row__best {
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--amber);
+  }
+
+  .row__prize {
+    margin-left: auto;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .row.is-sealed .row__prize { color: var(--faint); }
+
+  .summary__foot { margin-top: auto; padding-top: 22px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+
+<div class="app">
+
+  <!-- APP MARKUP -->
+
+  <!-- ============================ intro ============================ -->
+  <section class="screen intro is-active" data-screen="intro">
+    <div class="intro__mark"><span></span></div>
+    <h1 class="intro__title serif">Vault Word</h1>
+    <p class="intro__sub">Père Fouras has locked five words in the vault. He will not make it easy.</p>
+    <ul class="intro__rules">
+      <li><i>&#128220;</i><div>Four clues per word &mdash; <b>the first is a riddle</b>, the last is the stone giving up letters.</div></li>
+      <li><i>&#9203;</i><div>Twenty seconds a clue. <b>Treasure drains</b> while you think.</div></li>
+      <li><i>&#128293;</i><div><b>Ask Fouras</b> to skip ahead for 15 treasure.</div></li>
+    </ul>
+    <button class="btn btn--block" id="startBtn">Enter the Vault</button>
+  </section>
+
+  <!-- ============================ vault ============================ -->
+  <section class="screen" data-screen="vault">
+    <header class="hud">
+      <div class="hud__row">
+        <span class="hud__spacer"></span>
+        <span class="hud__label">Treasure</span>
+        <span class="hud__value" id="potValue">100</span>
+        <span class="hud__round" id="roundLabel">Word 1 / 5</span>
+      </div>
+      <div class="meterwrap">
+        <div class="meter" id="meter"></div>
+      </div>
+    </header>
+
+    <div class="stage">
+      <div class="tiles" id="tiles"></div>
+
+      <div class="clue">
+        <div class="clue__meta">
+          <span class="clue__stage" id="clueStage">Clue <b>1</b> of 4 &middot; The Riddle</span>
+          <div class="ring" id="ring">
+            <svg viewBox="0 0 44 44" aria-hidden="true">
+              <circle class="ring__track" cx="22" cy="22" r="18"></circle>
+              <circle class="ring__arc" id="ringArc" cx="22" cy="22" r="18"></circle>
+            </svg>
+            <span class="ring__num" id="ringNum">20</span>
+          </div>
+        </div>
+
+        <div class="plaque">
+          <p class="plaque__text" id="clueText"></p>
+          <div class="cage" id="cage"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        </div>
+
+        <div class="verdict" id="verdict"></div>
+      </div>
+    </div>
+
+    <div class="pad">
+      <div class="kb" id="kb"></div>
+      <div class="actions">
+        <button class="btn btn--ghost" id="foursaBtn">&#128293; Fouras<em>&minus;15</em></button>
+        <button class="btn" id="guessBtn" disabled>Guess</button>
+        <button class="btn btn--ghost" id="delBtn" aria-label="Delete">&#9003;</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================= vault opened ========================= -->
+  <section class="screen opened" data-screen="opened">
+    <div class="opened__body">
+      <p class="opened__kicker" id="openedKicker">The vault opens</p>
+      <div class="wordreveal" id="openedWord"></div>
+      <div class="prize">
+        <span class="prize__num" id="openedPrize">+0</span>
+        <span class="prize__unit">treasure</span>
+        <div class="sparks" id="sparks"></div>
+      </div>
+      <p class="opened__meta" id="openedMeta"></p>
+      <div class="runtotal">Total <b id="openedTotal">0</b></div>
+    </div>
+    <div class="opened__foot">
+      <button class="btn btn--block" id="nextBtn">Next Word</button>
+    </div>
+  </section>
+
+  <!-- ============================ summary =========================== -->
+  <section class="screen summary" data-screen="summary">
+    <div class="summary__head">
+      <p class="summary__kicker">Treasure recovered</p>
+      <div class="summary__total" id="sumTotal">0</div>
+      <p class="summary__grade serif" id="sumGrade"></p>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="sumSolved">0 / 5</b><span>vaults opened</span></div>
+      <div class="stat"><b id="sumClue">&mdash;</b><span>avg clue used</span></div>
+    </div>
+    <ul class="summary__list" id="sumList"></ul>
+    <div class="summary__foot">
+      <button class="btn btn--block" id="againBtn">Play Again</button>
+    </div>
+  </section>
+
+  <!-- /APP MARKUP -->
+
+</div>
+
+<script>
+  // APP LOGIC
+
+  /* ------------------------------------------------------------------ *
+   * Data — five words, four clues each, hardest first. Clue 4 is not a
+   * sentence but the stone itself relenting: `reveal` marks the letters
+   * that get locked into the tiles.
+   * ------------------------------------------------------------------ */
+  var WORDS = [
+    {
+      word: 'LIGHTHOUSE',
+      reveal: '_IGHTHOUSE',
+      clues: [
+        'I stand where land gives up and gives way, and my one eye never sleeps.',
+        'Sailors trust my silence more than my light, for it means the storm has passed me by.',
+        'I am not a house for sleeping, though I share half a house’s name.'
+      ]
+    },
+    {
+      word: 'HOURGLASS',
+      reveal: 'HOUR_LASS',
+      clues: [
+        'I am upside down and pray for the fall, though I own no faith.',
+        'Give me a turn and I will judge how long you took.',
+        'Break me and time itself spills onto the floor.'
+      ]
+    },
+    {
+      word: 'PARROT',
+      reveal: 'PARR_T',
+      clues: [
+        'I wear your words but none of your meaning.',
+        'A pirate’s shoulder is my throne, and mimicry my crown.',
+        'I repeat what I hear, though I understand nothing I say.'
+      ]
+    },
+    {
+      word: 'ANCHOR',
+      reveal: 'ANCH_R',
+      clues: [
+        'I hold the ship still while pretending to be its prisoner.',
+        'Drop me and the sea forgets to carry you away.',
+        'I share my name with what steadies a nervous heart.'
+      ]
+    },
+    {
+      word: 'CANDLE',
+      reveal: 'CAND_E',
+      clues: [
+        'I die a little every time I help you see.',
+        'Blow on me once in kindness, once in cruelty — the result is the same.',
+        'Wax is my body, fire my soul, and I burn to give it away.'
+      ]
+    }
+  ];
+
+  var STONE_LINE = 'Père Fouras turns his back. The stone gives up all but what you must find.';
+
+  var STAGE_NAMES = ['The Riddle', 'The Second Riddle', 'The Wordplay', 'The Stone Relents'];
+
+  var POT_START = 100;      // treasure in the pot at the start of a word
+  var CLUE_SECONDS = 20;    // countdown per clue
+  var DRAIN_EVERY = 2;      // seconds per 1 treasure lost to the clock
+  var ADVANCE_COST = 10;    // clue revealed by a wrong guess or a timeout
+  var FOURAS_COST = 15;     // clue bought early
+  var MIN_AWARD = 5;        // a solve always pays something
+  var SEGMENTS = 10;
+
+  /* ------------------------------------------------------------------ *
+   * State
+   * ------------------------------------------------------------------ */
+  var st = {
+    round: 0,
+    stage: 0,
+    pot: POT_START,
+    total: 0,
+    typed: [],
+    locked: [],
+    left: CLUE_SECONDS,
+    ticks: 0,
+    timer: null,
+    busy: false,
+    results: []
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var screens = document.querySelectorAll('.screen');
+
+  var RING_R = 18;
+  var RING_C = 2 * Math.PI * RING_R;
+
+  /* ------------------------------------------------------------------ *
+   * Screens
+   * ------------------------------------------------------------------ */
+  function setScreen(name) {
+    for (var i = 0; i < screens.length; i++) {
+      screens[i].classList.toggle('is-active', screens[i].dataset.screen === name);
+    }
+    window.scrollTo(0, 0);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Meter + ring
+   * ------------------------------------------------------------------ */
+  function buildMeter() {
+    var html = '';
+    for (var i = 0; i < SEGMENTS; i++) {
+      html += '<span class="meter__seg"><b class="meter__fill"></b></span>';
+    }
+    $('meter').innerHTML = html;
+  }
+
+  function renderPot() {
+    var per = POT_START / SEGMENTS;
+    var fills = $('meter').querySelectorAll('.meter__fill');
+    for (var i = 0; i < fills.length; i++) {
+      var f = Math.max(0, Math.min(1, (st.pot - i * per) / per));
+      fills[i].style.transform = 'scaleX(' + f + ')';
+    }
+    $('meter').classList.toggle('is-low', st.pot <= 30);
+    $('potValue').textContent = st.pot;
+  }
+
+  function renderRing() {
+    var arc = $('ringArc');
+    arc.style.strokeDasharray = RING_C;
+    arc.style.strokeDashoffset = RING_C * (1 - st.left / CLUE_SECONDS);
+    $('ringNum').textContent = st.left;
+    $('ring').classList.toggle('is-low', st.left <= 5);
+  }
+
+  function resetRing() {
+    var arc = $('ringArc');
+    arc.style.transition = 'none';
+    st.left = CLUE_SECONDS;
+    renderRing();
+    // Force a reflow so the next change animates from full again.
+    void arc.getBoundingClientRect();
+    arc.style.transition = '';
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Tiles
+   * ------------------------------------------------------------------ */
+  function current() { return WORDS[st.round]; }
+
+  function renderTiles() {
+    var word = current().word;
+    var box = $('tiles');
+    var avail = Math.min(box.clientWidth || 358, 358);
+    var size = Math.max(24, Math.min(46, Math.floor((avail - (word.length - 1) * 6) / word.length)));
+    box.style.setProperty('--tile-w', size + 'px');
+
+    var html = '';
+    var t = 0;
+    for (var i = 0; i < word.length; i++) {
+      if (st.locked[i]) {
+        html += '<div class="tile is-locked">' + word[i] + '</div>';
+      } else if (st.typed[t] !== undefined && st.typed[t] !== null) {
+        html += '<div class="tile is-typed">' + st.typed[t] + '</div>';
+        t++;
+      } else {
+        html += '<div class="tile is-empty"></div>';
+        t++;
+      }
+    }
+    box.innerHTML = html;
+
+    $('guessBtn').disabled = st.typed.length !== openSlots();
+  }
+
+  function openSlots() {
+    var n = 0;
+    for (var i = 0; i < current().word.length; i++) { if (!st.locked[i]) n++; }
+    return n;
+  }
+
+  function assembled() {
+    var word = current().word;
+    var out = '';
+    var t = 0;
+    for (var i = 0; i < word.length; i++) {
+      if (st.locked[i]) { out += word[i]; }
+      else { out += (st.typed[t] || '?'); t++; }
+    }
+    return out;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Keyboard
+   * ------------------------------------------------------------------ */
+  function buildKeyboard() {
+    var rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+    var html = '';
+    for (var r = 0; r < rows.length; r++) {
+      html += '<div class="kb__row">';
+      for (var i = 0; i < rows[r].length; i++) {
+        html += '<button class="key" data-k="' + rows[r][i] + '">' + rows[r][i] + '</button>';
+      }
+      html += '</div>';
+    }
+    $('kb').innerHTML = html;
+    $('kb').addEventListener('click', function (e) {
+      var k = e.target.closest('.key');
+      if (k) { typeLetter(k.dataset.k); }
+    });
+  }
+
+  function typeLetter(ch) {
+    if (st.busy || st.typed.length >= openSlots()) { return; }
+    st.typed.push(ch);
+    clearVerdict();
+    renderTiles();
+  }
+
+  function backspace() {
+    if (st.busy || !st.typed.length) { return; }
+    st.typed.pop();
+    clearVerdict();
+    renderTiles();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Clue flow
+   * ------------------------------------------------------------------ */
+  function clueTextFor(stage) {
+    return stage === 3 ? STONE_LINE : current().clues[stage];
+  }
+
+  function renderClue(animate) {
+    var label = 'Clue <b>' + (st.stage + 1) + '</b> of 4 &middot; ' + STAGE_NAMES[st.stage];
+    $('clueStage').innerHTML = label;
+
+    if (!animate) {
+      $('clueText').textContent = clueTextFor(st.stage);
+      return;
+    }
+
+    // 400ms in-place transition: text crumbles out, cage bars sweep, new text fades in.
+    var txt = $('clueText');
+    var cage = $('cage');
+    txt.classList.add('is-out');
+    cage.classList.remove('is-sweeping');
+    void cage.offsetWidth;
+    cage.classList.add('is-sweeping');
+    window.setTimeout(function () {
+      txt.textContent = clueTextFor(st.stage);
+      txt.classList.remove('is-out');
+    }, 190);
+    window.setTimeout(function () { cage.classList.remove('is-sweeping'); }, 420);
+  }
+
+  function showVerdict(msg, tone) {
+    $('verdict').textContent = msg;
+    $('verdict').classList.add('is-on');
+    $('verdict').classList.toggle('is-note', tone === 'note');
+  }
+
+  function clearVerdict() {
+    $('verdict').classList.remove('is-on');
+  }
+
+  function spend(n) {
+    st.pot = Math.max(0, st.pot - n);
+    renderPot();
+  }
+
+  function advanceClue(cost, note, tone) {
+    if (st.stage >= 3) { return false; }
+    st.busy = true;
+    spend(cost);
+    st.stage++;
+
+    if (st.stage === 3) {
+      // The stone relents: lock every letter the reveal pattern gives away.
+      var pat = current().reveal;
+      st.locked = [];
+      for (var i = 0; i < pat.length; i++) { st.locked.push(pat[i] !== '_'); }
+      st.typed = [];
+    }
+
+    renderClue(true);
+    if (note) { showVerdict(note, tone); }
+    window.setTimeout(function () {
+      renderTiles();
+      st.busy = false;
+    }, 200);
+
+    resetRing();
+    return true;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Timer
+   * ------------------------------------------------------------------ */
+  function startTimer() {
+    stopTimer();
+    st.ticks = 0;
+    resetRing();
+    st.timer = window.setInterval(onTick, 1000);
+  }
+
+  function stopTimer() {
+    if (st.timer) { window.clearInterval(st.timer); st.timer = null; }
+  }
+
+  function onTick() {
+    st.ticks++;
+    st.left--;
+    if (st.ticks % DRAIN_EVERY === 0) { spend(1); }
+    renderRing();
+
+    if (st.left <= 0) {
+      if (st.stage < 3) {
+        advanceClue(ADVANCE_COST, 'Time up — Fouras relents a little', 'note');
+        st.ticks = 0;
+      } else {
+        stopTimer();
+        finishRound(false, null);
+      }
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Guessing
+   * ------------------------------------------------------------------ */
+  function submitGuess() {
+    if (st.busy || st.typed.length !== openSlots()) { return; }
+    var guess = assembled();
+
+    if (guess === current().word) {
+      stopTimer();
+      finishRound(true, st.stage + 1);
+      return;
+    }
+
+    var tiles = $('tiles');
+    tiles.classList.add('is-wrong');
+    window.setTimeout(function () { tiles.classList.remove('is-wrong'); }, 400);
+
+    if (st.stage < 3) {
+      st.typed = [];
+      advanceClue(ADVANCE_COST, 'Wrong — the next clue costs you 10');
+      st.ticks = 0;
+    } else {
+      spend(ADVANCE_COST);
+      st.typed = [];
+      renderTiles();
+      showVerdict('Wrong — and there are no clues left');
+    }
+  }
+
+  function askFouras() {
+    if (st.busy) { return; }
+    if (st.stage >= 3) {
+      showVerdict('Fouras has nothing left to give', 'note');
+      return;
+    }
+    st.typed = [];
+    advanceClue(FOURAS_COST, 'Fouras speaks — 15 treasure lighter', 'note');
+    st.ticks = 0;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Round result
+   * ------------------------------------------------------------------ */
+  function finishRound(solved, clueNo) {
+    stopTimer();
+    st.busy = true;
+
+    var award = solved ? Math.max(MIN_AWARD, st.pot) : 0;
+    st.total += award;
+    st.results.push({ word: current().word, solved: solved, clue: clueNo, prize: award });
+
+    var opened = document.querySelector('[data-screen="opened"]');
+    opened.classList.toggle('is-sealed', !solved);
+
+    $('openedKicker').textContent = solved ? 'The vault opens' : 'The vault stays shut';
+
+    var word = current().word;
+    var html = '';
+    for (var i = 0; i < word.length; i++) {
+      html += '<span style="animation-delay:' + (i * 45 + (solved ? 480 : 0)) + 'ms">' + word[i] + '</span>';
+    }
+    $('openedWord').innerHTML = html;
+
+    $('openedPrize').textContent = solved ? '+' + award : '0';
+    $('openedMeta').innerHTML = solved
+      ? 'Solved on <b>Clue ' + clueNo + '</b> of 4'
+      : 'The clock ran out on <b>Clue 4</b>';
+    $('openedTotal').textContent = st.total;
+    $('nextBtn').textContent = st.round === WORDS.length - 1 ? 'See the Haul' : 'Next Word';
+
+    setScreen('opened');
+    if (solved) { openDoors(); sparkle(); }
+    st.busy = false;
+  }
+
+  function openDoors() {
+    var doors = document.createElement('div');
+    doors.className = 'doors';
+    doors.innerHTML = '<div class="door door--l"></div><div class="door door--r"></div>';
+    document.body.appendChild(doors);
+    window.setTimeout(function () {
+      if (doors.parentNode) { doors.parentNode.removeChild(doors); }
+    }, 820);
+  }
+
+  function sparkle() {
+    var box = $('sparks');
+    var html = '';
+    for (var i = 0; i < 10; i++) {
+      var a = (i / 10) * Math.PI * 2;
+      var dx = Math.round(Math.cos(a) * 46);
+      var dy = Math.round(Math.sin(a) * 34);
+      html += '<i style="left:50%;top:50%;--dx:' + dx + 'px;--dy:' + dy + 'px;animation-delay:' + (520 + i * 35) + 'ms"></i>';
+    }
+    box.innerHTML = html;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Rounds and summary
+   * ------------------------------------------------------------------ */
+  function startRound() {
+    st.stage = 0;
+    st.pot = POT_START;
+    st.typed = [];
+    st.locked = [];
+    st.busy = false;
+
+    $('roundLabel').textContent = 'Word ' + (st.round + 1) + ' / ' + WORDS.length;
+    clearVerdict();
+    renderPot();
+    renderClue(false);
+    setScreen('vault');
+    renderTiles();
+    startTimer();
+  }
+
+  function nextWord() {
+    st.round++;
+    if (st.round >= WORDS.length) { showSummary(); return; }
+    startRound();
+  }
+
+  function showSummary() {
+    $('sumTotal').textContent = st.total;
+
+    var best = -1;
+    var solved = 0;
+    var clueSum = 0;
+    for (var i = 0; i < st.results.length; i++) {
+      if (best < 0 || st.results[i].prize > st.results[best].prize) { best = i; }
+      if (st.results[i].solved) { solved++; clueSum += st.results[i].clue; }
+    }
+
+    $('sumSolved').textContent = solved + ' / ' + WORDS.length;
+    $('sumClue').textContent = solved ? (clueSum / solved).toFixed(1) : '—';
+
+    var html = '';
+    for (var j = 0; j < st.results.length; j++) {
+      var r = st.results[j];
+      var isBest = j === best && r.prize > 0;
+      html += '<li class="row' + (isBest ? ' is-best' : '') + (r.solved ? '' : ' is-sealed') + '">' +
+        '<span class="row__word">' + r.word + '</span>' +
+        '<span class="row__clue">' + (r.solved ? 'Clue ' + r.clue : 'Sealed') + '</span>' +
+        (isBest ? '<span class="row__best">Best</span>' : '') +
+        '<span class="row__prize">' + (r.solved ? '+' + r.prize : '0') + '</span>' +
+        '</li>';
+    }
+    $('sumList').innerHTML = html;
+
+    var grade = st.total >= 380 ? 'Fouras is furious. You emptied the vault.'
+      : st.total >= 250 ? 'A fine haul. The old man tips his hat.'
+      : st.total >= 120 ? 'You leave heavier than you came. Barely.'
+      : 'The riddles kept their gold this time.';
+    $('sumGrade').textContent = grade;
+
+    setScreen('summary');
+  }
+
+  function newGame() {
+    st.round = 0;
+    st.total = 0;
+    st.results = [];
+    startRound();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Wiring
+   * ------------------------------------------------------------------ */
+  buildMeter();
+  buildKeyboard();
+
+  $('startBtn').addEventListener('click', newGame);
+  $('guessBtn').addEventListener('click', submitGuess);
+  $('delBtn').addEventListener('click', backspace);
+  $('foursaBtn').addEventListener('click', askFouras);
+  $('nextBtn').addEventListener('click', nextWord);
+  $('againBtn').addEventListener('click', newGame);
+
+  // Hardware keyboard, for anyone poking at this on a laptop.
+  document.addEventListener('keydown', function (e) {
+    if (!document.querySelector('[data-screen="vault"]').classList.contains('is-active')) { return; }
+    if (e.key === 'Backspace') { e.preventDefault(); backspace(); return; }
+    if (e.key === 'Enter') { e.preventDefault(); submitGuess(); return; }
+    if (/^[a-zA-Z]$/.test(e.key)) { typeLetter(e.key.toUpperCase()); }
+  });
+
+  window.addEventListener('resize', function () {
+    if (document.querySelector('[data-screen="vault"]').classList.contains('is-active')) { renderTiles(); }
+  });
+
+  // /APP LOGIC
+</script>
+
+</body>
+</html>
