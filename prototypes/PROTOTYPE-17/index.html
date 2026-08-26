@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Rungs — Start Workout</title>
+<style>
+  :root {
+    --g1: #ffffff;
+    --g2: #e9e9ec;
+    --g3: #d2d2d8;
+    --ink: #101014;
+    --ink-inv: #ffffff;
+    --muted: rgba(16, 16, 20, .52);
+    --faint: rgba(16, 16, 20, .30);
+    --glass: rgba(255, 255, 255, .58);
+    --glass-strong: rgba(255, 255, 255, .78);
+    --hair: rgba(16, 16, 20, .12);
+    --hair-soft: rgba(255, 255, 255, .75);
+    --shadow: 0 1px 1px rgba(16, 16, 20, .04), 0 18px 40px rgba(16, 16, 20, .10);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --g1: #17171b;
+      --g2: #0d0d10;
+      --g3: #000000;
+      --ink: #f4f4f6;
+      --ink-inv: #0b0b0e;
+      --muted: rgba(244, 244, 246, .54);
+      --faint: rgba(244, 244, 246, .28);
+      --glass: rgba(255, 255, 255, .07);
+      --glass-strong: rgba(255, 255, 255, .11);
+      --hair: rgba(255, 255, 255, .14);
+      --hair-soft: rgba(255, 255, 255, .07);
+      --shadow: 0 1px 1px rgba(0, 0, 0, .5), 0 18px 40px rgba(0, 0, 0, .55);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    color: var(--ink);
+    background: var(--g2);
+    background-image:
+      radial-gradient(120% 70% at 15% -10%, var(--g1) 0%, transparent 60%),
+      radial-gradient(100% 60% at 90% 8%, var(--g1) 0%, transparent 55%),
+      linear-gradient(170deg, var(--g1) 0%, var(--g2) 46%, var(--g3) 100%);
+    background-attachment: fixed;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 12px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 16px)
+      calc(env(safe-area-inset-left) + 16px);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--hair);
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .app__title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 680;
+    letter-spacing: .01em;
+  }
+
+  .app__sub {
+    margin-left: auto;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .10em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  .app__body { flex: 1; display: flex; flex-direction: column; }
+
+  /* ---- glass surfaces ---- */
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--hair);
+    border-top-color: var(--hair-soft);
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    backdrop-filter: blur(24px) saturate(150%);
+    padding: 20px;
+  }
+
+  .view { display: none; flex: 1; flex-direction: column; }
+  .view.is-on { display: flex; animation: rise .28s ease both; }
+
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  .eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin: 0 0 12px 2px;
+  }
+
+  /* ---- home ---- */
+  .lift + .lift { margin-top: 16px; }
+
+  .lift__top {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .lift__name {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 660;
+    letter-spacing: -.01em;
+  }
+
+  .rung {
+    margin-left: auto;
+    flex: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border: 1px solid var(--hair);
+    border-radius: 999px;
+    padding: 4px 10px;
+  }
+
+  .lift__meta {
+    font-size: 14px;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  .btn {
+    appearance: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    border: 0;
+    border-radius: 16px;
+    background: var(--ink);
+    color: var(--ink-inv);
+    font: inherit;
+    font-size: 16px;
+    font-weight: 640;
+    letter-spacing: .01em;
+    min-height: 56px;
+    padding: 0 20px;
+    cursor: pointer;
+  }
+
+  .btn:active { transform: scale(.985); opacity: .9; }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--hair);
+  }
+
+  .ladder {
+    display: flex;
+    gap: 5px;
+    margin-bottom: 14px;
+  }
+
+  .ladder i {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    border: 1px dashed var(--faint);
+    background: transparent;
+  }
+
+  .ladder i.is-done { border: 1px solid var(--ink); background: var(--ink); }
+
+  /* ---- session ---- */
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: center;
+    padding: 28px 20px 24px;
+  }
+
+  .setbar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  .setbar i {
+    flex: 1;
+    height: 8px;
+    border-radius: 999px;
+    border: 1px dashed var(--faint);
+    background: transparent;
+    transition: background .3s ease, border-color .3s ease;
+  }
+
+  .setbar i.is-now  { border: 1px solid var(--ink); background: var(--ink); }
+  .setbar i.is-done { border: 2px solid var(--ink); background: transparent; }
+
+  .counter {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .weight {
+    font-size: 76px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: -.045em;
+    margin: 14px 0 0;
+  }
+
+  .weight span {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    color: var(--muted);
+    margin-left: 4px;
+  }
+
+  .reps {
+    font-size: 44px;
+    line-height: 1;
+    font-weight: 640;
+    letter-spacing: -.03em;
+    margin: 10px 0 0;
+  }
+
+  .reps span {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--muted);
+    letter-spacing: 0;
+    margin-left: 6px;
+  }
+
+  .hint {
+    font-size: 13px;
+    color: var(--faint);
+    margin: 16px 0 0;
+  }
+
+  .check {
+    appearance: none;
+    display: block;
+    width: 132px;
+    height: 132px;
+    margin: 30px auto 0;
+    border-radius: 999px;
+    border: 0;
+    background: var(--ink);
+    color: var(--ink-inv);
+    cursor: pointer;
+    position: relative;
+    box-shadow: 0 10px 30px rgba(16, 16, 20, .22);
+  }
+
+  .check:active { transform: scale(.95); }
+
+  .check::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 42px;
+    height: 22px;
+    margin: -16px 0 0 -21px;
+    border-left: 5px solid currentColor;
+    border-bottom: 5px solid currentColor;
+    border-radius: 2px;
+    transform: rotate(-45deg);
+  }
+
+  /* ---- rest ---- */
+  .ring {
+    position: relative;
+    width: 232px;
+    height: 232px;
+    margin: 4px auto 0;
+  }
+
+  .ring svg { width: 100%; height: 100%; transform: rotate(-90deg); display: block; }
+
+  .ring__track {
+    fill: none;
+    stroke: var(--faint);
+    stroke-width: 3;
+    stroke-dasharray: 2 7;
+    stroke-linecap: round;
+  }
+
+  .ring__fill {
+    fill: none;
+    stroke: var(--ink);
+    stroke-width: 8;
+    stroke-linecap: round;
+  }
+
+  .ring__mid {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .clock {
+    font-size: 54px;
+    line-height: 1;
+    font-weight: 680;
+    letter-spacing: -.035em;
+  }
+
+  .next {
+    font-size: 14px;
+    color: var(--muted);
+    margin: 22px 0 0;
+  }
+
+  .next b { color: var(--ink); font-weight: 640; }
+
+  .skip {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    color: var(--ink);
+    font: inherit;
+    font-weight: 640;
+    font-size: 16px;
+    text-decoration: underline;
+    text-underline-offset: 5px;
+    text-decoration-thickness: 1.5px;
+    min-height: 56px;
+    padding: 0 24px;
+    margin: 10px auto 0;
+    display: block;
+    cursor: pointer;
+  }
+
+  .skip:active { opacity: .55; }
+
+  /* ---- complete ---- */
+  .seal {
+    width: 92px;
+    height: 92px;
+    margin: 0 auto 22px;
+    border-radius: 999px;
+    border: 4px solid var(--ink);
+    position: relative;
+  }
+
+  .seal::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 34px;
+    height: 18px;
+    margin: -13px 0 0 -17px;
+    border-left: 5px solid var(--ink);
+    border-bottom: 5px solid var(--ink);
+    border-radius: 2px;
+    transform: rotate(-45deg);
+  }
+
+  .done-title {
+    font-size: 28px;
+    font-weight: 680;
+    letter-spacing: -.025em;
+    margin: 0 0 6px;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    margin: 28px 0 0;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--hair);
+  }
+
+  .stat {
+    background: var(--glass-strong);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    padding: 16px 6px;
+  }
+
+  .stat b {
+    display: block;
+    font-size: 30px;
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: -.03em;
+  }
+
+  .stat b i {
+    font-style: normal;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    margin-left: 2px;
+  }
+
+  .stat span {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-top: 4px;
+  }
+
+  .foot { margin-top: 20px; }
+
+  /* the 0:00 flash — visual only, no audio */
+  .flash {
+    position: fixed;
+    inset: 0;
+    background: var(--ink);
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9;
+  }
+
+  .flash.is-on { animation: blink .5s ease both; }
+
+  @keyframes blink {
+    0%   { opacity: 0; }
+    18%  { opacity: .34; }
+    100% { opacity: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .view.is-on, .flash.is-on { animation: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="flash" id="flash"></div>
+
+<div class="app">
+  <header class="app__header">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="app__title">Rungs</h1>
+    <span class="app__sub" id="crumb">Lifts</span>
+  </header>
+
+  <main class="app__body">
+
+    <!-- APP MARKUP -->
+
+    <!-- Home -->
+    <section class="view is-on" id="v-home">
+      <p class="eyebrow">Today</p>
+      <div id="lifts"></div>
+      <p class="hint" style="text-align:center;margin-top:auto;padding-top:24px">
+        Nine rungs at one weight, then the weight goes up.
+      </p>
+    </section>
+
+    <!-- Session -->
+    <section class="view" id="v-session">
+      <div class="card stage">
+        <div class="setbar" id="setbar"></div>
+
+        <!-- work state -->
+        <div id="work">
+          <p class="counter num" id="counter">Set 1 of 4</p>
+          <p class="weight num" id="weight">24<span>kg</span></p>
+          <p class="reps num" id="reps">&times; 5<span>reps</span></p>
+          <button class="check" id="check" aria-label="Mark this set done"></button>
+          <p class="hint">Tap when the set is done</p>
+        </div>
+
+        <!-- rest state -->
+        <div id="rest" hidden>
+          <p class="counter">Rest</p>
+          <div class="ring">
+            <svg viewBox="0 0 232 232" aria-hidden="true">
+              <circle class="ring__track" cx="116" cy="116" r="104"></circle>
+              <circle class="ring__fill" id="arc" cx="116" cy="116" r="104"></circle>
+            </svg>
+            <div class="ring__mid">
+              <span class="clock num" id="clock">2:30</span>
+            </div>
+          </div>
+          <p class="next num" id="next">Next &middot; <b>Set 2 of 4</b> &middot; 24 kg &times; 5</p>
+          <button class="skip" id="skip">Skip Rest</button>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn btn--ghost" id="quit">End session</button>
+      </div>
+    </section>
+
+    <!-- Complete -->
+    <section class="view" id="v-done">
+      <div class="card stage">
+        <div class="seal"></div>
+        <h2 class="done-title" id="done-lift">Weighted Pull-Up</h2>
+        <p class="hint" style="margin:0">Rung <span id="done-rung">4</span> of 9 cleared</p>
+
+        <div class="stats">
+          <div class="stat"><b class="num" id="s-sets">4</b><span>Sets</span></div>
+          <div class="stat"><b class="num" id="s-reps">18</b><span>Reps</span></div>
+          <div class="stat"><b class="num" id="s-weight">24<i>kg</i></b><span>Weight</span></div>
+        </div>
+      </div>
+
+      <div class="foot">
+        <button class="btn" id="back-lifts">Back to Lifts</button>
+      </div>
+    </section>
+
+    <!-- /APP MARKUP -->
+
+  </main>
+</div>
+
+<script>
+  // APP LOGIC
+
+  // Two hardcoded lifts. A rung is a fixed set/rep prescription at one working
+  // weight; the ladder runs 1..9 before the weight moves up.
+  var LIFTS = [
+    { name: 'Weighted Pull-Up', weight: 24, unit: 'kg', rung: 4, sets: [5, 5, 4, 4] },
+    { name: 'Weighted Dip',     weight: 20, unit: 'kg', rung: 3, sets: [6, 5, 5] }
+  ];
+
+  var REST = 150;            // 2:30, fixed
+  var LADDER = 9;
+
+  var el = function (id) { return document.getElementById(id); };
+
+  var lift = null;           // the lift being worked
+  var idx = 0;               // index of the current set
+  var resting = false;
+  var endsAt = 0;            // timestamp the rest ends at
+  var ticker = null;
+
+  var ARC = 2 * Math.PI * 104;
+  el('arc').style.strokeDasharray = ARC.toFixed(2);
+
+  /* ---------- home ---------- */
+
+  function renderHome() {
+    var host = el('lifts');
+    host.innerHTML = '';
+
+    LIFTS.forEach(function (l, i) {
+      var card = document.createElement('div');
+      card.className = 'card lift';
+
+      var rungs = '';
+      for (var r = 1; r <= LADDER; r++) {
+        rungs += '<i class="' + (r <= l.rung ? 'is-done' : '') + '"></i>';
+      }
+
+      card.innerHTML =
+        '<div class="lift__top">' +
+          '<h2 class="lift__name">' + l.name + '</h2>' +
+          '<span class="rung num">Rung ' + l.rung + '/' + LADDER + '</span>' +
+        '</div>' +
+        '<p class="lift__meta num">' + l.weight + ' ' + l.unit + ' &middot; Set 1 of ' + l.sets.length +
+          ' &middot; ' + l.sets.join('/') + ' reps</p>' +
+        '<div class="ladder">' + rungs + '</div>';
+
+      var go = document.createElement('button');
+      go.className = 'btn';
+      go.textContent = 'Start Workout';
+      go.addEventListener('click', function () { startWorkout(i); });
+      card.appendChild(go);
+
+      host.appendChild(card);
+    });
+  }
+
+  /* ---------- view switching ---------- */
+
+  function show(id, crumb) {
+    ['v-home', 'v-session', 'v-done'].forEach(function (v) {
+      el(v).classList.toggle('is-on', v === id);
+    });
+    el('crumb').textContent = crumb;
+  }
+
+  /* ---------- session ---------- */
+
+  function startWorkout(i) {
+    lift = LIFTS[i];
+    idx = 0;
+    resting = false;
+    show('v-session', lift.name);
+    renderSet();
+  }
+
+  function renderSet() {
+    // set-progress bar: dashed = not yet, filled = now, bold outline = done
+    var bar = el('setbar');
+    bar.innerHTML = '';
+    lift.sets.forEach(function (_, s) {
+      var seg = document.createElement('i');
+      if (s < idx) seg.className = 'is-done';
+      else if (s === idx) seg.className = 'is-now';
+      bar.appendChild(seg);
+    });
+
+    el('counter').textContent = 'Set ' + (idx + 1) + ' of ' + lift.sets.length;
+    el('weight').innerHTML = lift.weight + '<span>' + lift.unit + '</span>';
+    el('reps').innerHTML = '&times; ' + lift.sets[idx] + '<span>reps</span>';
+
+    el('work').hidden = false;
+    el('rest').hidden = true;
+  }
+
+  function fmt(s) {
+    var m = Math.floor(s / 60);
+    var r = s % 60;
+    return m + ':' + (r < 10 ? '0' : '') + r;
+  }
+
+  // Checking a set off either starts the rest timer, or — after the last set —
+  // goes straight to the Complete screen.
+  function setDone() {
+    if (resting) return;
+
+    if (idx >= lift.sets.length - 1) {
+      idx = lift.sets.length;
+      finish();
+      return;
+    }
+
+    startRest();
+  }
+
+  function startRest() {
+    resting = true;
+    endsAt = new Date().getTime() + REST * 1000;
+
+    // preview of what is coming, so the rest screen still answers "what next?"
+    var n = idx + 1;
+    el('next').innerHTML =
+      'Next &middot; <b>Set ' + (n + 1) + ' of ' + lift.sets.length + '</b> &middot; ' +
+      lift.weight + ' ' + lift.unit + ' &times; ' + lift.sets[n];
+
+    el('work').hidden = true;
+    el('rest').hidden = false;
+
+    paint(REST);
+    ticker = setInterval(tick, 100);
+  }
+
+  function paint(left) {
+    el('clock').textContent = fmt(Math.max(0, Math.ceil(left)));
+    var frac = Math.max(0, Math.min(1, left / REST));
+    el('arc').style.strokeDashoffset = (ARC * (1 - frac)).toFixed(2);
+  }
+
+  function tick() {
+    var left = (endsAt - new Date().getTime()) / 1000;
+    if (left <= 0) {
+      paint(0);
+      flash();
+      endRest();
+      return;
+    }
+    paint(left);
+  }
+
+  // Skip and 0:00 land in the same place: the next set.
+  function endRest() {
+    if (ticker) { clearInterval(ticker); ticker = null; }
+    resting = false;
+    idx++;
+    renderSet();
+  }
+
+  function flash() {
+    var f = el('flash');
+    f.classList.remove('is-on');
+    void f.offsetWidth;
+    f.classList.add('is-on');
+  }
+
+  /* ---------- complete ---------- */
+
+  function finish() {
+    if (ticker) { clearInterval(ticker); ticker = null; }
+    resting = false;
+
+    var reps = lift.sets.reduce(function (a, b) { return a + b; }, 0);
+    el('done-lift').textContent = lift.name;
+    el('done-rung').textContent = lift.rung;
+    el('s-sets').textContent = lift.sets.length;
+    el('s-reps').textContent = reps;
+    el('s-weight').innerHTML = lift.weight + '<i>' + lift.unit + '</i>';
+
+    show('v-done', 'Complete');
+  }
+
+  function toLifts() {
+    if (ticker) { clearInterval(ticker); ticker = null; }
+    resting = false;
+    lift = null;
+    show('v-home', 'Lifts');
+  }
+
+  el('check').addEventListener('click', setDone);
+  el('skip').addEventListener('click', function () { if (resting) endRest(); });
+  el('quit').addEventListener('click', toLifts);
+  el('back-lifts').addEventListener('click', toLifts);
+
+  renderHome();
+
+  // /APP LOGIC
+</script>
+
+</body>
+</html>

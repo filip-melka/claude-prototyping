@@ -179,6 +179,18 @@
       "createdAt": "2026-08-25",
       "updatedAt": "2026-08-25",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-17",
+      "workItemId": "230dc237-9fdd-44d3-b5fb-3ca4ff830113",
+      "title": "Rungs",
+      "tagline": "The mid-set screen — weight, reps, one big checkbox, and a rest timer that starts itself.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-17/index.html",
+      "version": 1,
+      "createdAt": "2026-08-26",
+      "updatedAt": "2026-08-26",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
