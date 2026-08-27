@@ -1,0 +1,1541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Barge Landing</title>
+<style>
+  /* Night mission-control is the home palette, so it lives on :root and the
+     light scheme is the override — a dawn launch, same instrument layout. */
+  :root {
+    --is-light: 0;
+
+    --sky-0: #020510;
+    --sky-1: #061127;
+    --sky-2: #0a1e3c;
+    --star: rgba(214, 236, 255, 1);
+    --glow: rgba(0, 0, 0, 0);
+
+    --sea-0: #0e3a4f;
+    --sea-1: #041420;
+    --sea-line: rgba(143, 227, 208, .16);
+    --sea-crest: rgba(190, 245, 255, .3);
+
+    --hull: #131c26;
+    --deck: #1d2833;
+    --deck-hi: #2b3a48;
+    --stencil: rgba(143, 227, 208, .38);
+
+    --metal-0: #7f8b95;
+    --metal-1: #f4f7f9;
+    --metal-2: #9aa6b0;
+    --fin: #161b21;
+    --pod: #232b34;
+
+    --mint: #8fe3d0;
+    --mint-dim: rgba(143, 227, 208, .55);
+    --mint-faint: rgba(143, 227, 208, .13);
+    --green: #5ee6a0;
+    --danger: #ff6b4a;
+    /* Same rgb at both ends so the corridor fades out cleanly instead of
+       interpolating through black. */
+    --beam-0: rgba(143, 227, 208, .58);
+    --beam-1: rgba(143, 227, 208, 0);
+
+    --bg: #020510;
+    --panel: rgba(6, 16, 30, .86);
+    --panel-line: rgba(143, 227, 208, .18);
+    --ink: #dff5ee;
+    --ink-dim: #7fa2a0;
+    --chip: rgba(143, 227, 208, .09);
+    --btn-ink: #02120d;
+    --scrim-0: rgba(2, 5, 16, .74);
+    --scrim-1: rgba(2, 5, 16, .97);
+
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --is-light: 1;
+
+      --sky-0: #b9d5ea;
+      --sky-1: #dae9f4;
+      --sky-2: #f6efe4;
+      --star: rgba(255, 255, 255, 0);
+      --glow: rgba(255, 226, 176, .9);
+
+      --sea-0: #79a5bb;
+      --sea-1: #37627a;
+      --sea-line: rgba(255, 255, 255, .34);
+      --sea-crest: rgba(255, 255, 255, .62);
+
+      --hull: #3d4a56;
+      --deck: #5b6b78;
+      --deck-hi: #7a8b98;
+      --stencil: rgba(255, 255, 255, .6);
+
+      --metal-0: #a9b4bd;
+      --metal-1: #ffffff;
+      --metal-2: #c3ccd3;
+      --fin: #2c343c;
+      --pod: #45505b;
+
+      --mint: #0d5f63;
+      --mint-dim: rgba(13, 95, 99, .62);
+      --mint-faint: rgba(13, 95, 99, .12);
+      --green: #0f8f5e;
+      --danger: #d6452a;
+      --beam-0: rgba(13, 95, 99, .5);
+      --beam-1: rgba(13, 95, 99, 0);
+
+      --bg: #eef4f8;
+      --panel: rgba(255, 255, 255, .9);
+      --panel-line: rgba(13, 95, 99, .16);
+      --ink: #0c2b30;
+      --ink-dim: #5c7b7e;
+      --chip: rgba(13, 95, 99, .07);
+      --btn-ink: #ffffff;
+      --scrim-0: rgba(238, 244, 248, .78);
+      --scrim-1: rgba(238, 244, 248, .98);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    height: 100dvh;
+    max-width: 560px;
+    margin: 0 auto;
+    overflow: hidden;
+    background: var(--sky-0);
+  }
+
+  /* The canvas is the control surface in flight, so the browser must not
+     claim the drag for scrolling or the second finger never arrives. */
+  #scene {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    touch-action: none;
+  }
+
+  /* ---------- shared chrome ---------- */
+
+  .back {
+    position: absolute;
+    z-index: 40;
+    top: calc(env(safe-area-inset-top) + 12px);
+    left: calc(env(safe-area-inset-left) + 14px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--panel-line);
+    background: var(--panel);
+    color: var(--mint);
+    text-decoration: none;
+    font-size: 17px;
+    line-height: 1;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  .back:active { transform: scale(.94); }
+
+  .btn {
+    appearance: none;
+    border: 0;
+    width: 100%;
+    border-radius: 16px;
+    background: var(--green);
+    color: var(--btn-ink);
+    font: 600 15px/1 var(--mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    min-height: 56px;
+    padding: 0 20px;
+    cursor: pointer;
+  }
+
+  .btn:active { transform: scale(.985); filter: brightness(.94); }
+
+  .btn--ghost {
+    background: transparent;
+    color: var(--mint);
+    border: 1px solid var(--panel-line);
+    min-height: 48px;
+    font-size: 13px;
+  }
+
+  /* ---------- screens ---------- */
+
+  .screen {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    padding:
+      calc(env(safe-area-inset-top) + 68px)
+      calc(env(safe-area-inset-right) + 20px)
+      calc(env(safe-area-inset-bottom) + 20px)
+      calc(env(safe-area-inset-left) + 20px);
+    background: var(--bg);
+    background: linear-gradient(180deg, var(--scrim-0) 0%, var(--scrim-1) 38%, var(--scrim-1) 100%);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+  }
+
+  .screen[hidden] { display: none; }
+
+  .eyebrow {
+    font: 500 11px/1 var(--mono);
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: var(--mint-dim);
+    margin: 0 0 10px;
+  }
+
+  .title {
+    margin: 0;
+    font: 700 32px/1.04 var(--mono);
+    letter-spacing: -.02em;
+    color: var(--ink);
+  }
+
+  .lede {
+    margin: 8px 0 0;
+    color: var(--ink-dim);
+    font-size: 14.5px;
+    max-width: 30ch;
+  }
+
+  /* ---------- start: control diagram ---------- */
+
+  .diagram {
+    position: relative;
+    margin: 20px auto 4px;
+    width: 176px;
+    height: 190px;
+    flex: none;
+    border-radius: 22px;
+    border: 1px solid var(--panel-line);
+    background: var(--chip);
+    overflow: hidden;
+    display: flex;
+  }
+
+  .diagram__half {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    font: 600 8.5px/1 var(--mono);
+    letter-spacing: .16em;
+    color: var(--mint-dim);
+  }
+
+  .diagram__half + .diagram__half { border-left: 1px dashed var(--panel-line); }
+
+  .diagram__arrow { font-size: 12px; color: var(--mint); }
+
+  .diagram__fill {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 30px;
+    width: 12px;
+    border-radius: 999px;
+    background: var(--mint-faint);
+    height: 108px;
+    overflow: hidden;
+  }
+
+  .diagram__fill i {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: block;
+    background: var(--green);
+    border-radius: 999px;
+  }
+
+  .diagram__rocket {
+    position: absolute;
+    left: 50%;
+    top: 44%;
+    width: 16px;
+    height: 44px;
+    margin-left: -8px;
+    margin-top: -22px;
+    border-radius: 8px 8px 3px 3px;
+    background: linear-gradient(90deg, var(--metal-0), var(--metal-1) 45%, var(--metal-2));
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, .25);
+  }
+
+  .diagram__rocket::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    top: 22px;
+    height: 4px;
+    background: var(--danger);
+  }
+
+  /* ---------- start: gesture rows ---------- */
+
+  .rows {
+    list-style: none;
+    margin: 16px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 13px;
+  }
+
+  .row {
+    display: flex;
+    gap: 13px;
+    align-items: flex-start;
+  }
+
+  .row__icon {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 11px;
+    background: var(--chip);
+    border: 1px solid var(--panel-line);
+    color: var(--mint);
+    font: 600 14px/1 var(--mono);
+  }
+
+  .row__t { margin: 1px 0 2px; font-size: 14.5px; font-weight: 650; color: var(--ink); }
+  .row__s { margin: 0; font-size: 13px; color: var(--ink-dim); line-height: 1.35; }
+
+  .limits {
+    margin: 18px 0 0;
+    padding: 11px 13px;
+    border-radius: 13px;
+    background: var(--chip);
+    border: 1px solid var(--panel-line);
+    font: 500 11.5px/1.6 var(--mono);
+    color: var(--mint-dim);
+    letter-spacing: .04em;
+  }
+
+  .limits b { color: var(--mint); font-weight: 700; }
+
+  .spacer { flex: 1; min-height: 6px; }
+
+  .actions { display: grid; gap: 10px; padding-top: 14px; }
+
+  /* ---------- in-flight HUD ---------- */
+
+  .hud {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  .hud[hidden] { display: none; }
+
+  .telemetry {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 12px);
+    left: calc(env(safe-area-inset-left) + 14px);
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    font: 500 11px/1.55 var(--mono);
+    color: var(--mint);
+    letter-spacing: .02em;
+    min-width: 122px;
+  }
+
+  .telemetry div { display: flex; justify-content: space-between; gap: 12px; }
+  .telemetry span:first-child { color: var(--mint-dim); }
+  .telemetry b { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .telemetry .hot { color: var(--danger); }
+
+  .throttles {
+    position: absolute;
+    top: calc(env(safe-area-inset-top) + 12px);
+    right: calc(env(safe-area-inset-right) + 14px);
+    display: flex;
+    gap: 8px;
+  }
+
+  .thr {
+    min-width: 52px;
+    padding: 8px 9px;
+    border-radius: 12px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    text-align: center;
+    font: 500 10px/1.3 var(--mono);
+    color: var(--mint-dim);
+    letter-spacing: .18em;
+  }
+
+  .thr b {
+    display: block;
+    margin-top: 3px;
+    font: 700 16px/1 var(--mono);
+    letter-spacing: 0;
+    color: var(--mint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Opal-style capsule tracks: fat, filled from the bottom, one per screen
+     half so the fill sits exactly where your thumb is. */
+  .track {
+    position: absolute;
+    top: 26%;
+    bottom: 12%;
+    width: 30px;
+    border-radius: 999px;
+    background: var(--mint-faint);
+    border: 1px solid var(--panel-line);
+    overflow: hidden;
+  }
+
+  .track--l { left: calc(env(safe-area-inset-left) + 8px); }
+  .track--r { right: calc(env(safe-area-inset-right) + 8px); }
+
+  .track__fill {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 0%;
+    background: var(--green);
+    box-shadow: inset 0 7px 14px rgba(255, 255, 255, .3);
+    transition: background .2s;
+  }
+
+  .track__fill::after {
+    content: "";
+    position: absolute;
+    left: 4px; right: 4px; top: 3px;
+    height: 2px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, .75);
+  }
+
+  .track.is-dry .track__fill { background: var(--danger); }
+
+  /* Deliberately not the throttle green: this is a tank reading, not a
+     command, so it gets the mint instrument colour and a ticked track. */
+  .gauge {
+    position: absolute;
+    right: calc(env(safe-area-inset-right) + 44px);
+    bottom: 12%;
+    height: 30%;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .fuel__cap {
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    font: 600 9px/1 var(--mono);
+    letter-spacing: .2em;
+    color: var(--mint-dim);
+    white-space: nowrap;
+  }
+
+  .fuel__cap.is-low { color: var(--danger); }
+
+  .fuel {
+    position: relative;
+    width: 10px;
+    height: 100%;
+    border-radius: 999px;
+    background: var(--mint-faint);
+    border: 1px solid var(--panel-line);
+    overflow: hidden;
+  }
+
+  .fuel__fill {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 100%;
+    background: var(--mint);
+  }
+
+  .fuel.is-low .fuel__fill { background: var(--danger); }
+
+  /* quarter marks straight across the tank */
+  .fuel::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      to top,
+      transparent 0 calc(25% - 1px),
+      var(--panel-line) calc(25% - 1px) 25%);
+  }
+
+  .flash {
+    position: absolute;
+    left: 50%;
+    bottom: 15%;
+    transform: translateX(-50%);
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: var(--danger);
+    color: #14060a;
+    font: 700 11px/1 var(--mono);
+    letter-spacing: .18em;
+    opacity: 0;
+    transition: opacity .2s;
+  }
+
+  .flash.is-on { opacity: 1; animation: blip 1s steps(2, end) infinite; }
+
+  @keyframes blip { 50% { opacity: .35; } }
+
+  /* ---------- end screen ---------- */
+
+  .verdict {
+    margin: 0;
+    font: 800 40px/1 var(--mono);
+    letter-spacing: -.03em;
+  }
+
+  .verdict.ok { color: var(--green); }
+  .verdict.bad { color: var(--danger); }
+
+  .stats {
+    margin: 22px 0 0;
+    display: grid;
+    gap: 9px;
+  }
+
+  /* NBA-style comparison card: every reading is drawn against the limit that
+     judged it, so the row that failed you is obvious at a glance. */
+  .stat {
+    padding: 11px 13px 12px;
+    border-radius: 14px;
+    background: var(--chip);
+    border: 1px solid var(--panel-line);
+  }
+
+  .stat__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .stat__label {
+    font: 500 10px/1 var(--mono);
+    letter-spacing: .19em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  .stat__val {
+    font: 700 16px/1 var(--mono);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat__bar {
+    position: relative;
+    margin-top: 9px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--mint-faint);
+    overflow: hidden;
+  }
+
+  .stat__bar i {
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    border-radius: 999px;
+    background: var(--green);
+  }
+
+  .stat.is-fail .stat__bar i { background: var(--danger); }
+  .stat.is-fail .stat__val { color: var(--danger); }
+
+  .stat__foot {
+    margin-top: 7px;
+    display: flex;
+    justify-content: space-between;
+    font: 500 10px/1 var(--mono);
+    letter-spacing: .1em;
+    color: var(--ink-dim);
+  }
+
+  .stat__tag { color: var(--green); font-weight: 700; }
+  .stat.is-fail .stat__tag { color: var(--danger); }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <canvas id="scene"></canvas>
+
+  <!-- APP MARKUP -->
+
+  <!-- in-flight instruments -->
+  <div class="hud" id="hud" hidden>
+    <div class="telemetry">
+      <div><span>ALT</span><b id="tAlt">—</b></div>
+      <div><span>V&#8209;SPD</span><b id="tV">—</b></div>
+      <div><span>H&#8209;SPD</span><b id="tH">—</b></div>
+      <div><span>TILT</span><b id="tT">—</b></div>
+    </div>
+
+    <div class="throttles">
+      <div class="thr">L<b id="tL">0</b></div>
+      <div class="thr">R<b id="tR">0</b></div>
+    </div>
+
+    <div class="track track--l" id="trkL"><div class="track__fill" id="trkLf"></div></div>
+    <div class="track track--r" id="trkR"><div class="track__fill" id="trkRf"></div></div>
+
+    <div class="gauge">
+      <span class="fuel__cap" id="fuelCap">FUEL</span>
+      <div class="fuel" id="fuel"><div class="fuel__fill" id="fuelFill"></div></div>
+    </div>
+
+    <div class="flash" id="flash">FUEL OUT</div>
+  </div>
+
+  <!-- start -->
+  <section class="screen" id="scStart">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+
+    <p class="eyebrow">Recovery mission 04</p>
+    <h1 class="title">BARGE<br>LANDING</h1>
+    <p class="lede">Two engines, one floating pad, and no second pass. Bring her down soft.</p>
+
+    <div class="diagram" aria-hidden="true">
+      <div class="diagram__half">
+        <span class="diagram__arrow">&#9650;</span>
+        <div class="diagram__fill"><i style="height:62%"></i></div>
+        <span>LEFT</span>
+      </div>
+      <div class="diagram__half">
+        <span class="diagram__arrow">&#9650;</span>
+        <div class="diagram__fill"><i style="height:38%"></i></div>
+        <span>RIGHT</span>
+      </div>
+      <div class="diagram__rocket" style="transform:rotate(9deg)"></div>
+    </div>
+
+    <ul class="rows">
+      <li class="row">
+        <span class="row__icon">&#8597;</span>
+        <div>
+          <p class="row__t">Hold and slide</p>
+          <p class="row__s">Each half of the screen is that engine's throttle. Higher finger, more power. Let go and it cuts out.</p>
+        </div>
+      </li>
+      <li class="row">
+        <span class="row__icon">=</span>
+        <div>
+          <p class="row__t">Matched power slows the fall</p>
+          <p class="row__s">Both engines together fight gravity. About half throttle each holds a hover.</p>
+        </div>
+      </li>
+      <li class="row">
+        <span class="row__icon">&#8635;</span>
+        <div>
+          <p class="row__t">Uneven power turns her</p>
+          <p class="row__s">More on the left tips the nose right — and a tipped rocket drifts the way it points.</p>
+        </div>
+      </li>
+    </ul>
+
+    <p class="limits">
+      TOUCHDOWN LIMITS<br>
+      vertical <b>&#8804; 4.0 m/s</b> &nbsp;·&nbsp; lateral <b>&#8804; 2.0 m/s</b><br>
+      tilt <b>&#8804; 8&deg;</b> &nbsp;·&nbsp; and both feet on the barge
+    </p>
+
+    <div class="spacer"></div>
+    <div class="actions">
+      <button class="btn" id="btnStart" type="button">Ignite</button>
+    </div>
+  </section>
+
+  <!-- end -->
+  <section class="screen" id="scEnd" hidden>
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+
+    <p class="eyebrow" id="endEyebrow">Mission report</p>
+    <h2 class="verdict" id="endVerdict">LANDED</h2>
+    <p class="lede" id="endLede">—</p>
+
+    <div class="stats" id="endStats"></div>
+
+    <div class="spacer"></div>
+    <div class="actions">
+      <button class="btn" id="btnRetry" type="button">Try again</button>
+      <button class="btn btn--ghost" id="btnHow" type="button">Read the controls again</button>
+    </div>
+  </section>
+
+  <!-- /APP MARKUP -->
+</div>
+
+<script>
+// APP LOGIC
+(function () {
+  'use strict';
+
+  /* ------------------------------------------------------------------ *
+   * Elements
+   * ------------------------------------------------------------------ */
+
+  var stage   = document.getElementById('stage');
+  var cv      = document.getElementById('scene');
+  var ctx     = cv.getContext('2d');
+
+  var hud     = document.getElementById('hud');
+  var scStart = document.getElementById('scStart');
+  var scEnd   = document.getElementById('scEnd');
+
+  var elAlt = document.getElementById('tAlt');
+  var elV   = document.getElementById('tV');
+  var elH   = document.getElementById('tH');
+  var elT   = document.getElementById('tT');
+  var elTL  = document.getElementById('tL');
+  var elTR  = document.getElementById('tR');
+
+  var trkL  = document.getElementById('trkL'), trkLf = document.getElementById('trkLf');
+  var trkR  = document.getElementById('trkR'), trkRf = document.getElementById('trkRf');
+  var fuelEl = document.getElementById('fuel');
+  var fuelFill = document.getElementById('fuelFill');
+  var fuelCap = document.getElementById('fuelCap');
+  var flash = document.getElementById('flash');
+
+  /* ------------------------------------------------------------------ *
+   * Tuning. Physics runs in metres and seconds; only drawing knows pixels.
+   * ------------------------------------------------------------------ */
+
+  var G          = 3.6;    // m/s^2 downward
+  var THRUST     = 3.5;    // m/s^2 per engine at full throttle
+  var TORQUE     = 1.4;    // rad/s^2 at full left/right differential
+  var SPIN_DAMP  = 0.9;    // per second
+  var DRAG_X     = 0.16;
+  var DRAG_V     = 0.07;
+  var SPOOL      = 6.0;    // throttle units per second (0 -> 100% in ~170ms)
+  var BURN       = 5.5;    // fuel %/s at one engine, full throttle
+  var TOP_ALT    = 110;    // metres of sky the screen shows
+
+  var LIM_V    = 4.0;      // m/s vertical at touchdown
+  var LIM_H    = 2.0;      // m/s lateral
+  var LIM_TILT = 8.0;      // degrees
+
+  var ROCKET_PX = 88;      // drawn height, nose to feet
+  var COM_TO_FEET = 40;    // px from centre of mass down to the feet
+  var PAD_PX = 96;         // barge deck width
+
+  /* ------------------------------------------------------------------ *
+   * Layout — recomputed on every resize
+   * ------------------------------------------------------------------ */
+
+  var W = 0, H = 0, dpr = 1;
+  var seaY = 0, deckY = 0, ppm = 1, worldW = 0;
+  var bandTop = 0, bandBottom = 1;
+
+  function layout() {
+    var r = stage.getBoundingClientRect();
+    W = Math.max(1, Math.round(r.width));
+    H = Math.max(1, Math.round(r.height));
+    stageLeft = r.left;
+    stageTop = r.top;
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+
+    cv.width = Math.round(W * dpr);
+    cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    seaY  = Math.round(H * 0.855);
+    deckY = seaY - 24;                       // barge deck rides above the water
+    ppm   = (deckY - Math.round(H * 0.06)) / TOP_ALT;
+    worldW = W / ppm;
+
+    // The capsule tracks are styled top:26% / bottom:12%; the finger-to-throttle
+    // mapping has to use the same band or the fill lies about where you are.
+    bandTop    = H * 0.26;
+    bandBottom = H * 0.88;
+
+    makeStars();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Palette — read straight off the CSS custom properties so the canvas
+   * and the DOM chrome can never drift apart between schemes.
+   * ------------------------------------------------------------------ */
+
+  var P = {};
+  var KEYS = ['is-light', 'sky-0', 'sky-1', 'sky-2', 'star', 'glow', 'sea-0', 'sea-1',
+              'sea-line', 'sea-crest', 'hull', 'deck', 'deck-hi', 'stencil',
+              'metal-0', 'metal-1', 'metal-2', 'fin', 'pod',
+              'mint', 'mint-dim', 'mint-faint', 'green', 'danger', 'beam-0', 'beam-1'];
+
+  function readPalette() {
+    var cs = getComputedStyle(document.documentElement);
+    for (var i = 0; i < KEYS.length; i++) P[KEYS[i]] = cs.getPropertyValue('--' + KEYS[i]).trim();
+    P.light = parseFloat(P['is-light']) === 1;
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Scenery
+   * ------------------------------------------------------------------ */
+
+  var stars = [];
+
+  function makeStars() {
+    stars = [];
+    var n = Math.round(W * H / 9000);
+    for (var i = 0; i < n; i++) {
+      stars.push({
+        x: Math.random() * W,
+        y: Math.random() * seaY * 0.94,
+        r: Math.random() * 1.15 + 0.35,
+        ph: Math.random() * Math.PI * 2,
+        sp: 0.6 + Math.random() * 1.7
+      });
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Game state
+   * ------------------------------------------------------------------ */
+
+  var MODE_MENU = 0, MODE_FLY = 1, MODE_SETTLE = 2, MODE_OVER = 3;
+  var mode = MODE_MENU;
+
+  var R = null;     // the rocket
+  var pad = null;   // the barge
+  var puffs = [];   // crash debris / touchdown dust
+  var result = null;
+  var clock = 0;
+  var settleAt = 0;
+
+  function reset() {
+    var padHalfM = (PAD_PX / 2) / ppm;
+    var padX = padHalfM + 1.2 + Math.random() * Math.max(0.1, worldW - 2 * (padHalfM + 1.2));
+
+    pad = { x: padX, halfM: padHalfM, half: PAD_PX / 2, lit: 0 };
+
+    // Drop in from the top: random side of the pad, random lean, always falling.
+    var spawnX = worldW * (0.22 + Math.random() * 0.56);
+    if (Math.abs(spawnX - padX) < worldW * 0.14) spawnX += (spawnX < padX ? -1 : 1) * worldW * 0.16;
+
+    R = {
+      x: Math.min(Math.max(spawnX, worldW * 0.12), worldW * 0.88),
+      alt: 94 + Math.random() * 10,          // altitude of the centre of mass
+      vx: (Math.random() * 2 - 1) * 1.3,
+      vAlt: -5.5 - Math.random() * 1.5,
+      a: (Math.random() * 2 - 1) * 0.15,     // radians, + = nose right
+      av: (Math.random() * 2 - 1) * 0.06,
+      tl: 0, tr: 0,                          // actual throttle
+      wantL: 0, wantR: 0,                    // commanded throttle
+      fuel: 100,
+      alive: true
+    };
+
+    puffs = [];
+    result = null;
+    touches = {};
+    setFlash(false);
+    syncHud();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Controls — each screen half is one engine's slider. Absolute mapping:
+   * throttle follows where the finger sits inside the band, and releasing
+   * commands zero, so a hover has to be actively held.
+   * ------------------------------------------------------------------ */
+
+  var touches = {};   // pointerId -> 'L' | 'R'
+
+  function throttleFor(y) {
+    var t = (bandBottom - y) / (bandBottom - bandTop);
+    return t < 0 ? 0 : t > 1 ? 1 : t;
+  }
+
+  function applyPointer(id, x, y, down) {
+    var side = down ? (x < W / 2 ? 'L' : 'R') : touches[id];
+    if (!side) return;
+    touches[id] = side;
+    var t = throttleFor(y);
+    if (side === 'L') R.wantL = t; else R.wantR = t;
+  }
+
+  function releasePointer(id) {
+    var side = touches[id];
+    if (!side) return;
+    delete touches[id];
+    // Another finger may still be holding the same half.
+    var stillHeld = false;
+    for (var k in touches) if (touches[k] === side) stillHeld = true;
+    if (!stillHeld) { if (side === 'L') R.wantL = 0; else R.wantR = 0; }
+  }
+
+  var stageLeft = 0, stageTop = 0;
+
+  function onDown(e) {
+    if (mode !== MODE_FLY) return;
+    e.preventDefault();
+    applyPointer(e.pointerId, e.clientX - stageLeft, e.clientY - stageTop, true);
+  }
+
+  function onMove(e) {
+    if (mode !== MODE_FLY || !(e.pointerId in touches)) return;
+    e.preventDefault();
+    applyPointer(e.pointerId, e.clientX - stageLeft, e.clientY - stageTop, false);
+  }
+
+  function onUp(e) {
+    if (!(e.pointerId in touches)) return;
+    releasePointer(e.pointerId);
+  }
+
+  cv.addEventListener('pointerdown', onDown, { passive: false });
+  cv.addEventListener('pointermove', onMove, { passive: false });
+  window.addEventListener('pointerup', onUp);
+  window.addEventListener('pointercancel', onUp);
+
+  /* ------------------------------------------------------------------ *
+   * Simulation
+   * ------------------------------------------------------------------ */
+
+  function approach(cur, want, rate, dt) {
+    var d = want - cur, m = rate * dt;
+    if (d > m) d = m; else if (d < -m) d = -m;
+    return cur + d;
+  }
+
+  function step(dt) {
+    if (mode !== MODE_FLY) return;
+
+    R.tl = approach(R.tl, R.wantL, SPOOL, dt);
+    R.tr = approach(R.tr, R.wantR, SPOOL, dt);
+
+    // Empty tanks cap thrust at zero, whatever the sliders say.
+    if (R.fuel <= 0) { R.fuel = 0; R.tl = 0; R.tr = 0; }
+
+    var burn = (R.tl + R.tr) * BURN * dt;
+    if (burn > 0) R.fuel = Math.max(0, R.fuel - burn);
+
+    var total = (R.tl + R.tr) * THRUST;
+    var ax = total * Math.sin(R.a);
+    var aAlt = total * Math.cos(R.a) - G;
+
+    // Asymmetry is the only source of torque: more left engine tips her right.
+    R.av += (R.tl - R.tr) * TORQUE * dt;
+    R.av *= Math.exp(-SPIN_DAMP * dt);
+    R.a += R.av * dt;
+
+    R.vx += ax * dt;
+    R.vAlt += aAlt * dt;
+    R.vx *= Math.exp(-DRAG_X * dt);
+    R.vAlt *= Math.exp(-DRAG_V * dt);
+
+    R.x += R.vx * dt;
+    R.alt += R.vAlt * dt;
+
+    if (R.x < -1 || R.x > worldW + 1) return finish('downrange');
+
+    // Over the barge she stops at deck height; anywhere else she keeps falling
+    // to the waterline, which sits a deck's worth below it.
+    var onPadX = Math.abs(R.x - pad.x) <= pad.halfM - 12 / ppm;
+    var groundAlt = onPadX ? 0 : -(seaY - deckY) / ppm;
+
+    var feetAlt = R.alt - (COM_TO_FEET / ppm) * Math.cos(R.a);
+    if (feetAlt <= groundAlt) {
+      R.alt += groundAlt - feetAlt;           // settle exactly on the surface
+      return finish(onPadX ? 'pad' : 'water');
+    }
+
+    setFlash(R.fuel <= 0);
+  }
+
+  function finish(where) {
+    var v = Math.abs(R.vAlt), h = Math.abs(R.vx), tilt = Math.abs(R.a) * 180 / Math.PI;
+    var okV = v <= LIM_V, okH = h <= LIM_H, okT = tilt <= LIM_TILT;
+    var landed = where === 'pad' && okV && okH && okT;
+
+    result = {
+      landed: landed, where: where,
+      v: v, h: h, tilt: tilt, fuel: R.fuel,
+      okV: okV, okH: okH, okT: okT, onPad: where === 'pad'
+    };
+
+    R.wantL = R.wantR = R.tl = R.tr = 0;
+    R.alive = landed;
+    mode = MODE_SETTLE;
+    settleAt = clock;
+    setFlash(false);
+    touches = {};
+
+    var fy = where === 'water' ? seaY
+           : deckY - (R.alt - COM_TO_FEET / ppm) * ppm;
+
+    if (landed) {
+      spawnPuffs(14, 0.55, false, fy);
+      pad.lit = 1;
+    } else {
+      spawnPuffs(46, 1.0, true, fy);
+    }
+  }
+
+  function spawnPuffs(n, power, fiery, fy) {
+    var fx = R.x * ppm;
+    for (var i = 0; i < n; i++) {
+      var ang = -Math.PI * Math.random();
+      var sp = (40 + Math.random() * 170) * power;
+      puffs.push({
+        x: fx, y: fy,
+        vx: Math.cos(ang) * sp + R.vx * ppm * 0.3,
+        vy: Math.sin(ang) * sp * 0.85,
+        r: 2 + Math.random() * (fiery ? 7 : 4),
+        life: 0, max: 0.5 + Math.random() * (fiery ? 0.9 : 0.5),
+        fiery: fiery
+      });
+    }
+  }
+
+  function stepPuffs(dt) {
+    for (var i = puffs.length - 1; i >= 0; i--) {
+      var p = puffs[i];
+      p.life += dt;
+      if (p.life >= p.max) { puffs.splice(i, 1); continue; }
+      p.vy += 240 * dt;
+      p.vx *= Math.exp(-1.6 * dt);
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+  }
+
+  /* ------------------------------------------------------------------ *
+   * HUD
+   * ------------------------------------------------------------------ */
+
+  function setFlash(on) { flash.classList.toggle('is-on', !!on); }
+
+  function syncHud() {
+    if (!R) return;
+    var feetAlt = Math.max(0, R.alt - (COM_TO_FEET / ppm) * Math.cos(R.a));
+    var v = Math.abs(R.vAlt), h = Math.abs(R.vx), tilt = R.a * 180 / Math.PI;
+
+    elAlt.textContent = feetAlt.toFixed(0) + ' m';
+    elV.textContent = v.toFixed(1) + (R.vAlt < 0 ? ' ↓' : ' ↑');
+    elH.textContent = h.toFixed(1) + (R.vx < 0 ? ' ←' : ' →');
+    elT.textContent = Math.abs(tilt).toFixed(0) + '°' + (tilt < -0.5 ? ' L' : tilt > 0.5 ? ' R' : ' ·');
+
+    // Below 25 m the readings that will judge you turn hot when out of limits.
+    var close = feetAlt < 25;
+    elV.classList.toggle('hot', close && v > LIM_V);
+    elH.classList.toggle('hot', close && h > LIM_H);
+    elT.classList.toggle('hot', close && Math.abs(tilt) > LIM_TILT);
+
+    elTL.textContent = Math.round(R.tl * 100);
+    elTR.textContent = Math.round(R.tr * 100);
+    trkLf.style.height = (R.tl * 100) + '%';
+    trkRf.style.height = (R.tr * 100) + '%';
+
+    var dry = R.fuel <= 0;
+    trkL.classList.toggle('is-dry', dry);
+    trkR.classList.toggle('is-dry', dry);
+
+    fuelFill.style.height = R.fuel + '%';
+    var low = R.fuel < 25;
+    fuelEl.classList.toggle('is-low', low);
+    fuelCap.classList.toggle('is-low', low);
+    fuelCap.textContent = dry ? 'DRY' : 'FUEL ' + Math.round(R.fuel);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Drawing
+   * ------------------------------------------------------------------ */
+
+  function drawSky() {
+    var g = ctx.createLinearGradient(0, 0, 0, seaY);
+    g.addColorStop(0, P['sky-0']);
+    g.addColorStop(0.58, P['sky-1']);
+    g.addColorStop(1, P['sky-2']);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, seaY);
+
+    if (P.light) {
+      // A low dawn sun instead of a starfield.
+      var s = ctx.createRadialGradient(W * 0.76, seaY * 0.28, 0, W * 0.76, seaY * 0.28, W * 0.52);
+      s.addColorStop(0, P.glow);
+      s.addColorStop(1, 'rgba(255,226,176,0)');
+      ctx.fillStyle = s;
+      ctx.fillRect(0, 0, W, seaY);
+      return;
+    }
+
+    for (var i = 0; i < stars.length; i++) {
+      var st = stars[i];
+      var tw = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(clock * st.sp + st.ph));
+      ctx.globalAlpha = tw * (1 - st.y / seaY * 0.45);
+      ctx.fillStyle = P.star;
+      ctx.beginPath();
+      ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawSea() {
+    var g = ctx.createLinearGradient(0, seaY, 0, H);
+    g.addColorStop(0, P['sea-0']);
+    g.addColorStop(1, P['sea-1']);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, seaY, W, H - seaY);
+
+    ctx.strokeStyle = P['sea-crest'];
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0, seaY);
+    for (var x = 0; x <= W; x += 6) {
+      ctx.lineTo(x, seaY + Math.sin(x * 0.045 + clock * 1.1) * 1.6);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = P['sea-line'];
+    ctx.lineWidth = 1.5;
+    for (var i = 1; i <= 5; i++) {
+      var y = seaY + (H - seaY) * (i / 5.6);
+      var amp = 1.2 + i * 0.9;
+      var sp = 0.5 + i * 0.24;
+      ctx.beginPath();
+      for (var xx = -10; xx <= W + 10; xx += 8) {
+        var yy = y + Math.sin(xx * (0.02 + i * 0.004) + clock * sp) * amp;
+        if (xx <= -10) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy);
+      }
+      ctx.stroke();
+    }
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawPad() {
+    var cx = pad.x * ppm;
+    var bob = Math.sin(clock * 1.3) * 1.2;
+    var top = deckY + bob;
+
+    ctx.save();
+
+    // hull below the waterline
+    ctx.fillStyle = P.hull;
+    ctx.beginPath();
+    ctx.moveTo(cx - pad.half + 6, top + 10);
+    ctx.lineTo(cx + pad.half - 6, top + 10);
+    ctx.lineTo(cx + pad.half - 15, seaY + 12 + bob);
+    ctx.lineTo(cx - pad.half + 15, seaY + 12 + bob);
+    ctx.closePath();
+    ctx.fill();
+
+    // deck
+    ctx.fillStyle = P.deck;
+    roundRect(cx - pad.half, top, pad.half * 2, 12, 3);
+    ctx.fill();
+    ctx.fillStyle = P['deck-hi'];
+    ctx.fillRect(cx - pad.half, top, pad.half * 2, 2);
+
+    // hazard stripes along the deck edge
+    ctx.save();
+    roundRect(cx - pad.half, top + 4, pad.half * 2, 4.5, 1);
+    ctx.clip();
+    for (var x = cx - pad.half - 12; x < cx + pad.half + 12; x += 11) {
+      ctx.fillStyle = P.danger;
+      ctx.beginPath();
+      ctx.moveTo(x, top + 9);
+      ctx.lineTo(x + 5.5, top + 9);
+      ctx.lineTo(x + 11, top + 3.5);
+      ctx.lineTo(x + 5.5, top + 3.5);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+
+    // stencilled name
+    ctx.fillStyle = P.stencil;
+    ctx.font = '600 7px ' + 'ui-monospace, Menlo, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BARGE 04', cx, top + 20);
+
+    // corner lights: amber while she's inbound, steady green once she's down
+    var lit = pad.lit ? P.green : P.danger;
+    var blink = pad.lit ? 1 : (0.35 + 0.65 * (Math.sin(clock * 4) > 0 ? 1 : 0.15));
+    for (var s = -1; s <= 1; s += 2) {
+      var lx = cx + s * (pad.half - 4);
+      ctx.globalAlpha = blink;
+      ctx.fillStyle = lit;
+      ctx.beginPath();
+      ctx.arc(lx, top - 3, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = blink * 0.28;
+      ctx.beginPath();
+      ctx.arc(lx, top - 3, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // An approach corridor rather than a spotlight: two edge rails that fade out
+  // with height, plus a dashed centreline to aim at.
+  function drawBeam() {
+    if (mode !== MODE_FLY) return;
+    var cx = pad.x * ppm;
+    var top = deckY - 230;
+
+    ctx.save();
+    var g = ctx.createLinearGradient(0, deckY, 0, top);
+    g.addColorStop(0, P['beam-0']);
+    g.addColorStop(1, P['beam-1']);
+    ctx.fillStyle = g;
+    ctx.fillRect(cx - pad.half, top, 2, deckY - top);
+    ctx.fillRect(cx + pad.half - 2, top, 2, deckY - top);
+
+    ctx.globalAlpha = 0.55;
+    ctx.setLineDash([4, 8]);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = P['beam-0'];
+    ctx.beginPath();
+    ctx.moveTo(cx, deckY - 6);
+    ctx.lineTo(cx, Math.round(H * 0.06));
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawFlame(x, y, t) {
+    if (t <= 0.02) return;
+    var len = (14 + t * 46) * (0.86 + Math.random() * 0.28);
+    var wide = 4.6 + t * 3.4;
+    var g = ctx.createLinearGradient(0, y, 0, y + len);
+    g.addColorStop(0, 'rgba(255,255,255,' + (0.6 + t * 0.4).toFixed(3) + ')');
+    g.addColorStop(0.32, 'rgba(255,196,90,' + (0.55 + t * 0.35).toFixed(3) + ')');
+    g.addColorStop(0.72, 'rgba(255,107,74,' + (0.35 + t * 0.3).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,107,74,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(x - wide, y);
+    ctx.quadraticCurveTo(x - wide * 0.5, y + len * 0.62, x, y + len);
+    ctx.quadraticCurveTo(x + wide * 0.5, y + len * 0.62, x + wide, y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawRocket() {
+    if (!R) return;
+    var cx = R.x * ppm;
+    var cy = deckY - R.alt * ppm;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(R.a);
+
+    // Local origin sits at the centre of mass; feet are +40, nose is -48.
+    drawFlame(-13, 39, R.tl);
+    drawFlame(13, 39, R.tr);
+
+    // landing legs
+    ctx.strokeStyle = P.fin;
+    ctx.lineWidth = 2.6;
+    ctx.lineCap = 'round';
+    for (var s = -1; s <= 1; s += 2) {
+      ctx.beginPath();
+      ctx.moveTo(s * 8, 22);
+      ctx.lineTo(s * 17, 40);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(s * 12, 40);
+      ctx.lineTo(s * 21, 40);
+      ctx.stroke();
+    }
+
+    // A white booster against a pale dawn sky needs help separating.
+    if (P.light) {
+      ctx.shadowColor = 'rgba(28, 58, 78, .30)';
+      ctx.shadowBlur = 11;
+      ctx.shadowOffsetY = 3;
+    }
+
+    // engine pods
+    ctx.fillStyle = P.pod;
+    roundRect(-18, 24, 10, 16, 3); ctx.fill();
+    roundRect(8, 24, 10, 16, 3); ctx.fill();
+
+    // body
+    var g = ctx.createLinearGradient(-11, 0, 11, 0);
+    g.addColorStop(0, P['metal-0']);
+    g.addColorStop(0.38, P['metal-1']);
+    g.addColorStop(0.62, P['metal-1']);
+    g.addColorStop(1, P['metal-2']);
+    ctx.fillStyle = g;
+    ctx.fillRect(-11, -32, 22, 58);
+
+    // nose cone
+    ctx.beginPath();
+    ctx.moveTo(-11, -32);
+    ctx.quadraticCurveTo(-9, -44, 0, -48);
+    ctx.quadraticCurveTo(9, -44, 11, -32);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.shadowColor = 'rgba(0,0,0,0)';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // stripe
+    ctx.fillStyle = P.danger;
+    ctx.fillRect(-11, -6, 22, 5);
+
+    // grid fins
+    ctx.fillStyle = P.fin;
+    ctx.fillRect(-16, -28, 5, 9);
+    ctx.fillRect(11, -28, 5, 9);
+
+    ctx.restore();
+  }
+
+  function drawPuffs() {
+    for (var i = 0; i < puffs.length; i++) {
+      var p = puffs[i];
+      var k = 1 - p.life / p.max;
+      ctx.globalAlpha = Math.max(0, k) * (p.fiery ? 0.95 : 0.5);
+      ctx.fillStyle = p.fiery
+        ? (k > 0.6 ? '#fff3d0' : k > 0.3 ? '#ffb257' : P.danger)
+        : P['mint-dim'];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * (0.5 + k), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    drawSky();
+    drawBeam();
+    drawSea();
+    drawPad();
+    if (R && R.alive) drawRocket();   // a crashed booster is only debris now
+    drawPuffs();
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Loop
+   * ------------------------------------------------------------------ */
+
+  var last = 0;
+
+  function frame(ts) {
+    var t = ts / 1000;
+    var dt = last ? Math.min(t - last, 0.05) : 0;
+    last = t;
+    clock = t;
+
+    if (mode === MODE_FLY) {
+      // Small fixed sub-steps keep the physics stable through big throttle swings.
+      var left = dt;
+      while (left > 0 && mode === MODE_FLY) {
+        var s = Math.min(left, 1 / 120);
+        step(s);
+        left -= s;
+      }
+      syncHud();
+    }
+
+    if (mode === MODE_SETTLE) {
+      if (clock - settleAt > (result.landed ? 0.85 : 1.15)) showEnd();
+    }
+
+    stepPuffs(dt);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Screens
+   * ------------------------------------------------------------------ */
+
+  function show(el) {
+    scStart.hidden = el !== scStart;
+    scEnd.hidden = el !== scEnd;
+    hud.hidden = el !== null;
+  }
+
+  function startRun() {
+    layout();
+    reset();
+    mode = MODE_FLY;
+    show(null);
+  }
+
+  function fmt(n, d) { return n.toFixed(d === undefined ? 1 : d); }
+
+  function statRow(label, value, val, limit, ok, unit) {
+    var pct = Math.max(3, Math.min(100, (val / limit) * 100));
+    return '' +
+      '<div class="stat' + (ok ? '' : ' is-fail') + '">' +
+        '<div class="stat__head">' +
+          '<span class="stat__label">' + label + '</span>' +
+          '<span class="stat__val">' + value + '</span>' +
+        '</div>' +
+        '<div class="stat__bar"><i style="width:' + pct.toFixed(0) + '%"></i></div>' +
+        '<div class="stat__foot">' +
+          '<span>LIMIT ' + limit.toFixed(1) + unit + '</span>' +
+          '<span class="stat__tag">' + (ok ? 'WITHIN' : 'OVER') + '</span>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function lede(r) {
+    if (r.where === 'downrange') return 'She sailed off the range and there was nothing left to fly. The barge never even saw her.';
+    if (r.where === 'water') return 'Splashdown. Wide of the deck by more than a rocket’s width — everything else was academic.';
+    if (r.landed) {
+      if (r.v < 1.4 && r.tilt < 2.5) return 'Textbook. The deck crew felt a nudge and nothing more.';
+      if (r.fuel < 12) return 'Down on the barge with the tanks all but dry. Beautiful, and never do that again.';
+      return 'On the deck and standing. The clamps have her.';
+    }
+    var worst = [];
+    if (!r.okV) worst.push('came in ' + fmt(r.v) + ' m/s vertical');
+    if (!r.okH) worst.push('slid across at ' + fmt(r.h) + ' m/s');
+    if (!r.okT) worst.push('leaning ' + fmt(r.tilt, 0) + '°');
+    return 'On the pad, but she ' + worst.join(' and ') + '. The legs let go.';
+  }
+
+  function showEnd() {
+    mode = MODE_OVER;
+    var r = result;
+
+    document.getElementById('endVerdict').textContent = r.landed ? 'LANDED' : 'CRASHED';
+    document.getElementById('endVerdict').className = 'verdict ' + (r.landed ? 'ok' : 'bad');
+    document.getElementById('endEyebrow').textContent = r.landed ? 'Recovery confirmed' : 'Mission report';
+    document.getElementById('endLede').textContent = lede(r);
+
+    var touchdownOk = r.onPad;
+    var touchdownTxt = r.where === 'downrange' ? 'Lost downrange'
+                     : r.where === 'water' ? 'In the water'
+                     : 'On the barge';
+
+    var html = '';
+    html += statRow('Vertical speed', fmt(r.v) + ' m/s', r.v, LIM_V, r.okV, ' m/s');
+    html += statRow('Lateral speed', fmt(r.h) + ' m/s', r.h, LIM_H, r.okH, ' m/s');
+    html += statRow('Tilt at contact', fmt(r.tilt) + '°', r.tilt, LIM_TILT, r.okT, '°');
+    html +=
+      '<div class="stat' + (touchdownOk ? '' : ' is-fail') + '">' +
+        '<div class="stat__head">' +
+          '<span class="stat__label">Touchdown</span>' +
+          '<span class="stat__val">' + touchdownTxt + '</span>' +
+        '</div>' +
+        '<div class="stat__bar"><i style="width:100%"></i></div>' +
+        '<div class="stat__foot">' +
+          '<span>BOTH FEET ON DECK</span>' +
+          '<span class="stat__tag">' + (touchdownOk ? 'WITHIN' : 'OVER') + '</span>' +
+        '</div>' +
+      '</div>';
+    html +=
+      '<div class="stat">' +
+        '<div class="stat__head">' +
+          '<span class="stat__label">Fuel remaining</span>' +
+          '<span class="stat__val">' + Math.round(r.fuel) + '%</span>' +
+        '</div>' +
+        '<div class="stat__bar"><i style="width:' + Math.max(2, Math.round(r.fuel)) + '%"></i></div>' +
+        '<div class="stat__foot">' +
+          '<span>OF ONE FULL LOAD</span>' +
+          '<span class="stat__tag">' + (r.fuel > 0 ? 'IN TANK' : 'DRY') + '</span>' +
+        '</div>' +
+      '</div>';
+
+    document.getElementById('endStats').innerHTML = html;
+    show(scEnd);
+  }
+
+  /* ------------------------------------------------------------------ *
+   * Wiring
+   * ------------------------------------------------------------------ */
+
+  document.getElementById('btnStart').addEventListener('click', startRun);
+  document.getElementById('btnRetry').addEventListener('click', startRun);
+  document.getElementById('btnHow').addEventListener('click', function () {
+    mode = MODE_MENU;
+    show(scStart);
+    scStart.scrollTop = 0;
+  });
+
+  window.addEventListener('resize', function () { layout(); if (R) syncHud(); });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () { layout(); if (R) syncHud(); });
+  }
+
+  var mq = window.matchMedia('(prefers-color-scheme: light)');
+  if (mq.addEventListener) mq.addEventListener('change', readPalette);
+  else if (mq.addListener) mq.addListener(readPalette);
+
+  readPalette();
+  layout();
+  reset();
+  mode = MODE_MENU;
+  show(scStart);
+  requestAnimationFrame(frame);
+})();
+// /APP LOGIC
+</script>
+
+</body>
+</html>

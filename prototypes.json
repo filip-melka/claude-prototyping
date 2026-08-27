@@ -191,6 +191,18 @@
       "createdAt": "2026-08-26",
       "updatedAt": "2026-08-26",
       "changelog": ["v1 — initial prototype"]
+    },
+    {
+      "id": "PROTOTYPE-18",
+      "workItemId": "89769cdc-2ed2-4e0a-9740-3ecbc1bc0db0",
+      "title": "Barge Landing",
+      "tagline": "Two thumbs, two engines — set her down on the barge before the tanks run dry.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-18/index.html",
+      "version": 1,
+      "createdAt": "2026-08-27",
+      "updatedAt": "2026-08-27",
+      "changelog": ["v1 — initial prototype"]
     }
   ]
 }
