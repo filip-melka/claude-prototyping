@@ -1,0 +1,1829 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Termly</title>
+<style>
+  /* ---------------------------------------------------------------
+     Termly — learn the shell, one node at a time.
+     Dark terminal canvas + Liquid Glass chrome (backdrop-filter).
+     --------------------------------------------------------------- */
+
+  :root {
+    --canvas: #0b0d10;
+    --canvas-2: #101419;
+    --text: #eef2f6;
+    --muted: #8b95a3;
+    --faint: #5a6472;
+
+    --green: #5dcaa5;
+    --green-ink: #06231b;
+    --amber: #f6a93b;
+    --red: #ff6b6b;
+    --blue: #6aa9ff;
+
+    /* Liquid Glass */
+    --glass: rgba(255, 255, 255, .07);
+    --glass-hi: rgba(255, 255, 255, .13);
+    --glass-brd: rgba(255, 255, 255, .16);
+    --specular: rgba(255, 255, 255, .55);
+    --glass-blur: blur(26px) saturate(180%);
+
+    --term: #000;
+    --term-brd: rgba(255, 255, 255, .1);
+    --code: #d7f7ec;
+
+    --sunk: rgba(255, 255, 255, .05);
+    --shadow: 0 12px 34px rgba(0, 0, 0, .55);
+    --r-lg: 28px;
+    --r-md: 22px;
+    --r-sm: 16px;
+    --spring: cubic-bezier(.34, 1.4, .5, 1);
+    --kb: 0px;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --canvas: #e6eaf1;
+      --canvas-2: #f3f6fa;
+      --text: #101720;
+      --muted: #5a6674;
+      --faint: #97a2b0;
+
+      --green: #12946e;
+      --green-ink: #ffffff;
+      --amber: #cf7a06;
+      --red: #d8443f;
+      --blue: #2f6fd0;
+
+      --glass: rgba(255, 255, 255, .55);
+      --glass-hi: rgba(255, 255, 255, .78);
+      --glass-brd: rgba(255, 255, 255, .9);
+      --specular: rgba(255, 255, 255, 1);
+
+      --term: #0b0d10;
+      --term-brd: rgba(0, 0, 0, .12);
+      --code: #d7f7ec;
+
+      --sunk: rgba(12, 22, 40, .05);
+      --shadow: 0 12px 30px rgba(20, 34, 60, .16);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--canvas);
+    color: var(--text);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-variant-ligatures: none;
+  }
+
+  /* Colour behind the glass, so the blur has something to pick up. */
+  .ambient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: var(--canvas);
+    overflow: hidden;
+  }
+  .ambient i {
+    position: absolute;
+    display: block;
+    border-radius: 50%;
+    filter: blur(46px);
+    opacity: .5;
+  }
+  .ambient i:nth-child(1) { width: 300px; height: 300px; left: -70px; top: -60px;  background: #2fae87; opacity: .4; }
+  .ambient i:nth-child(2) { width: 260px; height: 260px; right: -80px; top: 180px; background: #b5761a; opacity: .26; }
+  .ambient i:nth-child(3) { width: 340px; height: 340px; left: -60px; bottom: 40px; background: #2a5db0; opacity: .28; }
+  .ambient i:nth-child(4) { width: 220px; height: 220px; right: -60px; bottom: -50px; background: #2fae87; opacity: .3; }
+  @media (prefers-color-scheme: light) {
+    .ambient i { opacity: .5; filter: blur(56px); }
+    .ambient i:nth-child(2) { opacity: .42; }
+    .ambient i:nth-child(3) { opacity: .38; }
+  }
+
+  .app {
+    position: relative;
+    z-index: 1;
+    height: 100dvh;
+    max-width: 520px;
+    margin: 0 auto;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  /* ---------- Liquid Glass ---------- */
+  .glass {
+    position: relative;
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .12);
+    overflow: hidden;
+  }
+  /* specular sheen along the top edge */
+  .glass::before {
+    content: "";
+    position: absolute;
+    left: 8%;
+    right: 8%;
+    top: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--specular), transparent);
+    opacity: .9;
+    pointer-events: none;
+  }
+  .glass::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, 0) 42%);
+    pointer-events: none;
+  }
+
+  .tap { transition: transform .2s var(--spring); }
+  .tap:active { transform: scale(.94); }
+
+  /* ---------- screens ---------- */
+  .screen {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+  }
+  .screen.is-on { display: flex; }
+  .screen.is-entering { animation: screenIn .34s var(--spring) both; }
+  @keyframes screenIn {
+    from { opacity: 0; transform: scale(.97) translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* ================= HOME ================= */
+  .navbar {
+    position: absolute;
+    z-index: 5;
+    top: 0; left: 0; right: 0;
+    padding: calc(env(safe-area-inset-top) + 8px) 14px 8px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    border: 0;
+    box-shadow: none;
+    transition: background .3s ease, backdrop-filter .3s ease;
+  }
+  .navbar::before, .navbar::after { opacity: 0; transition: opacity .3s ease; }
+  .navbar.is-stuck {
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border-bottom: 1px solid var(--glass-brd);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  }
+  .navbar.is-stuck::before, .navbar.is-stuck::after { opacity: 1; }
+
+  .iconbtn {
+    width: 38px; height: 38px;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: var(--text);
+    text-decoration: none;
+    border: 1px solid var(--glass-brd);
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .2);
+    appearance: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .iconbtn svg { width: 17px; height: 17px; }
+
+  .nav-title {
+    flex: 1;
+    margin: 0;
+    text-align: center;
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: -.01em;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity .28s ease, transform .28s var(--spring);
+  }
+  .navbar.is-stuck .nav-title { opacity: 1; transform: none; }
+
+  .statpill {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    height: 38px;
+    padding: 0 13px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 640;
+    letter-spacing: -.01em;
+    flex: none;
+  }
+  .statpill .s { display: inline-flex; align-items: center; gap: 5px; }
+  .statpill .sep { width: 1px; height: 15px; background: var(--glass-brd); }
+  .statpill svg { width: 15px; height: 15px; }
+  .statpill .flame { color: var(--amber); }
+  .statpill .xp { color: var(--green); }
+  .statpill.bump { animation: bump .5s var(--spring); }
+  @keyframes bump {
+    0% { transform: none; }
+    40% { transform: scale(1.14); }
+    100% { transform: none; }
+  }
+
+  .scroller {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding:
+      calc(env(safe-area-inset-top) + 60px)
+      calc(env(safe-area-inset-right) + 16px)
+      calc(env(safe-area-inset-bottom) + 110px)
+      calc(env(safe-area-inset-left) + 16px);
+  }
+
+  .largetitle {
+    margin: 4px 0 2px;
+    font-size: 34px;
+    line-height: 1.1;
+    font-weight: 760;
+    letter-spacing: -.028em;
+  }
+  .subtitle {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .unit {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: var(--r-md);
+    margin-bottom: 26px;
+  }
+  .unit .k {
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--green);
+    font-weight: 700;
+  }
+  .unit .t { font-size: 16px; font-weight: 650; letter-spacing: -.01em; }
+  .unit .divider { width: 1px; align-self: stretch; background: var(--glass-brd); }
+  .unit .list { color: var(--muted); display: flex; }
+  .unit .list svg { width: 20px; height: 20px; }
+
+  /* ---------- lesson path ---------- */
+  .pathwrap { position: relative; padding: 6px 0 10px; }
+  #trail { position: absolute; inset: 0; pointer-events: none; overflow: visible; }
+  #trail path {
+    fill: none;
+    stroke: var(--faint);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 1 13;
+    opacity: .65;
+  }
+
+  .node-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 22px;
+    position: relative;
+  }
+  .node {
+    position: relative;
+    width: 66px; height: 66px;
+    border-radius: 50%;
+    border: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    color: var(--text);
+    background: var(--sunk);
+    box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .28), inset 0 1px 0 rgba(255, 255, 255, .14);
+    cursor: pointer;
+    transition: transform .24s var(--spring);
+  }
+  .node svg { width: 26px; height: 26px; }
+  .node:active { transform: scale(.92) translateY(2px); }
+
+  .node.done {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--green) 88%, #fff), var(--green));
+    color: var(--green-ink);
+    box-shadow: inset 0 -4px 0 rgba(0, 0, 0, .3), 0 6px 18px color-mix(in srgb, var(--green) 30%, transparent);
+  }
+  .node.locked { color: var(--faint); }
+
+  .node.current {
+    width: 82px; height: 82px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--green) 92%, #fff), var(--green));
+    color: var(--green-ink);
+    box-shadow: inset 0 -5px 0 rgba(0, 0, 0, .28), 0 10px 30px color-mix(in srgb, var(--green) 42%, transparent);
+  }
+  .node.current svg { width: 32px; height: 32px; }
+  .node.current::after {
+    content: "";
+    position: absolute;
+    inset: -12px;
+    border-radius: 50%;
+    border: 2px solid color-mix(in srgb, var(--green) 70%, transparent);
+    animation: halo 2.4s ease-out infinite;
+  }
+  @keyframes halo {
+    0%   { transform: scale(.92); opacity: .85; }
+    70%  { transform: scale(1.18); opacity: 0; }
+    100% { transform: scale(1.18); opacity: 0; }
+  }
+  .node.shake { animation: shake .4s ease; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-7px); }
+    50% { transform: translateX(7px); }
+    75% { transform: translateX(-4px); }
+  }
+
+  .node-label {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 12px;
+    color: var(--muted);
+    max-width: 116px;
+  }
+  .node-label.left  { right: calc(50% + 62px); text-align: right; }
+  .node-label.right { left: calc(50% + 62px); }
+
+  /* start popup, Duolingo-style */
+  .popup {
+    position: absolute;
+    z-index: 4;
+    left: 12px; right: 12px;
+    padding: 16px;
+    border-radius: var(--r-md);
+    transform-origin: top center;
+    animation: pop .34s var(--spring) both;
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(.9) translateY(-8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .popup h3 { margin: 0 0 3px; font-size: 17px; font-weight: 680; letter-spacing: -.01em; }
+  .popup p  { margin: 0 0 13px; font-size: 13px; color: var(--muted); }
+
+  .gbtn {
+    appearance: none;
+    width: 100%;
+    min-height: 52px;
+    border-radius: var(--r-sm);
+    font: inherit;
+    font-weight: 680;
+    letter-spacing: .01em;
+    color: var(--text);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--glass-hi);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 8px 22px rgba(0, 0, 0, .3);
+    transition: transform .2s var(--spring), opacity .2s ease, background .2s ease;
+  }
+  .gbtn:active { transform: scale(.97); }
+  .gbtn[disabled] { opacity: .38; pointer-events: none; }
+  .gbtn.green {
+    background: color-mix(in srgb, var(--green) 30%, transparent);
+    border-color: color-mix(in srgb, var(--green) 55%, transparent);
+    color: var(--text);
+  }
+  .gbtn.red {
+    background: color-mix(in srgb, var(--red) 26%, transparent);
+    border-color: color-mix(in srgb, var(--red) 50%, transparent);
+  }
+  .gbtn.solid {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--green) 92%, #fff), var(--green));
+    color: var(--green-ink);
+    border-color: transparent;
+  }
+  .gbtn .plus { font-size: 12px; opacity: .8; font-weight: 700; }
+
+  /* ---------- tab bar ---------- */
+  .tabbar {
+    position: absolute;
+    z-index: 6;
+    left: 12px; right: 12px;
+    bottom: calc(env(safe-area-inset-bottom) + 10px);
+    height: 66px;
+    border-radius: 26px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+  }
+  .tab {
+    flex: 1;
+    appearance: none;
+    background: none;
+    border: 0;
+    padding: 6px 0 4px;
+    color: var(--faint);
+    font: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    cursor: pointer;
+    min-height: 52px;
+    justify-content: center;
+    transition: color .22s ease, transform .22s var(--spring);
+  }
+  .tab svg { width: 23px; height: 23px; }
+  .tab.on { color: var(--green); }
+  .tab.on svg { transform: translateY(-1px) scale(1.06); }
+  .tab:active { transform: scale(.92); }
+
+  /* ---------- generic panels ---------- */
+  .panel {
+    border-radius: var(--r-md);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .panel h3 { margin: 0 0 6px; font-size: 16px; font-weight: 660; letter-spacing: -.01em; }
+  .panel p { margin: 0; font-size: 13.5px; color: var(--muted); }
+
+  .row {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    width: 100%;
+    text-align: left;
+    appearance: none;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    padding: 13px 4px;
+    cursor: pointer;
+    min-height: 56px;
+    border-bottom: 1px solid var(--glass-brd);
+  }
+  .row:last-child { border-bottom: 0; }
+  .row .ico {
+    width: 40px; height: 40px;
+    flex: none;
+    border-radius: 13px;
+    display: grid;
+    place-items: center;
+    background: var(--sunk);
+    border: 1px solid var(--glass-brd);
+  }
+  .row .ico svg { width: 19px; height: 19px; }
+  .row .grow { flex: 1; min-width: 0; }
+  .row .t { display: block; font-size: 15px; font-weight: 620; letter-spacing: -.005em; }
+  .row .d { display: block; font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .row .chev { color: var(--faint); display: flex; }
+  .row .chev svg { width: 15px; height: 15px; }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 660;
+    border: 1px solid var(--glass-brd);
+    background: var(--sunk);
+    color: var(--muted);
+    flex: none;
+  }
+  .chip svg { width: 12px; height: 12px; }
+  .chip.learning { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, transparent); }
+  .chip.known    { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, transparent); }
+
+  .section-h {
+    margin: 22px 4px 10px;
+    font-size: 12px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 700;
+  }
+
+  .empty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 22px 10px; }
+
+  /* ================= LESSON ================= */
+  #screen-lesson { background: transparent; }
+
+  .lesson-top {
+    position: absolute;
+    z-index: 5;
+    top: calc(env(safe-area-inset-top) + 8px);
+    left: 12px; right: 12px;
+    height: 52px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 8px 0 6px;
+  }
+  .closebtn {
+    width: 40px; height: 40px;
+    flex: none;
+    border-radius: 999px;
+    border: 0;
+    background: var(--sunk);
+    color: var(--muted);
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+  }
+  .closebtn svg { width: 15px; height: 15px; }
+
+  .dots { flex: 1; display: flex; gap: 5px; align-items: center; }
+  .dots span {
+    flex: 1;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--sunk);
+    overflow: hidden;
+    position: relative;
+  }
+  .dots span i {
+    position: absolute;
+    inset: 0;
+    transform: scaleX(0);
+    transform-origin: left;
+    border-radius: 999px;
+    background: var(--green);
+    transition: transform .4s var(--spring);
+  }
+  .dots span.fill i { transform: scaleX(1); }
+  .dots span.miss i { background: var(--red); transform: scaleX(1); }
+
+  .count { font-size: 12px; font-weight: 650; color: var(--muted); flex: none; }
+
+  .hearts { display: flex; gap: 3px; flex: none; align-items: center; }
+  .hearts svg { width: 16px; height: 16px; color: var(--red); }
+  .hearts .gone { opacity: .22; }
+  .hearts.lose { animation: bump .45s var(--spring); }
+
+  .stage {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding:
+      calc(env(safe-area-inset-top) + 76px)
+      calc(env(safe-area-inset-right) + 16px)
+      190px
+      calc(env(safe-area-inset-left) + 16px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .prompt-k {
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--green);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .prompt-q {
+    font-size: 21px;
+    line-height: 1.28;
+    font-weight: 680;
+    letter-spacing: -.02em;
+    margin: 0 0 18px;
+  }
+
+  /* terminal card */
+  .term {
+    background: var(--term);
+    border: 1px solid var(--term-brd);
+    border-radius: var(--r-md);
+    padding: 16px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .45);
+  }
+  .term .bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 13px;
+  }
+  .term .bar b {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, .16);
+    display: block;
+  }
+  .term .bar b:first-child { background: #ff5f57; }
+  .term .bar b:nth-child(2) { background: #febc2e; }
+  .term .bar b:nth-child(3) { background: #28c840; }
+  .term .cmd {
+    color: var(--code);
+    font-size: 17px;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .term .cmd .dollar { color: #6b7d8c; margin-right: 8px; }
+
+  /* ---- flashcard ---- */
+  .flip {
+    perspective: 1200px;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-height: 340px;
+  }
+  .flip-in {
+    position: relative;
+    width: 100%;
+    min-height: 320px;
+    transform-style: preserve-3d;
+    transition: transform .52s var(--spring);
+    cursor: pointer;
+  }
+  .flip.flipped .flip-in { transform: rotateY(180deg); }
+  .face {
+    position: absolute;
+    inset: 0;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: var(--r-lg);
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 14px;
+    background: var(--term);
+    border: 1px solid var(--term-brd);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, .5);
+  }
+  .face.back { transform: rotateY(180deg); }
+  .face .big {
+    color: var(--code);
+    font-size: 22px;
+    line-height: 1.4;
+    word-break: break-word;
+    text-align: center;
+  }
+  .face .hint {
+    text-align: center;
+    color: #6b7d8c;
+    font-size: 12px;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    font-weight: 640;
+  }
+  .face.back .big { font-size: 17px; color: #eef4f8; text-align: left; }
+  .face.back .lead { color: var(--green); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; }
+  .legend { display: flex; flex-direction: column; gap: 7px; }
+  .legend div { display: flex; gap: 10px; align-items: baseline; font-size: 13px; color: #9fb0bd; }
+  .legend b { color: var(--green); min-width: 26px; }
+
+  /* ---- quiz ---- */
+  .opts { display: flex; flex-direction: column; gap: 11px; }
+  .opt {
+    appearance: none;
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: var(--text);
+    min-height: 60px;
+    padding: 0 16px;
+    border-radius: var(--r-sm);
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14);
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    cursor: pointer;
+    transition: transform .2s var(--spring), background .2s ease, border-color .2s ease;
+  }
+  .opt:active { transform: scale(.985); }
+  .opt .key {
+    width: 26px; height: 26px;
+    flex: none;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    background: var(--sunk);
+    border: 1px solid var(--glass-brd);
+  }
+  .opt .val { font-size: 17px; letter-spacing: -.01em; }
+  .opt.sel {
+    background: var(--glass-hi);
+    border-color: color-mix(in srgb, var(--green) 60%, transparent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 0 0 3px color-mix(in srgb, var(--green) 16%, transparent);
+  }
+  .opt.sel .key { color: var(--green); border-color: color-mix(in srgb, var(--green) 50%, transparent); }
+  .opt.right {
+    background: color-mix(in srgb, var(--green) 34%, transparent);
+    border-color: color-mix(in srgb, var(--green) 75%, transparent);
+  }
+  .opt.wrong {
+    background: color-mix(in srgb, var(--red) 22%, transparent);
+    border-color: color-mix(in srgb, var(--red) 58%, transparent);
+  }
+  .opt[disabled] { pointer-events: none; }
+
+  /* ---- type the command ---- */
+  .instr {
+    border-radius: var(--r-md);
+    padding: 16px;
+    margin-bottom: 16px;
+    font-size: 16px;
+    line-height: 1.42;
+    letter-spacing: -.01em;
+  }
+  .instr .k {
+    display: block;
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--green);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  .termline {
+    position: relative;
+    background: var(--term);
+    border: 1px solid var(--term-brd);
+    border-radius: var(--r-sm);
+    padding: 16px 16px;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, .42);
+    cursor: text;
+    min-height: 62px;
+    display: flex;
+    align-items: center;
+  }
+  .termline.ok  { border-color: color-mix(in srgb, var(--green) 65%, transparent); }
+  .termline.bad { border-color: color-mix(in srgb, var(--red) 60%, transparent); }
+  .termline .dollar { color: #6b7d8c; margin-right: 10px; font-size: 17px; }
+  .termline input {
+    flex: 1;
+    min-width: 0;
+    appearance: none;
+    background: none;
+    border: 0;
+    outline: none;
+    color: var(--code);
+    font-size: 17px;
+    padding: 0;
+    caret-color: var(--green);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  .termline input::placeholder { color: #3d4956; }
+  .termline .caret {
+    width: 9px; height: 20px;
+    background: var(--green);
+    border-radius: 2px;
+    animation: blink 1.1s steps(1) infinite;
+    flex: none;
+  }
+  .termline.focused .caret { display: none; }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+  .expl-field {
+    width: 100%;
+    min-height: 128px;
+    resize: none;
+    appearance: none;
+    border-radius: var(--r-md);
+    padding: 15px;
+    font: inherit;
+    font-size: 16px;
+    line-height: 1.45;
+    color: var(--text);
+    background: var(--glass);
+    -webkit-backdrop-filter: var(--glass-blur);
+    backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-brd);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .16);
+    outline: none;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+  .expl-field::placeholder { color: var(--faint); }
+  .expl-field:focus { border-color: color-mix(in srgb, var(--green) 55%, transparent); }
+
+  /* ---- floating action bar ---- */
+  .actionbar {
+    position: absolute;
+    z-index: 7;
+    left: 12px; right: 12px;
+    bottom: calc(var(--kb) + env(safe-area-inset-bottom) + 12px);
+    border-radius: var(--r-md);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: bottom .26s var(--spring);
+  }
+  .actionbar .duo { display: flex; gap: 10px; }
+  .actionbar .duo .gbtn { flex: 1; }
+
+  .keys {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .keys::-webkit-scrollbar { display: none; }
+  .keys button {
+    appearance: none;
+    flex: none;
+    min-width: 46px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 999px;
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 620;
+    background: var(--glass-hi);
+    border: 1px solid var(--glass-brd);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .26);
+    cursor: pointer;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    transition: transform .18s var(--spring);
+  }
+  .keys button:active { transform: scale(.9); }
+
+  /* ---- verdict sheet ---- */
+  .verdict {
+    position: absolute;
+    z-index: 8;
+    left: 0; right: 0;
+    bottom: 0;
+    padding: 18px 16px calc(env(safe-area-inset-bottom) + 16px);
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    transform: translateY(101%);
+    transition: transform .38s var(--spring);
+  }
+  .verdict.up { transform: none; }
+  .verdict.good { background: color-mix(in srgb, var(--green) 20%, var(--glass)); }
+  .verdict.bad  { background: color-mix(in srgb, var(--red) 18%, var(--glass)); }
+  .verdict .hd {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -.015em;
+    margin-bottom: 6px;
+  }
+  .verdict.good .hd { color: var(--green); }
+  .verdict.bad .hd  { color: var(--red); }
+  .verdict .hd svg { width: 22px; height: 22px; }
+  .verdict .why { font-size: 14px; color: var(--text); opacity: .82; margin: 0 0 14px; line-height: 1.42; }
+  .verdict .why code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: rgba(0, 0, 0, .3);
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 13px;
+  }
+  @media (prefers-color-scheme: light) {
+    .verdict .why code { background: rgba(10, 20, 35, .1); }
+  }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+
+  /* ================= RESULTS ================= */
+  .results {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding:
+      calc(env(safe-area-inset-top) + 24px)
+      calc(env(safe-area-inset-right) + 20px)
+      calc(env(safe-area-inset-bottom) + 28px)
+      calc(env(safe-area-inset-left) + 20px);
+    text-align: center;
+  }
+  .badge {
+    width: 96px; height: 96px;
+    border-radius: 34px;
+    margin: 0 auto 20px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--green) 92%, #fff), var(--green));
+    color: var(--green-ink);
+    box-shadow: 0 18px 44px color-mix(in srgb, var(--green) 40%, transparent);
+    animation: popIn .5s var(--spring) both;
+  }
+  .badge svg { width: 46px; height: 46px; }
+  @keyframes popIn {
+    from { transform: scale(.5) rotate(-12deg); opacity: 0; }
+    to   { transform: none; opacity: 1; }
+  }
+  .results h2 { margin: 0 0 4px; font-size: 27px; font-weight: 740; letter-spacing: -.028em; }
+  .results .sub { margin: 0 0 22px; color: var(--muted); font-size: 14px; }
+
+  .tiles { display: flex; gap: 10px; margin-bottom: 18px; }
+  .tile {
+    flex: 1;
+    border-radius: var(--r-sm);
+    padding: 13px 8px;
+  }
+  .tile .n { font-size: 21px; font-weight: 720; letter-spacing: -.02em; }
+  .tile .l { font-size: 11px; color: var(--muted); margin-top: 2px; font-weight: 600; }
+  .tile.xp .n { color: var(--green); }
+  .tile.streak .n { color: var(--amber); }
+
+  .goal { padding: 14px 16px; border-radius: var(--r-sm); text-align: left; margin-bottom: 20px; }
+  .goal .top { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); margin-bottom: 8px; font-weight: 600; }
+  .goal .track { height: 10px; border-radius: 999px; background: var(--sunk); overflow: hidden; }
+  .goal .track i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--green), color-mix(in srgb, var(--green) 60%, var(--blue)));
+    width: 0;
+    transition: width .9s var(--spring);
+  }
+
+  /* toast */
+  .toast {
+    position: absolute;
+    z-index: 20;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom) + 96px);
+    transform: translate(-50%, 14px);
+    padding: 11px 16px;
+    border-radius: 999px;
+    font-size: 13.5px;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .28s ease, transform .28s var(--spring);
+    white-space: nowrap;
+    max-width: 90%;
+  }
+  .toast.up { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="ambient" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+
+<div class="app">
+
+  <!-- ============ HOME ============ -->
+  <section class="screen is-on" id="screen-home">
+    <header class="navbar glass" id="navbar">
+      <a class="iconbtn tap" href="../../index.html" aria-label="Back to gallery">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      </a>
+      <h1 class="nav-title" id="navTitle">Termly</h1>
+      <div class="statpill glass" id="statPill">
+        <span class="s flame">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2s1.2 3-1 5.5C8.4 10.4 7 12 7 14.5A5 5 0 0 0 17 15c0-2-1-3.4-2.2-4.6.2 1.5-.5 2.6-1.4 3 .7-2.2-.3-4.4-1.4-5.6C13.4 5.6 13.3 3.6 12 2z"/></svg>
+          <span id="streakNum">12</span>
+        </span>
+        <span class="sep"></span>
+        <span class="s xp">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 2L4.5 13.2c-.4.5 0 1.3.7 1.3H10l-1 7.5 8.5-11.2c.4-.5 0-1.3-.7-1.3H12l1-7.5z"/></svg>
+          <span id="xpNum">480</span> xp
+        </span>
+      </div>
+    </header>
+
+    <div class="scroller" id="homeScroll">
+
+      <!-- PATH TAB -->
+      <div class="pane" id="pane-path">
+        <h2 class="largetitle">Termly</h2>
+        <p class="subtitle">Muscle memory for the command line.</p>
+
+        <div class="unit glass">
+          <div class="grow">
+            <div class="k">Section 1, Unit 3</div>
+            <div class="t">Moving &amp; copying files</div>
+          </div>
+          <div class="divider"></div>
+          <div class="list">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </div>
+        </div>
+
+        <div class="pathwrap" id="pathWrap">
+          <svg id="trail" aria-hidden="true"><path d=""/></svg>
+          <div id="nodes"></div>
+        </div>
+      </div>
+
+      <!-- PRACTICE TAB -->
+      <div class="pane" id="pane-practice" hidden>
+        <h2 class="largetitle">Practice</h2>
+        <p class="subtitle">Drill one exercise type on its own.</p>
+        <div class="panel glass" style="padding:4px 12px">
+          <button class="row tap" data-practice="flash">
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18"/></svg></span>
+            <span class="grow"><span class="t">Flashcards</span><span class="d">Recall what a command does</span></span>
+            <span class="chip">2 cards</span>
+          </button>
+          <button class="row tap" data-practice="quiz">
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.2 2.4c-.7.2-1.2.9-1.2 1.6M12 17h.01"/></svg></span>
+            <span class="grow"><span class="t">Multiple choice</span><span class="d">Pick the right command</span></span>
+            <span class="chip">2 questions</span>
+          </button>
+          <button class="row tap" data-practice="type">
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M7 10l2.5 2L7 14M12.5 15H17"/></svg></span>
+            <span class="grow"><span class="t">Type the command</span><span class="d">Write it from scratch</span></span>
+            <span class="chip">2 drills</span>
+          </button>
+          <button class="row tap" data-practice="explain">
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 1 1-3-6.2"/><path d="M8 12h8M8 16h5"/></svg></span>
+            <span class="grow"><span class="t">Explain the command</span><span class="d">Say what it does, in words</span></span>
+            <span class="chip">2 prompts</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- REVIEW TAB -->
+      <div class="pane" id="pane-review" hidden>
+        <h2 class="largetitle">Review</h2>
+        <p class="subtitle">Commands you have met so far.</p>
+        <div id="reviewList"></div>
+      </div>
+
+      <!-- PROFILE TAB -->
+      <div class="pane" id="pane-profile" hidden>
+        <h2 class="largetitle">Profile</h2>
+        <p class="subtitle">Stub screen — not part of this prototype.</p>
+        <div class="panel glass" style="display:flex;align-items:center;gap:14px">
+          <div class="ico" style="width:56px;height:56px;border-radius:18px;display:grid;place-items:center;background:var(--sunk);border:1px solid var(--glass-brd)">
+            <span class="mono" style="font-size:18px;color:var(--green)">~$</span>
+          </div>
+          <div class="grow">
+            <h3 style="margin:0">Filip</h3>
+            <p style="margin:0">Joined August 2026</p>
+          </div>
+        </div>
+        <div class="tiles">
+          <div class="tile glass streak"><div class="n" id="profStreak">12</div><div class="l">Day streak</div></div>
+          <div class="tile glass xp"><div class="n" id="profXp">480</div><div class="l">Total XP</div></div>
+          <div class="tile glass"><div class="n" id="profDone">2</div><div class="l">Lessons</div></div>
+        </div>
+        <div class="panel glass" style="padding:4px 12px">
+          <button class="row tap"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/><circle cx="12" cy="12" r="3.2"/></svg></span><span class="grow"><span class="t">Appearance</span><span class="d">Follows system</span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+          <button class="row tap" id="resetBtn"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span><span class="grow"><span class="t">Reset progress</span><span class="d">Clear streak, XP and lessons</span></span><span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+        </div>
+      </div>
+
+    </div>
+
+    <nav class="tabbar glass" id="tabbar">
+      <button class="tab on" data-tab="path">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20c5 0 3-6 8-6s3-6 8-6"/><circle cx="4" cy="20" r="1.6" fill="currentColor" stroke="none"/><circle cx="20" cy="8" r="1.6" fill="currentColor" stroke="none"/></svg>
+        Path
+      </button>
+      <button class="tab" data-tab="practice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4.5" width="19" height="15" rx="3"/><path d="M7 10l2.5 2L7 14M12.5 15H17"/></svg>
+        Practice
+      </button>
+      <button class="tab" data-tab="review">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5"/></svg>
+        Review
+      </button>
+      <button class="tab" data-tab="profile">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8.5" r="3.7"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+        Profile
+      </button>
+    </nav>
+  </section>
+
+  <!-- ============ LESSON ============ -->
+  <section class="screen" id="screen-lesson">
+    <header class="lesson-top glass">
+      <button class="closebtn tap" id="quitBtn" aria-label="Close lesson">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="dots" id="dots"></div>
+      <div class="count" id="count">1/6</div>
+      <div class="hearts" id="hearts"></div>
+    </header>
+
+    <div class="stage" id="stage"></div>
+
+    <div class="actionbar glass" id="actionbar"></div>
+
+    <div class="verdict glass" id="verdict">
+      <div class="hd" id="verdictHd"></div>
+      <div class="tags" id="verdictTags"></div>
+      <p class="why" id="verdictWhy"></p>
+      <button class="gbtn solid" id="verdictBtn">Continue</button>
+    </div>
+  </section>
+
+  <!-- ============ RESULTS ============ -->
+  <section class="screen" id="screen-results">
+    <div class="results">
+      <div class="badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.2 5.2L20 7"/></svg>
+      </div>
+      <h2 id="resTitle">Lesson complete</h2>
+      <p class="sub" id="resSub">Nice — that is another unit unlocked.</p>
+
+      <div class="tiles">
+        <div class="tile glass"><div class="n" id="resCount">6</div><div class="l">Exercises</div></div>
+        <div class="tile glass xp"><div class="n" id="resXp">+20</div><div class="l">XP earned</div></div>
+        <div class="tile glass"><div class="n" id="resAcc">100%</div><div class="l">Accuracy</div></div>
+      </div>
+
+      <div class="goal glass">
+        <div class="top"><span>Daily goal</span><span id="goalText">20/50 XP</span></div>
+        <div class="track"><i id="goalBar"></i></div>
+      </div>
+
+      <button class="gbtn solid" id="resContinue">Continue</button>
+    </div>
+  </section>
+
+  <div class="toast glass" id="toast"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- content ---------------- */
+
+  var POOL = [
+    {
+      id: 'tar', type: 'flash',
+      cmd: 'tar -xzvf archive.tar.gz',
+      answer: 'Unpacks a gzipped tarball into the current directory, printing each file as it goes.',
+      legend: [['x', 'extract'], ['z', 'gunzip first'], ['v', 'verbose'], ['f', 'the file that follows']]
+    },
+    {
+      id: 'chmodx', type: 'flash',
+      cmd: 'chmod +x deploy.sh',
+      answer: 'Marks the script as executable, so you can run it with ./deploy.sh instead of sh deploy.sh.',
+      legend: [['+x', 'add the execute bit'], ['no target', 'applies to user, group and other']]
+    },
+    {
+      id: 'mv', type: 'quiz',
+      q: 'Which command moves a file instead of copying it?',
+      options: ['cp', 'mv', 'ln', 'touch'], correct: 1,
+      why: 'mv relocates the file — the old path stops existing. cp would leave the original behind.'
+    },
+    {
+      id: 'cpr', type: 'quiz',
+      q: 'Which flag makes cp copy a folder and everything inside it?',
+      options: ['-r', '-f', '-v', '-p'], correct: 0,
+      why: '-r recurses into the directory. -f forces, -v is verbose, -p preserves timestamps.'
+    },
+    {
+      id: 'cptask', type: 'type',
+      prompt: 'Copy report.txt into the archive folder, keeping the original in place.',
+      model: 'cp report.txt archive/',
+      accept: ['cp report.txt archive/', 'cp report.txt archive', 'cp ./report.txt ./archive/', 'cp ./report.txt archive/', 'cp report.txt ./archive/', 'cp report.txt archive/report.txt'],
+      hint: 'One command, one source, one destination.'
+    },
+    {
+      id: 'mvtask', type: 'type',
+      prompt: 'Move draft.md into the notes folder and rename it to final.md.',
+      model: 'mv draft.md notes/final.md',
+      accept: ['mv draft.md notes/final.md', 'mv ./draft.md ./notes/final.md', 'mv draft.md ./notes/final.md'],
+      hint: 'The destination can carry the new name.'
+    },
+    {
+      id: 'chmod755', type: 'explain',
+      cmd: 'chmod 755 deploy.sh',
+      keywords: [
+        { k: ['permission', 'permissions', 'mode'], label: 'permissions' },
+        { k: ['execut', 'run', 'runnable'], label: 'executable' },
+        { k: ['owner', 'user', '7'], label: 'owner gets full access' },
+        { k: ['group', 'other', 'everyone', 'else', '5'], label: 'others read + execute' }
+      ],
+      model: 'Sets the file mode: the owner gets read, write and execute (7); group and everyone else get read and execute (5). In short — the owner can edit it, anybody can run it.'
+    },
+    {
+      id: 'psgrep', type: 'explain',
+      cmd: 'ps aux | grep node',
+      keywords: [
+        { k: ['process', 'processes', 'running'], label: 'lists processes' },
+        { k: ['pipe', '|', 'pass', 'feeds', 'into'], label: 'pipes output' },
+        { k: ['grep', 'filter', 'match', 'search'], label: 'filters the list' },
+        { k: ['node'], label: 'matching node' }
+      ],
+      model: 'ps aux lists every running process; the pipe feeds that list into grep, which keeps only the lines mentioning node. A quick way to find a stray server.'
+    }
+  ];
+
+  var LESSON_IDS = ['tar', 'mv', 'cptask', 'chmodx', 'chmod755', 'cpr'];
+
+  var NODES = [
+    { t: 'Where am I?' }, { t: 'Listing files' }, { t: 'Moving & copying' },
+    { t: 'Permissions' }, { t: 'Finding things' }, { t: 'Pipes & filters' },
+    { t: 'Processes' }, { t: 'Editing in place' }, { t: 'Archives' }
+  ];
+
+  var OFFSETS = [0, 52, 78, 52, 0, -52, -78, -52];
+  var DAILY_GOAL = 50;
+
+  /* ---------------- state ---------------- */
+
+  var DEF = { xp: 480, streak: 12, done: 2, today: 20, seen: {} };
+  var S = load();
+
+  function load() {
+    try {
+      var raw = localStorage.getItem('termly.v1');
+      if (!raw) return JSON.parse(JSON.stringify(DEF));
+      var p = JSON.parse(raw);
+      for (var k in DEF) if (!(k in p)) p[k] = DEF[k];
+      return p;
+    } catch (e) { return JSON.parse(JSON.stringify(DEF)); }
+  }
+  function save() {
+    try { localStorage.setItem('termly.v1', JSON.stringify(S)); } catch (e) {}
+  }
+
+  /* ---------------- helpers ---------------- */
+
+  var $ = function (s) { return document.querySelector(s); };
+  var byId = function (s) { return document.getElementById(s); };
+
+  function esc(s) {
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  var toastT;
+  function toast(msg) {
+    var el = byId('toast');
+    el.textContent = msg;
+    el.classList.add('up');
+    clearTimeout(toastT);
+    toastT = setTimeout(function () { el.classList.remove('up'); }, 1900);
+  }
+
+  var ICON = {
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12.5l5 5L19.5 7"/></svg>',
+    lock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="10" rx="2.6"/><path d="M8.2 10.5V8a3.8 3.8 0 0 1 7.6 0v2.5"/></svg>',
+    term: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7.5l4.5 4.5L5 16.5M12.5 17H19"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5S3.5 15.4 3.5 9.6A4.6 4.6 0 0 1 12 7a4.6 4.6 0 0 1 8.5 2.6c0 5.8-8.5 10.9-8.5 10.9z"/></svg>',
+    tick: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.4l2.6 2.6L16 9.5"/></svg>',
+    cross: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>'
+  };
+
+  /* ---------------- home ---------------- */
+
+  function paintStats(bump) {
+    byId('streakNum').textContent = S.streak;
+    byId('xpNum').textContent = S.xp;
+    byId('profStreak').textContent = S.streak;
+    byId('profXp').textContent = S.xp;
+    byId('profDone').textContent = S.done;
+    if (bump) {
+      var p = byId('statPill');
+      p.classList.remove('bump');
+      void p.offsetWidth;
+      p.classList.add('bump');
+    }
+  }
+
+  function buildPath() {
+    var wrap = byId('nodes');
+    wrap.innerHTML = '';
+    NODES.forEach(function (n, i) {
+      var state = i < S.done ? 'done' : (i === S.done ? 'current' : 'locked');
+      var dx = OFFSETS[i % OFFSETS.length];
+      var row = document.createElement('div');
+      row.className = 'node-row';
+      var side = dx <= 0 ? 'right' : 'left';
+      row.innerHTML =
+        '<button class="node ' + state + '" data-i="' + i + '" style="transform:translateX(' + dx + 'px)" aria-label="' + esc(n.t) + '">' +
+          (state === 'done' ? ICON.check : state === 'current' ? ICON.term : ICON.lock) +
+        '</button>' +
+        '<span class="node-label ' + side + '" style="' + (side === 'right' ? 'left:calc(50% + 58px + ' + dx + 'px)' : 'right:calc(50% + 58px - ' + dx + 'px)') + '">' + esc(n.t) + '</span>';
+      wrap.appendChild(row);
+    });
+    requestAnimationFrame(drawTrail);
+  }
+
+  function drawTrail() {
+    var wrap = byId('pathWrap');
+    var svg = byId('trail');
+    var path = svg.querySelector('path');
+    var ns = [].slice.call(wrap.querySelectorAll('.node'));
+    if (!ns.length || !wrap.clientWidth) return;
+    var wb = wrap.getBoundingClientRect();
+    var pts = ns.map(function (n) {
+      var b = n.getBoundingClientRect();
+      return [b.left - wb.left + b.width / 2, b.top - wb.top + b.height / 2];
+    });
+    svg.setAttribute('viewBox', '0 0 ' + wrap.clientWidth + ' ' + wrap.clientHeight);
+    svg.setAttribute('width', wrap.clientWidth);
+    svg.setAttribute('height', wrap.clientHeight);
+    var d = 'M' + pts[0][0] + ',' + pts[0][1];
+    for (var i = 0; i < pts.length - 1; i++) {
+      var a = pts[i], b2 = pts[i + 1], my = (a[1] + b2[1]) / 2;
+      d += ' C' + a[0] + ',' + my + ' ' + b2[0] + ',' + my + ' ' + b2[0] + ',' + b2[1];
+    }
+    path.setAttribute('d', d);
+  }
+
+  function closePopup() {
+    var p = $('.popup');
+    if (p) p.parentNode.removeChild(p);
+  }
+
+  byId('nodes').addEventListener('click', function (e) {
+    var btn = e.target.closest('.node');
+    if (!btn) return;
+    var i = +btn.dataset.i;
+    closePopup();
+    if (i > S.done) {
+      btn.classList.remove('shake');
+      void btn.offsetWidth;
+      btn.classList.add('shake');
+      toast('Finish the lesson before it first.');
+      return;
+    }
+    var row = btn.closest('.node-row');
+    var pop = document.createElement('div');
+    pop.className = 'popup glass';
+    pop.style.top = (row.offsetTop + btn.offsetHeight + 14) + 'px';
+    pop.innerHTML =
+      '<h3>' + esc(NODES[i].t) + '</h3>' +
+      '<p>' + (i < S.done ? 'Completed — run it again to keep it sharp.' : '6 exercises · flashcards, quizzes, typing and explaining.') + '</p>' +
+      '<button class="gbtn solid" id="startBtn">Start lesson <span class="plus">+20 XP</span></button>';
+    byId('pathWrap').appendChild(pop);
+    byId('startBtn').addEventListener('click', function () {
+      closePopup();
+      startSession(LESSON_IDS.map(function (id) { return find(id); }), true);
+    });
+  });
+
+  byId('homeScroll').addEventListener('scroll', function () {
+    byId('navbar').classList.toggle('is-stuck', byId('homeScroll').scrollTop > 26);
+  }, { passive: true });
+
+  /* tabs */
+  var PANES = ['path', 'practice', 'review', 'profile'];
+  byId('tabbar').addEventListener('click', function (e) {
+    var t = e.target.closest('.tab');
+    if (!t) return;
+    var name = t.dataset.tab;
+    closePopup();
+    [].forEach.call(document.querySelectorAll('.tab'), function (x) { x.classList.toggle('on', x === t); });
+    PANES.forEach(function (p) { byId('pane-' + p).hidden = p !== name; });
+    byId('homeScroll').scrollTop = 0;
+    byId('navbar').classList.remove('is-stuck');
+    if (name === 'review') buildReview();
+    if (name === 'path') requestAnimationFrame(drawTrail);
+  });
+
+  document.querySelector('#pane-practice').addEventListener('click', function (e) {
+    var r = e.target.closest('[data-practice]');
+    if (!r) return;
+    var kind = r.dataset.practice;
+    startSession(POOL.filter(function (p) { return p.type === kind; }), false);
+  });
+
+  function buildReview() {
+    var host = byId('reviewList');
+    var ids = Object.keys(S.seen);
+    if (!ids.length) {
+      host.innerHTML = '<div class="panel glass"><div class="empty">Nothing here yet. Finish a lesson and the commands you met will show up for review.</div></div>';
+      return;
+    }
+    var rows = ids.map(function (id) {
+      var it = find(id);
+      if (!it) return '';
+      var label = it.cmd || it.model || (it.options ? it.options[it.correct] : id);
+      var known = S.seen[id] === 'known';
+      return '<div class="row">' +
+        '<span class="ico"><span class="mono" style="font-size:13px;color:var(--green)">$</span></span>' +
+        '<span class="grow"><span class="t mono" style="font-size:14px">' + esc(label) + '</span>' +
+        '<span class="d">' + esc(typeLabel(it.type)) + '</span></span>' +
+        '<span class="chip ' + (known ? 'known' : 'learning') + '">' + (known ? 'Known' : 'Learning') + '</span>' +
+        '</div>';
+    }).join('');
+    host.innerHTML =
+      '<div class="panel glass" style="padding:4px 12px">' + rows + '</div>' +
+      '<button class="gbtn" id="reviewAll">Review these ' + ids.length + ' commands</button>';
+    byId('reviewAll').addEventListener('click', function () {
+      startSession(ids.map(find).filter(Boolean), false);
+    });
+  }
+
+  function typeLabel(t) {
+    return { flash: 'Flashcard', quiz: 'Multiple choice', type: 'Type the command', explain: 'Explain the command' }[t] || t;
+  }
+
+  function find(id) {
+    for (var i = 0; i < POOL.length; i++) if (POOL[i].id === id) return POOL[i];
+    return null;
+  }
+
+  /* ---------------- screens ---------------- */
+
+  function show(id) {
+    [].forEach.call(document.querySelectorAll('.screen'), function (s) {
+      s.classList.toggle('is-on', s.id === id);
+      s.classList.remove('is-entering');
+    });
+    var el = byId(id);
+    void el.offsetWidth;
+    el.classList.add('is-entering');
+  }
+
+  /* ---------------- session ---------------- */
+
+  var ses = null;
+
+  function startSession(items, isLesson) {
+    if (!items.length) return;
+    ses = { items: items, i: 0, right: 0, hearts: 3, isLesson: !!isLesson, answered: [] };
+    show('screen-lesson');
+    renderTop();
+    renderExercise();
+  }
+
+  function renderTop() {
+    var dots = byId('dots');
+    dots.innerHTML = ses.items.map(function (_, i) {
+      var cls = ses.answered[i] === true ? 'fill' : ses.answered[i] === false ? 'miss' : '';
+      return '<span class="' + cls + '"><i></i></span>';
+    }).join('');
+    byId('count').textContent = (ses.i + 1) + '/' + ses.items.length;
+    var h = byId('hearts');
+    h.innerHTML = [0, 1, 2].map(function (n) {
+      return '<span class="' + (n < ses.hearts ? '' : 'gone') + '">' + ICON.heart + '</span>';
+    }).join('');
+  }
+
+  function loseHeart() {
+    ses.hearts = Math.max(0, ses.hearts - 1);
+    renderTop();
+    var h = byId('hearts');
+    h.classList.remove('lose');
+    void h.offsetWidth;
+    h.classList.add('lose');
+  }
+
+  function setAction(html) { byId('actionbar').innerHTML = html; }
+
+  function renderExercise() {
+    hideVerdict();
+    var it = ses.items[ses.i];
+    renderTop();
+    ({ flash: exFlash, quiz: exQuiz, type: exType, explain: exExplain })[it.type](it);
+    byId('stage').scrollTop = 0;
+  }
+
+  /* ---- flashcard ---- */
+  function exFlash(it) {
+    byId('stage').innerHTML =
+      '<div class="prompt-k">Flashcard</div>' +
+      '<div class="flip" id="flip"><div class="flip-in">' +
+        '<div class="face front">' +
+          '<div class="big mono">' + esc(it.cmd) + '</div>' +
+          '<div class="hint">Tap to reveal</div>' +
+        '</div>' +
+        '<div class="face back">' +
+          '<div class="lead">What it does</div>' +
+          '<div class="big">' + esc(it.answer) + '</div>' +
+          '<div class="legend mono">' + it.legend.map(function (l) {
+            return '<div><b>' + esc(l[0]) + '</b><span>' + esc(l[1]) + '</span></div>';
+          }).join('') + '</div>' +
+        '</div>' +
+      '</div></div>';
+
+    setAction(
+      '<div class="duo">' +
+        '<button class="gbtn red" id="stillBtn" disabled>Still learning</button>' +
+        '<button class="gbtn green" id="gotBtn" disabled>Got it</button>' +
+      '</div>');
+
+    var flip = byId('flip');
+    flip.addEventListener('click', function () {
+      flip.classList.toggle('flipped');
+      if (flip.classList.contains('flipped')) {
+        byId('stillBtn').disabled = false;
+        byId('gotBtn').disabled = false;
+      }
+    });
+    byId('stillBtn').addEventListener('click', function () { markSeen(it.id, 'learning'); next(false, true); });
+    byId('gotBtn').addEventListener('click', function () { markSeen(it.id, 'known'); next(true, true); });
+  }
+
+  /* ---- quiz ---- */
+  function exQuiz(it) {
+    byId('stage').innerHTML =
+      '<div class="prompt-k">Multiple choice</div>' +
+      '<h2 class="prompt-q">' + esc(it.q) + '</h2>' +
+      '<div class="opts">' + it.options.map(function (o, i) {
+        return '<button class="opt" data-i="' + i + '">' +
+          '<span class="key mono">' + 'ABCD'[i] + '</span>' +
+          '<span class="val mono">' + esc(o) + '</span></button>';
+      }).join('') + '</div>';
+
+    setAction('<button class="gbtn" id="checkBtn" disabled>Check</button>');
+
+    var chosen = -1;
+    byId('stage').querySelector('.opts').addEventListener('click', function (e) {
+      var b = e.target.closest('.opt');
+      if (!b) return;
+      chosen = +b.dataset.i;
+      [].forEach.call(document.querySelectorAll('.opt'), function (o) { o.classList.toggle('sel', o === b); });
+      byId('checkBtn').disabled = false;
+    });
+
+    byId('checkBtn').addEventListener('click', function () {
+      var ok = chosen === it.correct;
+      [].forEach.call(document.querySelectorAll('.opt'), function (o, i) {
+        o.disabled = true;
+        o.classList.remove('sel');
+        if (i === it.correct) o.classList.add('right');
+        else if (i === chosen) o.classList.add('wrong');
+      });
+      markSeen(it.id, ok ? 'known' : 'learning');
+      if (!ok) loseHeart();
+      verdict(ok, ok ? 'Correct' : 'Not quite', it.why, null);
+    });
+  }
+
+  /* ---- type the command ---- */
+  function exType(it) {
+    byId('stage').innerHTML =
+      '<div class="instr glass"><span class="k">Type the command</span>' + esc(it.prompt) + '</div>' +
+      '<div class="termline" id="termline">' +
+        '<span class="dollar mono">$</span>' +
+        '<input id="cmdInput" class="mono" type="text" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="type here" enterkeyhint="go">' +
+        '<span class="caret"></span>' +
+      '</div>' +
+      '<p style="color:var(--muted);font-size:13px;margin:12px 2px 0">' + esc(it.hint) + '</p>';
+
+    setAction(
+      '<div class="keys" id="keys">' +
+        ['/', '-', '~', '|', '*', 'Tab'].map(function (k) {
+          return '<button data-k="' + esc(k) + '">' + esc(k) + '</button>';
+        }).join('') +
+      '</div>' +
+      '<button class="gbtn" id="runBtn" disabled>Run command</button>');
+
+    var input = byId('cmdInput');
+    var line = byId('termline');
+    input.addEventListener('input', function () {
+      byId('runBtn').disabled = !input.value.trim();
+      line.classList.remove('ok', 'bad');
+    });
+    input.addEventListener('focus', function () { line.classList.add('focused'); });
+    input.addEventListener('blur', function () { line.classList.remove('focused'); });
+    line.addEventListener('click', function () { input.focus(); });
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && input.value.trim()) { e.preventDefault(); runIt(); }
+    });
+
+    byId('keys').addEventListener('pointerdown', function (e) {
+      var b = e.target.closest('button');
+      if (!b) return;
+      e.preventDefault();
+      var k = b.dataset.k;
+      insert(input, k === 'Tab' ? '    ' : k);
+      byId('runBtn').disabled = !input.value.trim();
+    });
+
+    byId('runBtn').addEventListener('click', runIt);
+
+    function runIt() {
+      var v = norm(input.value);
+      var ok = it.accept.some(function (a) { return norm(a) === v; });
+      input.blur();
+      line.classList.add(ok ? 'ok' : 'bad');
+      markSeen(it.id, ok ? 'known' : 'learning');
+      if (!ok) loseHeart();
+      verdict(ok, ok ? 'That runs' : 'Not the one',
+        ok ? 'Exactly what the shell needs.' : 'The command we were after is <code>' + esc(it.model) + '</code>.', null);
+    }
+  }
+
+  function norm(s) {
+    return String(s).trim().replace(/\s+/g, ' ').replace(/\/+$/, '/').toLowerCase();
+  }
+
+  function insert(input, text) {
+    var s = input.selectionStart, e = input.selectionEnd, v = input.value;
+    if (s === null) { input.value = v + text; }
+    else {
+      input.value = v.slice(0, s) + text + v.slice(e);
+      var p = s + text.length;
+      try { input.setSelectionRange(p, p); } catch (err) {}
+    }
+    input.focus();
+  }
+
+  /* ---- explain the command ---- */
+  function exExplain(it) {
+    byId('stage').innerHTML =
+      '<div class="prompt-k">Explain the command</div>' +
+      '<h2 class="prompt-q">What does this do?</h2>' +
+      '<div class="term">' +
+        '<div class="bar"><b></b><b></b><b></b></div>' +
+        '<div class="cmd mono"><span class="dollar">$</span>' + esc(it.cmd) + '</div>' +
+      '</div>' +
+      '<p style="color:var(--muted);font-size:13px;margin:16px 2px 8px">In your own words — a sentence is plenty.</p>' +
+      '<textarea class="expl-field" id="explField" placeholder="It changes the file so that..."></textarea>';
+
+    setAction('<button class="gbtn" id="explBtn" disabled>Check explanation</button>');
+
+    var field = byId('explField');
+    field.addEventListener('input', function () {
+      byId('explBtn').disabled = field.value.trim().length < 8;
+    });
+
+    byId('explBtn').addEventListener('click', function () {
+      var text = field.value.toLowerCase();
+      var hit = [], missed = [];
+      it.keywords.forEach(function (g) {
+        var found = g.k.some(function (w) { return text.indexOf(w) !== -1; });
+        (found ? hit : missed).push(g.label);
+      });
+      var ok = hit.length >= 2;
+      field.blur();
+      markSeen(it.id, ok ? 'known' : 'learning');
+      if (!ok) loseHeart();
+      var tags = hit.map(function (h) { return '<span class="chip known">' + ICON.tick + esc(h) + '</span>'; })
+        .concat(missed.map(function (m) { return '<span class="chip">' + esc(m) + '</span>'; })).join('');
+      verdict(ok,
+        ok ? 'You have got it' : 'Half way there',
+        '<strong>' + esc(it.cmd) + '</strong> — ' + esc(it.model),
+        tags);
+    });
+  }
+
+  /* ---- verdict sheet ---- */
+  function verdict(ok, head, why, tagsHtml) {
+    var v = byId('verdict');
+    v.classList.remove('good', 'bad');
+    v.classList.add(ok ? 'good' : 'bad');
+    byId('verdictHd').innerHTML = (ok ? ICON.tick : ICON.cross) + '<span>' + esc(head) + '</span>';
+    byId('verdictTags').innerHTML = tagsHtml || '';
+    byId('verdictWhy').innerHTML = why;
+    byId('verdictBtn').textContent = ses.i === ses.items.length - 1 ? 'Finish' : 'Continue';
+    byId('actionbar').style.opacity = '0';
+    requestAnimationFrame(function () { v.classList.add('up'); });
+    byId('verdictBtn').onclick = function () { next(ok, false); };
+  }
+
+  function hideVerdict() {
+    byId('verdict').classList.remove('up');
+    byId('actionbar').style.opacity = '1';
+  }
+
+  function next(ok, silent) {
+    ses.answered[ses.i] = !!ok;
+    if (ok) ses.right++;
+    hideVerdict();
+    if (ses.hearts === 0) { finish(true); return; }
+    if (ses.i >= ses.items.length - 1) { finish(false); return; }
+    ses.i++;
+    setTimeout(renderExercise, silent ? 60 : 220);
+  }
+
+  function markSeen(id, level) {
+    if (S.seen[id] !== 'known' || level === 'known') S.seen[id] = level;
+    save();
+  }
+
+  /* ---------------- results ---------------- */
+
+  function finish(outOfHearts) {
+    var total = ses.items.length;
+    var acc = Math.round((ses.right / total) * 100);
+    var xp = ses.isLesson ? 20 : Math.max(5, ses.right * 3);
+
+    S.xp += xp;
+    S.today = Math.min(DAILY_GOAL, S.today + xp);
+    if (ses.isLesson && !outOfHearts) {
+      S.done = Math.min(NODES.length, S.done + 1);
+      S.streak += 1;
+    }
+    save();
+
+    byId('resTitle').textContent = outOfHearts ? 'Out of hearts' : (ses.isLesson ? 'Lesson complete' : 'Practice done');
+    byId('resSub').textContent = outOfHearts
+      ? 'The lesson stays open — give it another run.'
+      : (ses.isLesson ? 'Next unit on the path is unlocked.' : 'Nice drilling. Back to the path whenever you like.');
+    byId('resCount').textContent = total;
+    byId('resXp').textContent = '+' + xp;
+    byId('resAcc').textContent = acc + '%';
+    byId('goalText').textContent = S.today + '/' + DAILY_GOAL + ' XP';
+
+    show('screen-results');
+    var bar = byId('goalBar');
+    bar.style.width = '0';
+    setTimeout(function () { bar.style.width = Math.round((S.today / DAILY_GOAL) * 100) + '%'; }, 120);
+  }
+
+  byId('resContinue').addEventListener('click', function () {
+    goHome(true);
+  });
+
+  byId('quitBtn').addEventListener('click', function () {
+    hideVerdict();
+    goHome(false);
+  });
+
+  function goHome(bump) {
+    ses = null;
+    paintStats(bump);
+    buildPath();
+    show('screen-home');
+    byId('homeScroll').scrollTop = 0;
+    byId('navbar').classList.remove('is-stuck');
+  }
+
+  byId('resetBtn').addEventListener('click', function () {
+    S = JSON.parse(JSON.stringify(DEF));
+    save();
+    paintStats(true);
+    buildPath();
+    toast('Progress reset.');
+  });
+
+  /* ---------------- keyboard-aware action bar ---------------- */
+
+  if (window.visualViewport) {
+    var vv = window.visualViewport;
+    var upd = function () {
+      var kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--kb', kb + 'px');
+    };
+    vv.addEventListener('resize', upd);
+    vv.addEventListener('scroll', upd);
+    upd();
+  }
+
+  window.addEventListener('resize', function () { requestAnimationFrame(drawTrail); });
+
+  /* ---------------- boot ---------------- */
+
+  paintStats(false);
+  buildPath();
+  setTimeout(drawTrail, 60);
+})();
+</script>
+
+</body>
+</html>

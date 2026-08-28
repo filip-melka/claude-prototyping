@@ -181,6 +181,18 @@
       "changelog": ["v1 — initial prototype"]
     },
     {
+      "id": "PROTOTYPE-16",
+      "workItemId": "11f01891-7a61-4460-972a-f1e425798f8b",
+      "title": "Termly",
+      "tagline": "Muscle memory for the command line — flashcards, quizzes and typing drills under Liquid Glass.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-16/index.html",
+      "version": 1,
+      "createdAt": "2026-08-28",
+      "updatedAt": "2026-08-28",
+      "changelog": ["v1 — initial prototype"]
+    },
+    {
       "id": "PROTOTYPE-17",
       "workItemId": "230dc237-9fdd-44d3-b5fb-3ca4ff830113",
       "title": "Rungs",
