@@ -10,7 +10,9 @@
       "version": 1,
       "createdAt": "2026-08-07",
       "updatedAt": "2026-08-07",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-3",
@@ -37,7 +39,9 @@
       "version": 1,
       "createdAt": "2026-08-10",
       "updatedAt": "2026-08-10",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-5",
@@ -94,19 +98,24 @@
       "version": 1,
       "createdAt": "2026-08-17",
       "updatedAt": "2026-08-17",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-9",
       "workItemId": "18eb561d-1de3-48a3-9465-2a0a2efd9dcd",
       "title": "Shift",
-      "tagline": "Swap one card into a four-letter word to forge a new one — twenty seconds a turn.",
+      "tagline": "Swap letters into the word to beat each level's target — before the swaps or the clock run out.",
       "kind": "game",
       "path": "prototypes/PROTOTYPE-9/index.html",
-      "version": 1,
+      "version": 2,
       "createdAt": "2026-08-20",
-      "updatedAt": "2026-08-20",
-      "changelog": ["v1 — initial prototype"]
+      "updatedAt": "2026-08-29",
+      "changelog": [
+        "v1 — initial prototype",
+        "v2 — rebuilt as a level-based climb: letter point values, a 10-swap pool, 1-3 swaps a turn with a live preview, target scores, power-ups between levels, and a vibrant gradient look with white point-badged tiles"
+      ]
     },
     {
       "id": "PROTOTYPE-10",
@@ -118,7 +127,9 @@
       "version": 1,
       "createdAt": "2026-08-21",
       "updatedAt": "2026-08-21",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-11",
@@ -130,7 +141,9 @@
       "version": 1,
       "createdAt": "2026-08-19",
       "updatedAt": "2026-08-19",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-12",
@@ -142,7 +155,9 @@
       "version": 1,
       "createdAt": "2026-08-18",
       "updatedAt": "2026-08-18",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-13",
@@ -154,7 +169,9 @@
       "version": 1,
       "createdAt": "2026-08-23",
       "updatedAt": "2026-08-23",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-14",
@@ -166,7 +183,9 @@
       "version": 1,
       "createdAt": "2026-08-24",
       "updatedAt": "2026-08-24",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-15",
@@ -178,7 +197,9 @@
       "version": 1,
       "createdAt": "2026-08-25",
       "updatedAt": "2026-08-25",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-16",
@@ -190,7 +211,9 @@
       "version": 1,
       "createdAt": "2026-08-28",
       "updatedAt": "2026-08-28",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-17",
@@ -202,7 +225,9 @@
       "version": 1,
       "createdAt": "2026-08-26",
       "updatedAt": "2026-08-26",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     },
     {
       "id": "PROTOTYPE-18",
@@ -214,7 +239,9 @@
       "version": 1,
       "createdAt": "2026-08-27",
       "updatedAt": "2026-08-27",
-      "changelog": ["v1 — initial prototype"]
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     }
   ]
 }
