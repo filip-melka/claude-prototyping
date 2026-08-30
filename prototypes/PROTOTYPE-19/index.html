@@ -1,0 +1,1316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark light">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Rig Parking</title>
+<style>
+  /* Night asphalt is the home palette, so it lives on :root and the light
+     scheme is the override — the same lot at noon. The trucks stay black
+     silhouettes in both; only the ground and the panels change. */
+  :root {
+    --page: #0e0e10;
+    --chrome: #232326;
+    --aisle: #3c3c40;
+    --slot: #333336;
+    --panel: #19191b;
+    --panel-line: rgba(255, 255, 255, .07);
+
+    --truck: #050505;
+    --rig: #0a0a0a;
+
+    --amber: #ffb020;
+    --amber-ink: #ffb020;
+    --amber-soft: rgba(255, 176, 32, .16);
+    --tail: #b23030;
+    --head: #ffe28a;
+    --lane: rgba(255, 255, 255, .35);
+    --seam: rgba(255, 255, 255, .045);
+
+    --ink: #e8e8ea;
+    --ink-dim: #83838c;
+    --btn: #232326;
+    --btn-line: rgba(255, 255, 255, .1);
+    --rim: #2e2e33;
+    --rim-hi: #3a3a41;
+    --scrim: rgba(8, 8, 10, .84);
+
+    --mono: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --page: #ececed;
+      --chrome: #b6b6bd;
+      --aisle: #d6d6db;
+      --slot: #cbcbd1;
+      --panel: #ffffff;
+      --panel-line: rgba(0, 0, 0, .09);
+
+      --truck: #101013;
+      --rig: #16161a;
+
+      /* The dashed slot outline still has to read on pale asphalt, and the
+         HUD type has to read on white — two different jobs, two ambers. */
+      --amber: #b56a00;
+      --amber-ink: #8a5000;
+      --amber-soft: rgba(181, 106, 0, .12);
+      --tail: #b83232;
+      --head: #d99a00;
+      --lane: rgba(255, 255, 255, .92);
+      --seam: rgba(0, 0, 0, .05);
+
+      --ink: #17171a;
+      --ink-dim: #6b6b76;
+      --btn: #f1f1f3;
+      --btn-line: rgba(0, 0, 0, .1);
+      --rim: #d8d8de;
+      --rim-hi: #c2c2ca;
+      --scrim: rgba(232, 232, 235, .86);
+    }
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--page);
+    color: var(--ink);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    max-height: 100dvh;
+    padding:
+      calc(env(safe-area-inset-top) + 10px)
+      calc(env(safe-area-inset-right) + 14px)
+      calc(env(safe-area-inset-bottom) + 12px)
+      calc(env(safe-area-inset-left) + 14px);
+    max-width: 520px;
+    margin: 0 auto;
+  }
+
+  .app__header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: none;
+    margin-bottom: 10px;
+  }
+
+  .back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid var(--btn-line);
+    background: var(--btn);
+    color: var(--ink-dim);
+    text-decoration: none;
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .back:active { transform: scale(.94); }
+
+  /* The circle stays 34px because that is the gallery's look, but the thumb
+     gets the full 44px the rest of the controls promise. */
+  .back { position: relative; }
+  .back::after { content: ""; position: absolute; inset: -6px; border-radius: inherit; }
+
+  .app__title {
+    margin: 0;
+    font: 600 15px/1 var(--mono);
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+
+  /* ---------- HUD ---------- */
+
+  .hud {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 12px;
+    padding: 9px 6px;
+    margin-bottom: 10px;
+    font: 700 14px/1 var(--mono);
+    color: var(--amber-ink);
+    letter-spacing: .04em;
+  }
+
+  .hud__cell {
+    flex: 1;
+    text-align: center;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .hud__cell + .hud__cell { border-left: 1px solid var(--panel-line); }
+
+  .hud__label { color: var(--ink-dim); font-weight: 400; }
+
+  /* A bump is the one moment the HUD has to shout. */
+  .hud__cell.is-hit { color: var(--tail); }
+
+  /* ---------- Stage ---------- */
+
+  .stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  #lot {
+    display: block;
+    border-radius: 14px;
+    touch-action: none;
+  }
+
+  /* Sits in the open middle of the aisle: clear of the rig up top and clear of
+     the bays down the bottom, which are the two things worth looking at. */
+  .hint {
+    position: absolute;
+    left: 50%;
+    top: 52%;
+    transform: translate(-50%, -50%);
+    max-width: 78%;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    color: var(--ink-dim);
+    font: 400 12px/1.35 var(--mono);
+    text-align: center;
+    letter-spacing: .02em;
+    transition: opacity .45s ease, transform .45s ease;
+  }
+
+  .hint.is-gone {
+    opacity: 0;
+    transform: translate(-50%, -50%) translateY(10px);
+    pointer-events: none;
+  }
+
+  /* ---------- Controls ---------- */
+
+  .controls {
+    flex: none;
+    margin-top: 10px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 16px;
+    padding: 10px 12px 12px;
+  }
+
+  .controls__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+    min-height: 44px;
+  }
+
+  .gear {
+    font: 700 12px/1 var(--mono);
+    letter-spacing: .18em;
+    color: var(--ink-dim);
+    display: flex;
+    gap: 8px;
+  }
+
+  .gear__slot {
+    padding: 6px 9px;
+    border-radius: 7px;
+    border: 1px solid transparent;
+  }
+
+  .gear__slot.is-on {
+    color: var(--amber-ink);
+    background: var(--amber-soft);
+    border-color: var(--amber-soft);
+  }
+
+  /* Jackknife is the mechanic that makes reversing hard, so it gets said out
+     loud the moment the hitch angle goes past recoverable. */
+  .warn {
+    font: 700 11px/1 var(--mono);
+    letter-spacing: .14em;
+    color: var(--tail);
+    opacity: 0;
+    transition: opacity .15s ease;
+  }
+
+  .warn.is-on { opacity: 1; }
+
+  .reset {
+    width: 44px;
+    height: 44px;
+    flex: none;
+    border-radius: 12px;
+    border: 1px solid var(--btn-line);
+    background: var(--btn);
+    color: var(--ink-dim);
+    font-size: 19px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .reset:active { transform: scale(.94); }
+
+  .controls__main {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .pedal {
+    appearance: none;
+    height: 104px;
+    border-radius: 14px;
+    border: 1px solid var(--btn-line);
+    background: var(--btn);
+    color: var(--ink);
+    font: 700 13px/1 var(--mono);
+    letter-spacing: .16em;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    cursor: pointer;
+    transition: background .08s ease, color .08s ease;
+  }
+
+  .pedal__ico { font-size: 20px; line-height: 1; }
+
+  .pedal.is-on {
+    background: var(--amber);
+    border-color: var(--amber);
+    color: #141105;
+  }
+
+  @media (prefers-color-scheme: light) {
+    .pedal.is-on { color: #fff; }
+  }
+
+  /* ---------- Steering wheel ---------- */
+
+  .wheel {
+    position: relative;
+    width: 128px;
+    height: 128px;
+    flex: none;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  .wheel:active { cursor: grabbing; }
+
+  /* The fixed index sits outside the dial so the amount of lock is readable
+     against something that does not move — the trick every rotary control
+     in a real car app uses. */
+  .wheel__index {
+    position: absolute;
+    top: -7px;
+    left: 50%;
+    width: 0;
+    height: 0;
+    margin-left: -5px;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid var(--ink-dim);
+  }
+
+  .wheel__dial {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 11px solid var(--rim);
+    box-shadow: 0 0 0 1px var(--btn-line) inset, 0 0 0 1px var(--btn-line);
+    will-change: transform;
+  }
+
+  .wheel__spoke {
+    position: absolute;
+    background: var(--rim-hi);
+    border-radius: 3px;
+  }
+
+  /* Classic three-spoke truck wheel: one bar across, one down to the rim. */
+  .wheel__spoke--h {
+    left: -1px;
+    right: -1px;
+    top: 50%;
+    height: 13px;
+    margin-top: -6.5px;
+  }
+
+  .wheel__spoke--v {
+    top: 50%;
+    bottom: -1px;
+    left: 50%;
+    width: 13px;
+    margin-left: -6.5px;
+  }
+
+  .wheel__hub {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 40px;
+    height: 40px;
+    margin: -20px 0 0 -20px;
+    border-radius: 50%;
+    background: var(--rim);
+    border: 1px solid var(--btn-line);
+  }
+
+  .wheel__mark {
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    width: 6px;
+    height: 13px;
+    margin-left: -3px;
+    border-radius: 3px;
+    background: var(--amber);
+  }
+
+  /* ---------- Win overlay ---------- */
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--scrim);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s ease;
+  }
+
+  .overlay.is-on { opacity: 1; pointer-events: auto; }
+
+  .overlay__card {
+    width: 100%;
+    max-width: 340px;
+    background: var(--panel);
+    border: 1px solid var(--panel-line);
+    border-radius: 20px;
+    padding: 26px 22px 22px;
+    text-align: center;
+    transform: translateY(10px) scale(.97);
+    transition: transform .28s cubic-bezier(.2, .9, .3, 1);
+  }
+
+  .overlay.is-on .overlay__card { transform: none; }
+
+  .overlay__title {
+    margin: 0;
+    font: 700 34px/1 var(--mono);
+    letter-spacing: .04em;
+    color: var(--amber-ink);
+  }
+
+  .overlay__time {
+    margin: 16px 0 0;
+    font: 700 52px/1 var(--mono);
+    letter-spacing: -.02em;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .overlay__sub {
+    margin: 10px 0 20px;
+    font: 400 13px/1.5 var(--mono);
+    color: var(--ink-dim);
+  }
+
+  .btn {
+    appearance: none;
+    display: block;
+    width: 100%;
+    min-height: 48px;
+    border-radius: 14px;
+    font: 700 14px/1 var(--mono);
+    letter-spacing: .1em;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+
+  .btn + .btn { margin-top: 10px; }
+
+  .btn:active { transform: scale(.98); }
+
+  .btn--ghost {
+    background: transparent;
+    border-color: var(--btn-line);
+    color: var(--ink-dim);
+  }
+
+  .btn--primary {
+    background: var(--amber);
+    color: #141105;
+  }
+
+  @media (prefers-color-scheme: light) {
+    .btn--primary { color: #fff; }
+  }
+
+  /* Short phones: give the lot back the pixels the controls were using. */
+  @media (max-height: 700px) {
+    .pedal { height: 84px; }
+    .wheel { width: 108px; height: 108px; }
+    .controls__top { min-height: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="app__header">
+    <a class="back" href="../../index.html" aria-label="Back to gallery">&larr;</a>
+    <h1 class="app__title">Rig Parking</h1>
+  </header>
+
+  <div class="hud" id="hud">
+    <div class="hud__cell" id="hudLevel"><span class="hud__label">LEVEL</span> 1</div>
+    <div class="hud__cell" id="hudTime">0.0s</div>
+    <div class="hud__cell" id="hudBumps"><span class="hud__label">BUMPS</span> 0</div>
+  </div>
+
+  <main class="stage" id="stage">
+    <canvas id="lot"></canvas>
+    <p class="hint" id="hint">Pull up the aisle, then reverse the trailer into the amber slot.</p>
+  </main>
+
+  <section class="controls">
+    <div class="controls__top">
+      <div class="gear">
+        <span class="gear__slot" id="gearRev">R</span>
+        <span class="gear__slot" id="gearNeutral">N</span>
+        <span class="gear__slot" id="gearFwd">D</span>
+      </div>
+      <span class="warn" id="warn">JACKKNIFE</span>
+      <button class="reset" id="btnReset" aria-label="Reset level">&#8635;</button>
+    </div>
+
+    <div class="controls__main">
+      <button class="pedal" id="btnRev" aria-label="Reverse">
+        <span class="pedal__ico">&#9660;</span><span>REV</span>
+      </button>
+
+      <div class="wheel" id="wheel" role="slider" aria-label="Steering wheel"
+           aria-valuemin="-100" aria-valuemax="100" aria-valuenow="0">
+        <div class="wheel__dial" id="dial">
+          <span class="wheel__spoke wheel__spoke--h"></span>
+          <span class="wheel__spoke wheel__spoke--v"></span>
+          <span class="wheel__hub"></span>
+          <span class="wheel__mark"></span>
+        </div>
+        <span class="wheel__index"></span>
+      </div>
+
+      <button class="pedal" id="btnFwd" aria-label="Forward">
+        <span class="pedal__ico">&#9650;</span><span>FWD</span>
+      </button>
+    </div>
+  </section>
+</div>
+
+<div class="overlay" id="overlay" aria-hidden="true">
+  <div class="overlay__card" role="dialog" aria-label="Level complete">
+    <p class="overlay__title">Parked!</p>
+    <p class="overlay__time" id="ovTime">0.0s</p>
+    <p class="overlay__sub" id="ovSub">Level 1 complete.</p>
+    <button class="btn btn--ghost" id="btnReplay">&#8635; REPLAY</button>
+    <button class="btn btn--primary" id="btnNext">NEXT LEVEL &rarr;</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     World
+     The lot is authored in a fixed 480x800 space and scaled to
+     whatever the phone gives us, so every distance below is a real
+     constant rather than something that drifts with screen size.
+     ============================================================ */
+
+  var W = 480, H = 800;
+  var FRAME = 16;                              // chrome border around the lot
+  var IN_L = FRAME, IN_R = W - FRAME;
+  var IN_T = FRAME, IN_B = H - FRAME;
+  var SLOTS = 4;
+  var SLOT_W = (IN_R - IN_L) / SLOTS;          // 112
+  var SLOT_D = 206;                            // depth of the parking bays
+  var SLOT_T = IN_B - SLOT_D;                  // where the bays start
+  var PAD = 5;                                 // outline inset inside a bay
+
+  var PARKED_L = 150;                          // parked truck length
+  var PARKED_NOSE = 12;                        // gap from the back wall
+
+  /* --- the rig ---------------------------------------------------
+     Tractor state is (x, y) at the rear axle plus heading a0; the
+     trailer hangs off a hitch h behind that axle and carries its own
+     heading a1. Everything drawn is derived from those four numbers. */
+
+  var CAB_W = 46, CAB_L = 70, CAB_BACK = 10;   // body runs -CAB_BACK..+60
+  var WHEELBASE = 44;
+  var HITCH = 8;                               // hitch sits behind the rear axle
+  /* The trailer nose sits just behind the cab rather than lapping over it, so
+     a straight rig still shows the hitch as a sliver of asphalt — without it
+     cab and trailer merge into one black bar and the swing is unreadable. */
+  var TR_W = 50, TR_L = 158, TR_NOSE = -8;
+  var TR_AXLE = 112;                           // trailer axle behind the hitch
+
+  var MAX_LOCK = 36 * Math.PI / 180;           // steering at full lock
+  var MAX_ART = 80 * Math.PI / 180;            // cab and trailer touch here
+  var WARN_ART = 62 * Math.PI / 180;
+  var V_FWD = 130, V_REV = 95;
+  var ACCEL = 200, BRAKE = 240;
+  var STEER_RATE = 4.2;                        // how fast the tyres follow the wheel
+
+  var WHEEL_LOCK = 150;                        // degrees of dial travel each way
+  var WHEEL_RETURN = 900;                      // deg/s self-centring on release
+
+  var WIN_SPEED = 6;                           // "nearly stopped"
+  var WIN_ALIGN = 12 * Math.PI / 180;
+
+  /* ============================================================
+     Palette — read off the CSS custom properties so the canvas and
+     the DOM stay one design, and re-read when the scheme flips.
+     ============================================================ */
+
+  var P = {};
+
+  function readPalette() {
+    var cs = getComputedStyle(document.documentElement);
+    ['chrome', 'aisle', 'slot', 'truck', 'rig', 'amber', 'tail', 'head', 'lane', 'seam', 'panel']
+      .forEach(function (k) { P[k] = cs.getPropertyValue('--' + k).trim(); });
+  }
+
+  readPalette();
+
+  var schemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+  var onScheme = function () { readPalette(); };
+  if (schemeQuery.addEventListener) schemeQuery.addEventListener('change', onScheme);
+  else if (schemeQuery.addListener) schemeQuery.addListener(onScheme);
+
+  /* ============================================================
+     Canvas fitting
+     ============================================================ */
+
+  var cv = document.getElementById('lot');
+  var ctx = cv.getContext('2d');
+  var stage = document.getElementById('stage');
+  var scale = 1, dpr = 1;
+
+  function fit() {
+    var r = stage.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return;
+    scale = Math.min(r.width / W, r.height / H);
+    dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    cv.style.width = (W * scale) + 'px';
+    cv.style.height = (H * scale) + 'px';
+    cv.width = Math.round(W * scale * dpr);
+    cv.height = Math.round(H * scale * dpr);
+    draw();
+  }
+
+  if (window.ResizeObserver) new ResizeObserver(fit).observe(stage);
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', function () { setTimeout(fit, 120); });
+
+  /* ============================================================
+     Geometry helpers — oriented boxes and SAT overlap
+     ============================================================ */
+
+  function box(cx, cy, w, l, ang) {
+    // w is across the vehicle, l is along it; ang points along l.
+    return { cx: cx, cy: cy, hw: w / 2, hl: l / 2, ang: ang };
+  }
+
+  function corners(b) {
+    var c = Math.cos(b.ang), s = Math.sin(b.ang);
+    var ax = c * b.hl, ay = s * b.hl;          // along
+    var bx = -s * b.hw, by = c * b.hw;         // across
+    return [
+      [b.cx + ax + bx, b.cy + ay + by],
+      [b.cx + ax - bx, b.cy + ay - by],
+      [b.cx - ax - bx, b.cy - ay - by],
+      [b.cx - ax + bx, b.cy - ay + by]
+    ];
+  }
+
+  function projectionOverlaps(ca, cb, axis) {
+    var minA = Infinity, maxA = -Infinity, minB = Infinity, maxB = -Infinity, i, d;
+    for (i = 0; i < 4; i++) {
+      d = ca[i][0] * axis[0] + ca[i][1] * axis[1];
+      if (d < minA) minA = d;
+      if (d > maxA) maxA = d;
+    }
+    for (i = 0; i < 4; i++) {
+      d = cb[i][0] * axis[0] + cb[i][1] * axis[1];
+      if (d < minB) minB = d;
+      if (d > maxB) maxB = d;
+    }
+    return !(maxA < minB || maxB < minA);
+  }
+
+  function boxesHit(a, b) {
+    var ca = corners(a), cb = corners(b);
+    var axes = [
+      [Math.cos(a.ang), Math.sin(a.ang)], [-Math.sin(a.ang), Math.cos(a.ang)],
+      [Math.cos(b.ang), Math.sin(b.ang)], [-Math.sin(b.ang), Math.cos(b.ang)]
+    ];
+    for (var i = 0; i < 4; i++) {
+      if (!projectionOverlaps(ca, cb, axes[i])) return false;
+    }
+    return true;
+  }
+
+  function boxInsideRect(b, x0, y0, x1, y1) {
+    var c = corners(b);
+    for (var i = 0; i < 4; i++) {
+      if (c[i][0] < x0 || c[i][0] > x1 || c[i][1] < y0 || c[i][1] > y1) return false;
+    }
+    return true;
+  }
+
+  function wrapPi(a) {
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a < -Math.PI) a += 2 * Math.PI;
+    return a;
+  }
+
+  /* ============================================================
+     Game state
+     ============================================================ */
+
+  var level = 1;
+  var targetSlot = 1;
+  var parkedW = 0;
+  var parked = [];            // boxes for the three occupied bays
+  var target = null;          // {x0,y0,x1,y1,cx,cy} — the amber outline
+
+  var rig = {
+    x: 0, y: 0, a0: 0, a1: 0,
+    v: 0, steer: 0
+  };
+
+  var bumps = 0;
+  var elapsed = 0;
+  var running = false;        // timer started (first throttle press)
+  var won = false;
+  var lastBump = -1e9;
+  var shake = 0;
+
+  var input = { fwd: false, rev: false };
+  var wheelDeg = 0, wheelTarget = 0, wheelDragging = false;
+
+  /* Parked trucks widen each level, squeezing the mouth of the bay —
+     capped so the gap always stays drivable. */
+  function parkedWidthFor(lv) {
+    return SLOT_W * Math.min(0.72, 0.54 + 0.03 * (lv - 1));
+  }
+
+  function slotCentre(i) { return IN_L + i * SLOT_W + SLOT_W / 2; }
+
+  function buildLevel(newSlot) {
+    parkedW = parkedWidthFor(level);
+
+    if (newSlot) {
+      var pick = targetSlot;
+      while (pick === targetSlot) pick = Math.floor(Math.random() * SLOTS);
+      targetSlot = pick;
+    }
+
+    parked = [];
+    for (var i = 0; i < SLOTS; i++) {
+      if (i === targetSlot) continue;
+      var cy = IN_B - PARKED_NOSE - PARKED_L / 2;
+      parked.push(box(slotCentre(i), cy, parkedW, PARKED_L, -Math.PI / 2));
+    }
+
+    var x0 = IN_L + targetSlot * SLOT_W + PAD;
+    target = {
+      x0: x0,
+      y0: SLOT_T + PAD,
+      x1: x0 + SLOT_W - PAD * 2,
+      y1: IN_B - PAD,
+      cx: slotCentre(targetSlot),
+      cy: (SLOT_T + PAD + IN_B - PAD) / 2
+    };
+
+    resetRig();
+  }
+
+  function resetRig() {
+    // Nose-east in the upper aisle, trailer trailing straight behind.
+    rig.x = 220; rig.y = 150; rig.a0 = 0; rig.a1 = 0; rig.v = 0; rig.steer = 0;
+    bumps = 0;
+    elapsed = 0;
+    running = false;
+    won = false;
+    shake = 0;
+    input.fwd = input.rev = false;
+    wheelDeg = wheelTarget = 0;
+    keyLeft = keyRight = keyFwd = keyRev = false;
+    setOverlay(false);
+    syncPedals();
+    updateHud();
+    applyWheel();
+  }
+
+  /* ============================================================
+     Rig geometry from state
+     ============================================================ */
+
+  function cabBox(s) {
+    var c = Math.cos(s.a0), sn = Math.sin(s.a0);
+    var off = CAB_L / 2 - CAB_BACK;            // body centre ahead of the axle
+    return box(s.x + c * off, s.y + sn * off, CAB_W, CAB_L, s.a0);
+  }
+
+  function hitchPoint(s) {
+    return [s.x - Math.cos(s.a0) * HITCH, s.y - Math.sin(s.a0) * HITCH];
+  }
+
+  function trailerBox(s) {
+    var h = hitchPoint(s);
+    var c = Math.cos(s.a1), sn = Math.sin(s.a1);
+    var off = TR_L / 2 - TR_NOSE;              // body centre behind the hitch
+    return box(h[0] - c * off, h[1] - sn * off, TR_W, TR_L, s.a1);
+  }
+
+  function rigHits(s) {
+    var cab = cabBox(s), tr = trailerBox(s), i;
+    if (!boxInsideRect(cab, IN_L, IN_T, IN_R, IN_B)) return true;
+    if (!boxInsideRect(tr, IN_L, IN_T, IN_R, IN_B)) return true;
+    for (i = 0; i < parked.length; i++) {
+      if (boxesHit(cab, parked[i]) || boxesHit(tr, parked[i])) return true;
+    }
+    return false;
+  }
+
+  /* ============================================================
+     Physics
+     Kinematic tractor + trailer. The trailer's yaw rate comes from the
+     no-slip condition at its axle, which is what makes it swing wide
+     going forward and go unstable — jackknife — in reverse.
+     ============================================================ */
+
+  function integrate(s, dt) {
+    var target0 = (wheelDeg / WHEEL_LOCK) * MAX_LOCK;
+    s.steer += (target0 - s.steer) * Math.min(1, STEER_RATE * dt);
+
+    var want = 0;
+    if (input.fwd && !input.rev) want = V_FWD;
+    else if (input.rev && !input.fwd) want = -V_REV;
+
+    if (want === 0) {
+      // Coast down to a stop rather than snapping — an idling rig creeps.
+      if (s.v > 0) s.v = Math.max(0, s.v - BRAKE * dt);
+      else if (s.v < 0) s.v = Math.min(0, s.v + BRAKE * dt);
+    } else if (want > s.v) {
+      s.v = Math.min(want, s.v + ACCEL * dt);
+    } else if (want < s.v) {
+      s.v = Math.max(want, s.v - ACCEL * dt);
+    }
+
+    if (s.v === 0) return false;
+
+    var yaw0 = (s.v / WHEELBASE) * Math.tan(s.steer);
+    var phi = wrapPi(s.a0 - s.a1);
+    var yaw1 = (s.v * Math.sin(phi) - HITCH * yaw0 * Math.cos(phi)) / TR_AXLE;
+
+    s.x += Math.cos(s.a0) * s.v * dt;
+    s.y += Math.sin(s.a0) * s.v * dt;
+    s.a0 += yaw0 * dt;
+    s.a1 += yaw1 * dt;
+
+    // The trailer physically fouls the cab past MAX_ART; pin it there.
+    var art = wrapPi(s.a0 - s.a1);
+    if (art > MAX_ART) s.a1 = s.a0 - MAX_ART;
+    else if (art < -MAX_ART) s.a1 = s.a0 + MAX_ART;
+
+    return true;
+  }
+
+  function step(dt) {
+    if (won) return;
+
+    var prev = { x: rig.x, y: rig.y, a0: rig.a0, a1: rig.a1, v: rig.v, steer: rig.steer };
+    var moved = integrate(rig, dt);
+
+    // A parked rig cannot have driven into anything since the last step, so
+    // the hit test only has to run when the wheels actually turned.
+    if (moved && rigHits(rig)) {
+      // Stop dead where we were: no clipping through a trailer, ever.
+      rig.x = prev.x; rig.y = prev.y; rig.a0 = prev.a0; rig.a1 = prev.a1;
+      rig.v = 0;
+      if (elapsed - lastBump > 0.4) {
+        lastBump = elapsed;
+        bumps++;
+        shake = 1;
+        flashBump();
+        updateHud();
+      }
+    }
+
+    if (running) elapsed += dt;
+    if (shake > 0) shake = Math.max(0, shake - dt * 5);
+
+    checkWin();
+  }
+
+  function trailerAligned(s) {
+    // Fold the trailer's heading onto the bay's axis; a trailer nose-in and
+    // one backed in are both square to the slot.
+    var d = wrapPi(s.a1 - Math.PI / 2);
+    if (d > Math.PI / 2) d -= Math.PI;
+    if (d < -Math.PI / 2) d += Math.PI;
+    return Math.abs(d);
+  }
+
+  function trailerParked(s) {
+    return boxInsideRect(trailerBox(s), target.x0, target.y0, target.x1, target.y1);
+  }
+
+  function checkWin() {
+    if (won) return;
+    if (!trailerParked(rig)) return;
+    if (Math.abs(rig.v) > WIN_SPEED) return;
+    if (trailerAligned(rig) > WIN_ALIGN) return;
+
+    won = true;
+    running = false;
+    input.fwd = input.rev = false;
+    syncPedals();
+
+    document.getElementById('ovTime').textContent = elapsed.toFixed(1) + 's';
+    document.getElementById('ovSub').textContent =
+      'Level ' + level + ' complete ' +
+      (bumps === 0 ? 'with a clean run.' : bumps === 1 ? 'with 1 bump.' : 'with ' + bumps + ' bumps.');
+    setOverlay(true);
+  }
+
+  /* ============================================================
+     Drawing
+     ============================================================ */
+
+  function roundRectPath(g, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    g.beginPath();
+    g.moveTo(x + r, y);
+    g.lineTo(x + w - r, y);
+    g.arcTo(x + w, y, x + w, y + r, r);
+    g.lineTo(x + w, y + h - r);
+    g.arcTo(x + w, y + h, x + w - r, y + h, r);
+    g.lineTo(x + r, y + h);
+    g.arcTo(x, y + h, x, y + h - r, r);
+    g.lineTo(x, y + r);
+    g.arcTo(x, y, x + r, y, r);
+    g.closePath();
+  }
+
+  function silhouette(g, b, fill) {
+    g.save();
+    g.translate(b.cx, b.cy);
+    g.rotate(b.ang);
+    g.fillStyle = fill;
+    roundRectPath(g, -b.hl, -b.hw, b.hl * 2, b.hw * 2, 5);
+    g.fill();
+    g.restore();
+  }
+
+  function dot(g, x, y, r, fill) {
+    g.beginPath();
+    g.arc(x, y, r, 0, Math.PI * 2);
+    g.fillStyle = fill;
+    g.fill();
+  }
+
+  function draw() {
+    var g = ctx;
+    var sx = shake > 0 ? (Math.random() - 0.5) * 5 * shake : 0;
+    var sy = shake > 0 ? (Math.random() - 0.5) * 5 * shake : 0;
+
+    g.setTransform(scale * dpr, 0, 0, scale * dpr, sx * scale * dpr, sy * scale * dpr);
+    g.clearRect(-20, -20, W + 40, H + 40);
+
+    // Chrome frame, then the two ground tones.
+    g.fillStyle = P.chrome;
+    g.fillRect(0, 0, W, H);
+    g.fillStyle = P.aisle;
+    g.fillRect(IN_L, IN_T, IN_R - IN_L, SLOT_T - IN_T);
+    g.fillStyle = P.slot;
+    g.fillRect(IN_L, SLOT_T, IN_R - IN_L, IN_B - SLOT_T);
+
+    // Slab seams: barely-there texture so the open aisle reads as a big piece
+    // of asphalt with scale to it rather than a flat void.
+    g.strokeStyle = P.seam;
+    g.lineWidth = 2;
+    for (var yy = IN_T + 96; yy < SLOT_T - 24; yy += 96) {
+      g.beginPath();
+      g.moveTo(IN_L, yy);
+      g.lineTo(IN_R, yy);
+      g.stroke();
+    }
+
+    // Bay dividers.
+    g.strokeStyle = P.lane;
+    g.lineWidth = 3;
+    g.setLineDash([14, 10]);
+    for (var i = 1; i < SLOTS; i++) {
+      var x = IN_L + i * SLOT_W;
+      g.beginPath();
+      g.moveTo(x, SLOT_T);
+      g.lineTo(x, IN_B - 2);
+      g.stroke();
+    }
+
+    // The line the bays hang off, kept quieter than the dividers themselves.
+    g.globalAlpha = 0.5;
+    g.setLineDash([20, 14]);
+    g.beginPath();
+    g.moveTo(IN_L, SLOT_T);
+    g.lineTo(IN_R, SLOT_T);
+    g.stroke();
+    g.setLineDash([]);
+    g.globalAlpha = 1;
+
+    // Target bay: "P" first so the trailer covers it as it comes in.
+    g.save();
+    g.globalAlpha = 0.4;
+    g.fillStyle = P.amber;
+    g.font = 'bold 76px "Courier New", monospace';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText('P', target.cx, target.cy);
+    g.restore();
+
+    var homing = !won && trailerParked(rig);
+    g.strokeStyle = P.amber;
+    g.lineWidth = homing ? 5 : 3;
+    g.globalAlpha = homing ? 1 : 0.9;
+    g.setLineDash(homing ? [] : [13, 9]);
+    roundRectPath(g, target.x0, target.y0, target.x1 - target.x0, target.y1 - target.y0, 6);
+    g.stroke();
+    g.setLineDash([]);
+    g.globalAlpha = 1;
+
+    // Parked trucks, nose to the wall, tail lights facing the aisle.
+    for (i = 0; i < parked.length; i++) {
+      var b = parked[i];
+      silhouette(g, b, P.truck);
+      var rear = b.cy - b.hl;                  // ang is -90deg, so rear is up
+      dot(g, b.cx - b.hw + 8, rear + 9, 3, P.tail);
+      dot(g, b.cx + b.hw - 8, rear + 9, 3, P.tail);
+    }
+
+    // Player rig: trailer under the cab, the way a fifth wheel sits.
+    var tr = trailerBox(rig), cab = cabBox(rig);
+    silhouette(g, tr, P.rig);
+    silhouette(g, cab, P.rig);
+
+    var hx = cab.cx + Math.cos(rig.a0) * cab.hl;
+    var hy = cab.cy + Math.sin(rig.a0) * cab.hl;
+    dot(g, hx - Math.cos(rig.a0) * 6, hy - Math.sin(rig.a0) * 6, 4, P.head);
+  }
+
+  /* ============================================================
+     Loop
+     ============================================================ */
+
+  var last = 0, acc = 0;
+  var FIXED = 1 / 120;
+
+  function frame(now) {
+    if (!last) last = now;
+    var dt = (now - last) / 1000;
+    last = now;
+    if (dt > 0.25) dt = 0.25;                  // returning from a background tab
+
+    acc += dt;
+    var guard = 0;
+    while (acc >= FIXED && guard < 40) { step(FIXED); acc -= FIXED; guard++; }
+    if (guard >= 40) acc = 0;
+
+    tickWheel(dt);
+    updateTime();
+    updateWarn();
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  /* ============================================================
+     HUD
+     ============================================================ */
+
+  var hudLevel = document.getElementById('hudLevel');
+  var hudTime = document.getElementById('hudTime');
+  var hudBumps = document.getElementById('hudBumps');
+  var warnEl = document.getElementById('warn');
+  var hintEl = document.getElementById('hint');
+  var shownTime = -1;
+
+  function updateHud() {
+    hudLevel.innerHTML = '<span class="hud__label">LEVEL</span> ' + level;
+    hudBumps.innerHTML = '<span class="hud__label">BUMPS</span> ' + bumps;
+  }
+
+  function updateTime() {
+    var t = Math.floor(elapsed * 10) / 10;
+    if (t === shownTime) return;
+    shownTime = t;
+    hudTime.textContent = t.toFixed(1) + 's';
+  }
+
+  function flashBump() {
+    hudBumps.classList.add('is-hit');
+    setTimeout(function () { hudBumps.classList.remove('is-hit'); }, 260);
+  }
+
+  function updateWarn() {
+    var art = Math.abs(wrapPi(rig.a0 - rig.a1));
+    warnEl.classList.toggle('is-on', !won && art > WARN_ART);
+  }
+
+  function dismissHint() {
+    if (hintEl && !hintEl.classList.contains('is-gone')) hintEl.classList.add('is-gone');
+  }
+
+  /* ============================================================
+     Overlay
+     ============================================================ */
+
+  var overlay = document.getElementById('overlay');
+
+  function setOverlay(on) {
+    overlay.classList.toggle('is-on', on);
+    overlay.setAttribute('aria-hidden', on ? 'false' : 'true');
+  }
+
+  document.getElementById('btnReplay').addEventListener('click', function () {
+    buildLevel(false);
+  });
+
+  document.getElementById('btnNext').addEventListener('click', function () {
+    level++;
+    buildLevel(true);
+    updateHud();
+  });
+
+  document.getElementById('btnReset').addEventListener('click', function () {
+    buildLevel(false);
+  });
+
+  /* ============================================================
+     Pedals
+     ============================================================ */
+
+  var btnFwd = document.getElementById('btnFwd');
+  var btnRev = document.getElementById('btnRev');
+  var gearFwd = document.getElementById('gearFwd');
+  var gearRev = document.getElementById('gearRev');
+  var gearN = document.getElementById('gearNeutral');
+
+  function syncPedals() {
+    btnFwd.classList.toggle('is-on', input.fwd);
+    btnRev.classList.toggle('is-on', input.rev);
+    gearFwd.classList.toggle('is-on', input.fwd && !input.rev);
+    gearRev.classList.toggle('is-on', input.rev && !input.fwd);
+    gearN.classList.toggle('is-on', !input.fwd && !input.rev);
+  }
+
+  function throttle(which, on) {
+    if (won && on) return;
+    input[which] = on;
+    if (on) {
+      running = true;
+      dismissHint();
+    }
+    syncPedals();
+  }
+
+  function holdButton(el, which) {
+    el.addEventListener('pointerdown', function (e) {
+      e.preventDefault();
+      if (el.setPointerCapture) el.setPointerCapture(e.pointerId);
+      throttle(which, true);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(function (evt) {
+      el.addEventListener(evt, function () { throttle(which, false); });
+    });
+    el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  }
+
+  holdButton(btnFwd, 'fwd');
+  holdButton(btnRev, 'rev');
+
+  /* ============================================================
+     Steering wheel
+     True rotational dragging: we track the angle of the finger about
+     the dial's centre, so a grab anywhere on the rim works and the
+     wheel keeps turning as long as you keep circling.
+     ============================================================ */
+
+  var wheelEl = document.getElementById('wheel');
+  var dialEl = document.getElementById('dial');
+  var dragStartAngle = 0, dragStartWheel = 0;
+
+  function pointerAngle(e) {
+    var r = wheelEl.getBoundingClientRect();
+    return Math.atan2(e.clientY - (r.top + r.height / 2), e.clientX - (r.left + r.width / 2));
+  }
+
+  wheelEl.addEventListener('pointerdown', function (e) {
+    e.preventDefault();
+    wheelDragging = true;
+    dragStartAngle = pointerAngle(e);
+    dragStartWheel = wheelDeg;
+    dismissHint();
+    if (wheelEl.setPointerCapture) wheelEl.setPointerCapture(e.pointerId);
+  });
+
+  wheelEl.addEventListener('pointermove', function (e) {
+    if (!wheelDragging) return;
+    e.preventDefault();
+    var d = wrapPi(pointerAngle(e) - dragStartAngle) * 180 / Math.PI;
+    wheelDeg = Math.max(-WHEEL_LOCK, Math.min(WHEEL_LOCK, dragStartWheel + d));
+    applyWheel();
+  });
+
+  ['pointerup', 'pointercancel'].forEach(function (evt) {
+    wheelEl.addEventListener(evt, function () { wheelDragging = false; });
+  });
+
+  wheelEl.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+
+  function applyWheel() {
+    dialEl.style.transform = 'rotate(' + wheelDeg.toFixed(2) + 'deg)';
+    wheelEl.setAttribute('aria-valuenow', Math.round(wheelDeg / WHEEL_LOCK * 100));
+  }
+
+  /* Off the finger the wheel returns to centre on its own, the same
+     self-centring the steering already has. */
+  function tickWheel(dt) {
+    if (wheelDragging) return;
+
+    if (keyLeft && !keyRight) wheelTarget = -WHEEL_LOCK;
+    else if (keyRight && !keyLeft) wheelTarget = WHEEL_LOCK;
+    else wheelTarget = 0;
+
+    var move = WHEEL_RETURN * dt;
+    if (wheelDeg < wheelTarget) wheelDeg = Math.min(wheelTarget, wheelDeg + move);
+    else if (wheelDeg > wheelTarget) wheelDeg = Math.max(wheelTarget, wheelDeg - move);
+    applyWheel();
+  }
+
+  /* ============================================================
+     Keyboard — a convenience on a desktop browser, mirroring the
+     on-screen controls exactly.
+     ============================================================ */
+
+  var keyLeft = false, keyRight = false, keyFwd = false, keyRev = false;
+
+  function keyFor(e) {
+    var k = e.key.toLowerCase();
+    if (k === 'arrowleft' || k === 'a') return 'left';
+    if (k === 'arrowright' || k === 'd') return 'right';
+    if (k === 'arrowup' || k === 'w') return 'fwd';
+    if (k === 'arrowdown' || k === 's') return 'rev';
+    return null;
+  }
+
+  window.addEventListener('keydown', function (e) {
+    if (e.repeat) return;
+    var k = keyFor(e);
+    if (!k) return;
+    e.preventDefault();
+    if (k === 'left') keyLeft = true;
+    else if (k === 'right') keyRight = true;
+    else if (k === 'fwd') { keyFwd = true; throttle('fwd', true); }
+    else if (k === 'rev') { keyRev = true; throttle('rev', true); }
+    dismissHint();
+  });
+
+  window.addEventListener('keyup', function (e) {
+    var k = keyFor(e);
+    if (!k) return;
+    e.preventDefault();
+    if (k === 'left') keyLeft = false;
+    else if (k === 'right') keyRight = false;
+    else if (k === 'fwd') { keyFwd = false; throttle('fwd', false); }
+    else if (k === 'rev') { keyRev = false; throttle('rev', false); }
+  });
+
+  // Losing the tab should not leave a pedal stuck down.
+  window.addEventListener('blur', function () {
+    throttle('fwd', false);
+    throttle('rev', false);
+    keyLeft = keyRight = keyFwd = keyRev = false;
+    wheelDragging = false;
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      throttle('fwd', false);
+      throttle('rev', false);
+      last = 0;
+    }
+  });
+
+  /* ============================================================
+     Go
+     ============================================================ */
+
+  targetSlot = Math.floor(Math.random() * SLOTS);
+  buildLevel(false);
+  updateHud();
+  fit();
+  requestAnimationFrame(frame);
+})();
+</script>
+
+</body>
+</html>

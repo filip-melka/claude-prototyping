@@ -242,6 +242,20 @@
       "changelog": [
         "v1 — initial prototype"
       ]
+    },
+    {
+      "id": "PROTOTYPE-19",
+      "workItemId": "1aef1f3e-e8e2-4d30-b25b-0cc5367ccfe9",
+      "title": "Rig Parking",
+      "tagline": "Back the trailer in without jackknifing — every level squeezes the gap a little tighter.",
+      "kind": "game",
+      "path": "prototypes/PROTOTYPE-19/index.html",
+      "version": 1,
+      "createdAt": "2026-08-30",
+      "updatedAt": "2026-08-30",
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     }
   ]
 }
