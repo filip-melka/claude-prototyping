@@ -256,6 +256,20 @@
       "changelog": [
         "v1 — initial prototype"
       ]
+    },
+    {
+      "id": "PROTOTYPE-20",
+      "workItemId": "78e0a38f-72a2-4c77-829e-f722cf928b4f",
+      "title": "Name That Opening",
+      "tagline": "Watch the first few moves, learn the name and the tell, then prove you know it.",
+      "kind": "app",
+      "path": "prototypes/PROTOTYPE-20/index.html",
+      "version": 1,
+      "createdAt": "2026-08-31",
+      "updatedAt": "2026-08-31",
+      "changelog": [
+        "v1 — initial prototype"
+      ]
     }
   ]
 }
