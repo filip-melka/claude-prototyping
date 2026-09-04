@@ -1,12 +1,19 @@
 <!doctype html>
 <!--
-  PROTOTYPE-9 — Shift (v4)
-  A level-based word-swap climb. Every letter carries a point value; each level
-  gives you a word, a hand of five cards, a target score and a shared pool of
-  swaps. Words run 3 letters to 4, no word scores twice in a run, every scoring
-  turn earns a free two-card discard, clearing a level boosts a letter of your
-  choosing by +1, and the run's accumulated score is what a run is judged on.
-  Two ways in: Endless, and a date-seeded Daily Challenge worth one attempt.
+  PROTOTYPE-9 — Shift (v5)
+  A level-based word-swap climb, now a playtest build. Every letter carries a
+  point value; each level gives you a word, a hand of five cards, a target score
+  and a shared pool of swaps.
+
+  What is new in v5 is that eight of its rules are settings rather than
+  behaviour — scoring, card exchange, turn timer, swaps per turn, swap pool,
+  word repeats, level reward and level structure — and eleven named presets
+  combine them into experiments a tester can compare from one build. Every rule
+  in the file reads a knob and never a mode name, so the only thing that makes
+  Blitz Blitz is one number in the PRESETS table.
+
+  Two ways in: any of the eleven modes from Mode Select, and a date-seeded
+  Daily Challenge on Classic rules worth one attempt.
   Self-contained: no network of any kind, inline style and script only.
 -->
 <html lang="en">
@@ -89,9 +96,13 @@
     user-select: none;
   }
 
+  /* A definite height, not just a minimum: the mode list is the first screen
+     long enough to need scrolling, and it can only scroll inside itself if the
+     shell above it is actually the height of the viewport. */
   .app {
     display: flex;
     flex-direction: column;
+    height: 100dvh;
     min-height: 100dvh;
     padding:
       calc(env(safe-area-inset-top) + 12px)
@@ -421,6 +432,77 @@
 
   .beststrip strong { color: var(--ink); font-size: 17px; }
 
+  /* ---------- Mode Select ---------- */
+  /* The stacked, self-describing card list The New Yorker uses for "All Puzzles
+     & Games" — every row names one thing and says in a line what it is — carrying
+     the rule-by-rule breakdown Life Reset puts under its Hard Mode. A mode's card
+     shows the knobs it moves, so a tester can read the experiment before playing
+     it, and the baseline sits at the top wearing its settings rather than a diff. */
+
+  .modehead { flex: none; margin-bottom: 13px; }
+  .modehead h2 { margin: 5px 0 4px; font-size: 25px; font-weight: 780; letter-spacing: -.01em; }
+  .modehead p { margin: 0; font-size: 14px; color: var(--ink-dim); }
+
+  .modes {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: grid;
+    align-content: start;
+    gap: 9px;
+    padding-bottom: 2px;
+  }
+
+  .mode {
+    appearance: none;
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--glass-line);
+    border-radius: 19px;
+    background: var(--glass);
+    color: var(--ink);
+    padding: 12px 14px;
+    font: inherit;
+    cursor: pointer;
+    transition: transform .12s ease;
+  }
+
+  .mode:active { transform: scale(.99); }
+  .mode--base { background: var(--glass-strong); border-color: var(--accent); }
+
+  .mode__top { display: flex; align-items: baseline; gap: 10px; }
+  .mode__name { font-size: 17px; font-weight: 760; letter-spacing: -.01em; }
+
+  .mode__best {
+    margin-left: auto;
+    flex: none;
+    font-size: 11.5px;
+    font-weight: 720;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+
+  .mode__line { margin: 3px 0 0; font-size: 13.5px; line-height: 1.35; color: var(--ink-dim); }
+  .mode__chips { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 5px; }
+  .modes__foot { flex: none; padding-top: 10px; }
+
+  .chip {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: var(--glass);
+    border: 1px solid var(--glass-line);
+    font-size: 11.5px;
+    font-weight: 680;
+    color: var(--ink-dim);
+    white-space: nowrap;
+  }
+
+  /* the knob this mode actually moves, called out against the ones it inherits */
+  .chip--on { background: var(--accent); border-color: transparent; color: var(--accent-ink); }
+
   /* ---------- Play: level header ---------- */
 
   .lvlbar { flex: none; margin-bottom: 12px; }
@@ -503,7 +585,8 @@
   .boosts { display: flex; gap: 4px; }
 
   .boosts__chip {
-    width: 22px;
+    min-width: 22px;
+    padding: 0 5px;
     height: 22px;
     border-radius: 7px;
     background: var(--accent);
@@ -921,6 +1004,11 @@
 
   .pick__tile .pip { background: rgba(61, 44, 0, .18); color: var(--accent-ink); }
 
+  /* the same card, carrying a run perk instead of a letter — word-count runs
+     have no letter values to boost, so the reward beat keeps its shape and
+     changes its currency */
+  .pick__tile--perk { font-size: 18px; letter-spacing: -.02em; }
+
   .pick__body { display: block; min-width: 0; }
   .pick b { display: block; font-size: 16px; font-weight: 750; }
   .pick span { font-size: 13.5px; color: rgba(27, 17, 64, .62); }
@@ -1073,8 +1161,8 @@
           <h2 class="home__title">Climb the word ladder</h2>
           <p class="home__text">
             Every letter is worth points. Swap cards into the word, bank what the whole new word is
-            worth, and hit each level's target before your ten swaps run out. Words go from three
-            letters to four as you climb.
+            worth, and hit each level's target before your ten swaps run out. That is Classic &mdash;
+            and this build carries ten rule variants beside it, each testing one idea.
           </p>
         </div>
 
@@ -1085,8 +1173,8 @@
         </ol>
 
         <div class="home__foot">
-          <div class="beststrip"><span>Best run</span><strong id="homeBest">0</strong></div>
-          <button class="btn" id="btnStart">Play</button>
+          <div class="beststrip"><span>Best &middot; Classic</span><strong id="homeBest">0</strong></div>
+          <button class="btn" id="btnStart">Choose a mode</button>
 
           <button class="daily" id="btnDaily">
             <span class="daily__mark" aria-hidden="true">
@@ -1103,6 +1191,21 @@
       </div>
     </section>
 
+    <!-- ---------- Mode Select ---------- -->
+    <section class="screen" id="screenModes">
+      <div class="modehead">
+        <p class="eyebrow">Playtest build</p>
+        <h2>Pick a ruleset</h2>
+        <p>Same game underneath. Each variant moves one rule so you can feel what it is worth.</p>
+      </div>
+
+      <div class="modes" id="modeList"></div>
+
+      <div class="modes__foot">
+        <button class="btn btn--ghost" id="btnModesHome">Home</button>
+      </div>
+    </section>
+
     <!-- ---------- Play ---------- -->
     <section class="screen" id="screenPlay">
       <div class="lvlbar">
@@ -1111,7 +1214,7 @@
           <p class="lvlbar__score" id="scoreLine">0 <em>/ 18</em></p>
         </div>
         <div class="track"><div class="track__fill" id="trackFill"></div></div>
-        <p class="lvlbar__run">Run <b id="runTotal">0</b></p>
+        <p class="lvlbar__run" id="runLine">Run <b id="runTotal">0</b></p>
       </div>
 
       <div class="meters">
@@ -1166,7 +1269,7 @@
         </div>
 
         <div>
-          <p class="eyebrow" style="margin-bottom:10px">Pick one to boost</p>
+          <p class="eyebrow" style="margin-bottom:10px" id="pickLabel">Pick one to boost</p>
           <div class="picks" id="picks"></div>
         </div>
       </div>
@@ -1179,9 +1282,11 @@
 
         <div class="over__hero">
           <span class="over__num" id="finalScore">0</span>
-          <span class="over__label">points this run</span>
+          <span class="over__label" id="overLabel">points this run</span>
           <span class="over__sub" id="overLevel">Level 1 &middot; 0 levels cleared</span>
         </div>
+
+        <p style="margin:0"><span class="chip chip--on" id="overMode">Classic</span></p>
 
         <p class="badge" id="newBest" hidden>New best run!</p>
         <p class="badge badge--lock" id="dailyLock" hidden>Locked in for today &mdash; back tomorrow</p>
@@ -1193,13 +1298,13 @@
 
         <div class="over__foot">
           <div id="overFootRun">
-            <div class="beststrip"><span>Best run</span><strong id="overBest">0</strong></div>
+            <div class="beststrip"><span id="overBestLabel">Best run</span><strong id="overBest">0</strong></div>
             <button class="btn" id="btnAgain">Play Again</button>
           </div>
           <div id="overFootDaily" hidden>
             <div class="beststrip"><span id="dailyDate">Today&rsquo;s challenge</span><strong id="dailyFinal">0</strong></div>
           </div>
-          <button class="btn btn--ghost" id="btnHome">Home</button>
+          <button class="btn btn--ghost" id="btnHome">Try another mode</button>
         </div>
       </div>
     </section>
@@ -1268,32 +1373,141 @@
   });
 
   var HAND_SIZE = 5;
-  var POOL_START = 10;
   var REROLLS = 3;
   var DISCARD_MAX = 2;
-  var TURN_MS = 25000;
-  var BEST_KEY = "shift.bestRun";
+  var BEST_PREFIX = "shift.best.";
   var DAILY_KEY = "shift.daily";
 
-  // 3 letters to open, 4 from level 3 on — 4 is the ceiling now.
-  function wordLen(level) { return level <= 2 ? 3 : 4; }
+  // ---------- the knobs ----------
+  // Eight independent settings, and the two numbers the structure knob needs.
+  // Every rule in this file reads a knob and never a mode name — which is the
+  // whole point of a playtest build: the presets are comparable because they
+  // differ only where the table below says they differ.
+  var KNOBS = {
+    scoring:   "points",   // "points" = sum of letter values | "words" = a flat +1 a turn
+    exchange:  "full",     // "full" | "reroll" | "discard" | "none"
+    timerMs:   20000,      // per-turn clock; 0 is untimed
+    maxSwaps:  3,          // swaps that can be staged in one turn
+    pool:      10,         // swaps a level; Infinity is unmetered
+    repeats:   false,      // may a word be scored twice in a run
+    reward:    "boost",    // "boost" | "none"
+    structure: "levels",   // "levels" | "turns" | "session"
+    turns:     0,          // structure "turns": how many turns the session runs
+    sessionMs: 0           // structure "session": how long the session runs
+  };
 
-  // Back to the brief's own curve. v3 softened it to 18 + (N-1)*12 because the
-  // climb then ran to five-letter words and the steeper curve hid that tier
-  // behind a wall. With the ladder capped at four letters there is no tier left
-  // to hide, so 20 + (N-1)*15 is the honest number again: simulated over 800
-  // runs a level, it ends a careless run around level 3 and a sharp one at 5-6,
-  // and still separates skill cleanly on score (median 107 -> 229).
-  function targetFor(level) { return 20 + (level - 1) * 15; }
+  // A preset is a name, the hypothesis it tests, and the knobs it moves off the
+  // baseline. Nothing else about a mode exists anywhere in this file.
+  //
+  // Turn Attack and Time Attack also unmeter the pool: "10 swaps a level" has
+  // nothing to attach to once the levels are gone, and the brief asks for these
+  // two to end on their turn count or their session clock rather than a pool.
+  var PRESETS = [
+    { id: "classic", name: "Classic",
+      line: "The baseline every other mode is measured against.", knobs: {} },
+    { id: "wordcount", name: "Word Count",
+      line: "Does the letter-point economy add fun, or just friction to “make words”?", knobs: { scoring: "words" } },
+    { id: "locked", name: "Locked Hand",
+      line: "How punishing is a genuinely bad hand with no safety valve at all?", knobs: { exchange: "none" } },
+    { id: "zen", name: "Zen",
+      line: "Is the clock what makes a turn tense, or is it the swap budget?", knobs: { timerMs: 0 } },
+    { id: "blitz", name: "Blitz",
+      line: "The opposite experiment — eight seconds, far more pressure than Classic.", knobs: { timerMs: 8000 } },
+    { id: "single", name: "Single Swap",
+      line: "Is up-to-three real depth, or just extra complexity?", knobs: { maxSwaps: 1 } },
+    { id: "unlimited", name: "Unlimited Swaps",
+      line: "Take the budget away and leave the clock as the only way to lose.", knobs: { pool: Infinity } },
+    { id: "repeats", name: "Repeats OK",
+      line: "Is the no-repeat rule meaningfully strategic, or just an annoyance?", knobs: { repeats: true } },
+    { id: "nopowerups", name: "No Power-ups",
+      line: "Is the letter boost real strategy, or decision fatigue between levels?", knobs: { reward: "none" } },
+    { id: "turnattack", name: "Turn Attack",
+      line: "Ten turns, no levels at all — a single flat score attack.", knobs: { structure: "turns", turns: 10, pool: Infinity } },
+    { id: "timeattack", name: "Time Attack",
+      line: "Ninety seconds for the whole session instead of a clock per turn.", knobs: { structure: "session", sessionMs: 90000, timerMs: 0, pool: Infinity } }
+  ];
+
+  function presetById(id) {
+    for (var i = 0; i < PRESETS.length; i++) if (PRESETS[i].id === id) return PRESETS[i];
+    return PRESETS[0];
+  }
+
+  function knobsFor(preset) {
+    var k = {};
+    Object.keys(KNOBS).forEach(function (key) { k[key] = KNOBS[key]; });
+    Object.keys(preset.knobs).forEach(function (key) { k[key] = preset.knobs[key]; });
+    return k;
+  }
+
+  // What a preset's card says about itself. The baseline spells its settings
+  // out; a variant lists only the knobs it moves, so the experiment reads at a
+  // glance. Second value marks a chip as a change rather than an inherited rule.
+  function chipsFor(preset) {
+    var k = preset.knobs;
+    if (!Object.keys(k).length) {
+      return [["20s a turn", 0], ["10 swaps a level", 0], ["Up to 3 a turn", 0], ["No repeats", 0]];
+    }
+    var out = [];
+    if (k.scoring === "words") out.push(["Scoring: one per word", 1]);
+    if (k.exchange === "none") out.push(["No reroll, no discard", 1]);
+    if (k.exchange === "reroll") out.push(["Reroll only", 1]);
+    if (k.exchange === "discard") out.push(["Bonus discard only", 1]);
+    if (k.timerMs === 0 && k.structure !== "session") out.push(["No turn clock", 1]);
+    if (k.timerMs > 0) out.push([(k.timerMs / 1000) + "s a turn", 1]);
+    if (k.maxSwaps) out.push(["Up to " + k.maxSwaps + (k.maxSwaps === 1 ? " swap" : " swaps") + " a turn", 1]);
+    if (k.pool === Infinity) out.push(["Unlimited swaps", 1]);
+    if (k.repeats) out.push(["Repeats allowed", 1]);
+    if (k.reward === "none") out.push(["No level reward", 1]);
+    if (k.structure === "turns") out.push([k.turns + " turns, no levels", 1]);
+    if (k.structure === "session") out.push([(k.sessionMs / 1000) + "s session, no levels", 1]);
+    return out;
+  }
+
+  // ---------- rules read off the knobs ----------
+  function canReroll() { return S.K.exchange === "full" || S.K.exchange === "reroll"; }
+  function canDiscard() { return S.K.exchange === "full" || S.K.exchange === "discard"; }
+  function metered() { return S.K.pool !== Infinity; }
+  function countingWords() { return S.K.scoring === "words"; }
+  function swapBudget() { return Math.min(S.K.maxSwaps, S.pool); }
+  function turnGain(w) { return countingWords() ? 1 : wordValue(w); }
+
+  // Levels open on three letters and step to four. A session mode has no levels
+  // to hang that on, so it makes the same step at its own halfway mark instead.
+  function wordLen() {
+    if (S.K.structure === "levels") return S.level <= 2 ? 3 : 4;
+    return S.tier;
+  }
+
+  // Points keep the brief's own curve, which v4 verified against 3-4 letter
+  // words. Counting words needs its own, and it has to climb faster than the
+  // pool can be extended or the mode never ends: a level's pool is ten swaps and
+  // so ten turns at the very best, and 2N+1 asks for nine words at level 4 and
+  // an impossible eleven at level 5. Simulated, that lands a word-count run at
+  // much the same length as a Classic one rather than running for a quarter of
+  // an hour, and the perks buy about two more levels — the job letter boosts do
+  // in a points run.
+  function targetFor(level) {
+    if (countingWords()) return Math.max(2, 2 * level + 1 - S.perks.head);
+    return 20 + (level - 1) * 15;
+  }
 
   // ---------- elements ----------
   var el = {
     screens: {
       home: document.getElementById("screenHome"),
+      modes: document.getElementById("screenModes"),
       play: document.getElementById("screenPlay"),
       cleared: document.getElementById("screenCleared"),
       over: document.getElementById("screenOver")
     },
+    modeList: document.getElementById("modeList"),
+    btnModesHome: document.getElementById("btnModesHome"),
+    runLine: document.getElementById("runLine"),
+    meters: document.querySelector(".meters"),
+    pickLabel: document.getElementById("pickLabel"),
+    overMode: document.getElementById("overMode"),
+    overLabel: document.getElementById("overLabel"),
+    overBestLabel: document.getElementById("overBestLabel"),
     demoTiles: document.getElementById("demoTiles"),
     demoScore: document.getElementById("demoScore"),
     homeBest: document.getElementById("homeBest"),
@@ -1347,11 +1561,13 @@
   };
 
   // ---------- persistence (localStorage, tolerant of a locked-down browser) ----------
-  function readBest() {
-    try { return parseInt(localStorage.getItem(BEST_KEY), 10) || 0; } catch (e) { return 0; }
+  // Best is kept per mode. A word-count run scores about ten where a Classic run
+  // scores two hundred, so one shared "best" would be a number no mode owns.
+  function readBest(id) {
+    try { return parseInt(localStorage.getItem(BEST_PREFIX + id), 10) || 0; } catch (e) { return 0; }
   }
-  function writeBest(v) {
-    try { localStorage.setItem(BEST_KEY, String(v)); } catch (e) { /* private mode */ }
+  function writeBest(id, v) {
+    try { localStorage.setItem(BEST_PREFIX + id, String(v)); } catch (e) { /* private mode */ }
   }
 
   // Today's date in the player's own timezone — the daily's seed and its key.
@@ -1402,14 +1618,15 @@
   function rnd(n) { return Math.floor(rng() * n); }
   function drawLetter() { return DRAW[rnd(DRAW.length)]; }
 
-  function isDaily() { return S && S.mode === "daily"; }
+  function isDaily() { return !!(S && S.daily); }
 
-  // A word counts only if it is in the dictionary AND has not been scored yet
-  // this run. The used list grows across every level and is wiped only by a
-  // loss, so a run cannot farm points by bouncing between two known-good words.
+  // A word counts if it is in the dictionary and — unless the repeats knob says
+  // otherwise — has not been scored yet this run. The used list grows across
+  // every level and is wiped only by a loss, so a run cannot farm points by
+  // bouncing between two known-good words. Repeats OK turns exactly that back on.
   function isWord(w) { return !!DICT[w.length] && DICT[w.length].has(w); }
   function isUsed(w) { return !!(S && S.used[w]); }
-  function playable(w) { return isWord(w) && !isUsed(w); }
+  function playable(w) { return isWord(w) && (S.K.repeats || !isUsed(w)); }
 
   function letterValue(c) { return VALUE[c] + (S && S.boosts[c] ? S.boosts[c] : 0); }
   function wordValue(w) {
@@ -1424,7 +1641,7 @@
   // run on every deal.
   function findMove(word, hand, maxSwaps) {
     var n = word.length;
-    var cap = Math.min(3, maxSwaps);
+    var cap = Math.min(S.K.maxSwaps, maxSwaps);
 
     // one swap
     for (var i = 0; i < n; i++) {
@@ -1479,7 +1696,7 @@
   function refillHand(slots) {
     slots.forEach(function (i) { S.hand[i] = drawLetter(); });
 
-    var budget = Math.min(3, S.pool);
+    var budget = swapBudget();
     if (budget < 1) return;
 
     // A single swap is what most people look for first, so aim for a hand that
@@ -1487,9 +1704,17 @@
     // no one-letter neighbour left to reach.
     if (findMove(S.word, S.hand, 1)) return;
 
+    // Which cards the net is allowed to touch. Normally any of them — the deal
+    // is the game's, not the player's. But when the exchange knob is off, the
+    // brief is explicit that hand letters change only through the normal
+    // post-swap replacement, and quietly re-rolling a card the player never
+    // touched would hand Locked Hand the safety valve it exists to remove.
+    var free = S.K.exchange === "none" ? slots.slice() : null;
+    if (free && !free.length) return;
+
     var fallback = null;
     for (var tries = 0; tries < 80; tries++) {
-      S.hand[rnd(HAND_SIZE)] = drawLetter();
+      S.hand[free ? free[rnd(free.length)] : rnd(HAND_SIZE)] = drawLetter();
       if (findMove(S.word, S.hand, 1)) return;
       if (!fallback && findMove(S.word, S.hand, budget)) fallback = S.hand.slice();
     }
@@ -1497,9 +1722,17 @@
   }
 
   // ---------- rendering ----------
+  // Letter values are the whole economy in Classic and mean nothing at all when
+  // a turn is worth a flat one, so the badges come off entirely rather than
+  // sitting there as a number that no longer drives anything.
   function pipHtml(c) {
+    if (S && countingWords()) return "";
     var boosted = S && S.boosts[c] ? " is-boosted" : "";
     return '<span class="pip' + boosted + '">' + letterValue(c) + "</span>";
+  }
+
+  function worthLabel(c) {
+    return c.toUpperCase() + (countingWords() ? "" : ", worth " + letterValue(c));
   }
 
   function stagedWord() {
@@ -1519,7 +1752,7 @@
       if (popIndexes && popIndexes.indexOf(i) > -1) b.classList.add("is-pop");
       b.innerHTML = shown[i].toUpperCase() + pipHtml(shown[i]);
       b.setAttribute("aria-label",
-        shown[i].toUpperCase() + ", worth " + letterValue(shown[i]) +
+        worthLabel(shown[i]) +
         (S.staged[i] !== undefined ? ", staged — tap to take it back" : ""));
       el.wordTiles.appendChild(b);
     }
@@ -1539,7 +1772,7 @@
       if (S.armed === i) b.classList.add("is-armed");
       if (dealtIndexes && dealtIndexes.indexOf(i) > -1) b.classList.add("is-dealt");
       b.innerHTML = c.toUpperCase() + pipHtml(c);
-      b.setAttribute("aria-label", c.toUpperCase() + " card, worth " + letterValue(c));
+      b.setAttribute("aria-label", worthLabel(c) + " card");
       el.hand.appendChild(b);
     }
   }
@@ -1551,22 +1784,71 @@
     }).join("");
   }
 
+  // The HUD is built from the knobs, not from the mode: a meter whose rule is
+  // switched off comes off the screen rather than standing there showing a
+  // number that means nothing — no frozen clock, no zeroed swap counter.
   function renderHud() {
-    var n = wordLen(S.level);
-    el.lvlLabel.textContent = (isDaily() ? "Daily · " : "") +
-      "Level " + S.level + " · " + n + " letters";
-    el.scoreLine.innerHTML = S.score + ' <em>/ ' + S.target + "</em>";
+    var K = S.K, n = wordLen(), words = countingWords();
+    var unit = words ? "words" : "points";
+
+    // the line above the bar
+    if (K.structure === "turns") {
+      el.lvlLabel.textContent = "Turn " + Math.min(S.turnsUsed + 1, K.turns) +
+        " of " + K.turns + " · " + n + " letters";
+    } else if (K.structure === "session") {
+      el.lvlLabel.textContent = "Time Attack · " + n + " letters";
+    } else {
+      el.lvlLabel.textContent = (isDaily() ? "Daily · " : "") +
+        "Level " + S.level + " · " + n + " letters";
+    }
+
+    // the big number, and what the bar underneath is filling toward
+    if (K.structure === "levels") {
+      el.scoreLine.innerHTML = S.score + ' <em>/ ' + S.target + (words ? " words" : "") + "</em>";
+      el.trackFill.style.width = Math.min(100, (S.score / S.target) * 100) + "%";
+    } else {
+      el.scoreLine.innerHTML = S.runScore + ' <em>' + unit + "</em>";
+      // a session's bar is drained by its clock, and repainted from there
+      if (K.structure === "turns") {
+        el.trackFill.style.width = Math.min(100, (S.turnsUsed / K.turns) * 100) + "%";
+      }
+    }
+
+    // the run tally only earns its line when the big number is a level's score
+    el.runLine.hidden = K.structure !== "levels";
     el.runTotal.textContent = S.runScore;
-    el.trackFill.style.width = Math.min(100, (S.score / S.target) * 100) + "%";
-    el.swapNum.textContent = S.pool;
-    el.swapPill.classList.toggle("is-low", S.pool <= 3);
+
+    el.swapPill.hidden = !metered();
+    if (metered()) {
+      el.swapNum.textContent = S.pool;
+      el.swapPill.classList.toggle("is-low", S.pool <= 3);
+    }
+
+    el.timer.hidden = clockKind() === "none";
+
+    el.btnReroll.hidden = !canReroll();
     el.rerollBadge.textContent = S.rerolls;
     el.btnReroll.disabled = S.rerolls <= 0;
 
-    var chips = Object.keys(S.boosts).sort();
-    el.boostChips.innerHTML = chips.map(function (c) {
+    // boosted letters in a points run; the perks picked in a word-count one
+    el.boostChips.innerHTML = words ? perkChipsHtml() : Object.keys(S.boosts).sort().map(function (c) {
       return '<span class="boosts__chip" title="' + c.toUpperCase() + ' is worth +' +
         S.boosts[c] + '">' + c.toUpperCase() + "</span>";
+    }).join("");
+
+    // a knob combination can switch off everything this row carries; an empty
+    // strip of padding is worse than no row at all
+    el.meters.hidden = !metered() && clockKind() === "none" && !el.boostChips.innerHTML;
+  }
+
+  function perkChipsHtml() {
+    var out = [];
+    if (S.perks.swaps) out.push(["+" + S.perks.swaps, S.perks.swaps + " extra swaps a level"]);
+    if (S.perks.time) out.push([(S.perks.time / 1000) + "s", "+" + (S.perks.time / 1000) + " seconds a turn"]);
+    if (S.perks.rerolls) out.push(["R", "+" + S.perks.rerolls + " reroll a level"]);
+    if (S.perks.head) out.push(["−" + S.perks.head, "Target is " + S.perks.head + " word(s) shorter"]);
+    return out.map(function (p) {
+      return '<span class="boosts__chip" title="' + p[1] + '">' + p[0] + "</span>";
     }).join("");
   }
 
@@ -1592,7 +1874,10 @@
     var shownWord = '<span class="feedback__word">' + next.toUpperCase() + "</span>";
 
     if (playable(next)) {
-      say(shownWord + '<span class="feedback__pts">+' + wordValue(next) + "</span>" + clear, "good");
+      // in a word-count run the word itself is the whole reward, so a "+1"
+      // beside every single word would be noise rather than information
+      say(shownWord + (countingWords() ? "" : '<span class="feedback__pts">+' +
+        wordValue(next) + "</span>") + clear, "good");
       el.btnConfirm.disabled = false;
     } else if (isUsed(next)) {
       // A word already banked this run is refused exactly like a non-word is,
@@ -1624,42 +1909,87 @@
   }
 
   // ---------- clock ----------
-  var raf = 0, turnEnds = 0, clockOn = false;
+  // One loop, three settings: a clock that resets every turn, one clock for the
+  // whole session, or none at all. The ring is the same ring — in a session mode
+  // it counts the session down, and the level bar drains with it.
+  var raf = 0, turnEnds = 0, sessionEnds = 0, clockOn = false, pausedAt = 0;
+
+  function clockKind() {
+    if (!S) return "none";
+    if (S.K.structure === "session") return "session";
+    return S.K.timerMs > 0 ? "turn" : "none";
+  }
+
+  function clockSpan() { return clockKind() === "session" ? S.K.sessionMs : S.turnMs; }
+  function clockEnds() { return clockKind() === "session" ? sessionEnds : turnEnds; }
 
   function renderTimer(msLeft) {
     var secs = Math.max(0, Math.ceil(msLeft / 1000));
     el.timerNum.textContent = secs;
-    var frac = Math.max(0, Math.min(1, msLeft / S.turnMs));
+    var frac = Math.max(0, Math.min(1, msLeft / clockSpan()));
     var c = 2 * Math.PI * 19;
     el.timerFill.style.strokeDasharray = c;
     el.timerFill.style.strokeDashoffset = c * (1 - frac);
-    el.timer.dataset.level = secs <= 4 ? "crit" : (secs <= 9 ? "warn" : "ok");
+    // thresholds ride the fraction, not the second count, so eight seconds of
+    // Blitz turns amber at the same point in the turn that twenty seconds does
+    el.timer.dataset.level = frac <= .18 ? "crit" : (frac <= .38 ? "warn" : "ok");
+    if (clockKind() === "session") el.trackFill.style.width = (frac * 100) + "%";
   }
 
   function tick() {
     if (!clockOn) return;
-    var left = turnEnds - Date.now();
+    var left = clockEnds() - Date.now();
     renderTimer(left);
-    if (left <= 0) { stopClock(); endGame("time"); return; }
+    if (left <= 0) { stopClock(); endGame(clockKind() === "session" ? "session" : "time"); return; }
     raf = requestAnimationFrame(tick);
   }
 
-  function startClock() {
+  function runLoop() {
     clockOn = true;
-    turnEnds = Date.now() + S.turnMs;
-    renderTimer(S.turnMs);
+    renderTimer(clockEnds() - Date.now());
     cancelAnimationFrame(raf);
     raf = requestAnimationFrame(tick);
   }
 
-  function stopClock() { clockOn = false; cancelAnimationFrame(raf); }
+  // A fresh turn: the per-turn clock restarts, the session clock just carries on.
+  function startClock() {
+    if (pausedAt) { sessionEnds += Date.now() - pausedAt; pausedAt = 0; }
+    if (clockKind() === "none") { clockOn = false; return; }
+    if (clockKind() === "turn") turnEnds = Date.now() + S.turnMs;
+    runLoop();
+  }
 
-  // Locking the phone mid-turn shouldn't cost you the run.
-  var hiddenAt = 0;
-  document.addEventListener("visibilitychange", function () {
+  function startSessionClock() {
+    sessionEnds = Date.now() + S.K.sessionMs;
+    pausedAt = 0;
+  }
+
+  function stopClock() { clockOn = false; pausedAt = 0; cancelAnimationFrame(raf); }
+
+  // Whichever clock is running waits for a modal decision and for a locked
+  // phone: neither is a race, so neither should cost the run.
+  function pauseClock() {
     if (!clockOn) return;
-    if (document.hidden) { hiddenAt = Date.now(); cancelAnimationFrame(raf); }
-    else if (hiddenAt) { turnEnds += Date.now() - hiddenAt; hiddenAt = 0; raf = requestAnimationFrame(tick); }
+    clockOn = false;
+    pausedAt = Date.now();
+    cancelAnimationFrame(raf);
+  }
+
+  function unpauseClock() {
+    if (!pausedAt) return;
+    var d = Date.now() - pausedAt;
+    pausedAt = 0;
+    turnEnds += d;
+    sessionEnds += d;
+    if (clockKind() === "none") return;
+    runLoop();
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden) pauseClock();
+    // coming back must not restart a clock the discard sheet is holding: that
+    // one stays paused until the sheet closes and hands the turn back
+    else if (el.sheet.hidden) unpauseClock();
   });
 
   // ---------- staging ----------
@@ -1682,8 +2012,11 @@
       if (S.staged[p] === cardIdx) delete S.staged[p];
     });
     var count = Object.keys(S.staged).length;
-    if (S.staged[pos] === undefined && count >= Math.min(3, S.pool)) {
-      return refuse(pos, count >= 3 ? "Three swaps is the most in one turn." : "Not enough swaps left.");
+    if (S.staged[pos] === undefined && count >= swapBudget()) {
+      var cap = S.K.maxSwaps;
+      return refuse(pos, count >= cap
+        ? (cap === 1 ? "One swap a turn in this mode." : cap + " swaps is the most in one turn.")
+        : "Not enough swaps left.");
     }
     S.staged[pos] = cardIdx;
     S.armed = null;
@@ -1791,14 +2124,14 @@
     var next = stagedWord();
     if (!playable(next)) return;
 
-    var gained = wordValue(next);
+    var gained = turnGain(next);
     var cost = positions.length;
 
     S.score += gained;
     // the run total banks every turn, so a level you never finish still counts
     S.runScore += gained;
     S.pool -= cost;
-    S.turns += 1;
+    S.turnsUsed += 1;
     S.word = next;
     S.used[next] = true;
     S.trail.push(next);
@@ -1812,21 +2145,28 @@
     refillHand(slots);
     paint(positions, slots);
 
-    if (S.score >= S.target) { stopClock(); levelCleared(); return; }
+    // whichever ending this mode has, checked in the order it can happen
+    if (S.K.structure === "levels" && S.score >= S.target) { stopClock(); levelCleared(); return; }
+    if (S.K.structure === "turns" && S.turnsUsed >= S.K.turns) { stopClock(); endGame("turns"); return; }
+    if (metered() && S.pool <= 0) { stopClock(); endGame("swaps"); return; }
 
-    if (S.pool <= 0) { stopClock(); endGame("swaps"); return; }
-
-    // A successful turn earns the bonus discard. It is a decision, not a race,
-    // so the turn clock waits for it — the clock restarts when the sheet closes.
-    stopClock();
-    openDiscard();
+    // A successful turn earns the bonus discard where the exchange knob allows
+    // one. It is a decision, not a race, so the clock waits for it.
+    pauseClock();
+    if (canDiscard()) openDiscard();
+    else resumeTurn();
   }
 
-  // Picks up after the bonus discard sheet closes: make sure the hand can still
-  // do something, then hand the turn back to the player and restart the clock.
+  // Picks up once the turn is handed back — after the discard sheet, or straight
+  // away in a mode without one: step the word length if the session has passed
+  // its halfway mark, make sure the hand can still do something, restart the clock.
   function resumeTurn() {
-    if (!findMove(S.word, S.hand, Math.min(3, S.pool))) {
-      if (S.rerolls > 0) {
+    stepTier();
+
+    if (!findMove(S.word, S.hand, swapBudget())) {
+      // the free rescue is a reroll, so it only exists where rerolls do —
+      // Locked Hand is the experiment of taking exactly this away
+      if (canReroll() && S.rerolls > 0) {
         S.rerolls -= 1;
         rerollHand(true);
       } else {
@@ -1835,6 +2175,24 @@
       }
     }
     startClock();
+  }
+
+  // The three-to-four letter step, for the two modes with no levels to hang it
+  // on. Checked between turns and never mid-turn, so the board is only ever
+  // replaced at a moment the player has already finished with it.
+  function stepTier() {
+    if (S.K.structure === "levels" || S.tier !== 3) return;
+
+    var half = S.K.structure === "turns"
+      ? S.turnsUsed >= Math.floor(S.K.turns / 2)
+      // a paused session clock is frozen at the pause, not at now
+      : (sessionEnds - (pausedAt || Date.now())) <= S.K.sessionMs / 2;
+    if (!half) return;
+
+    S.tier = 4;
+    dealBoard();
+    paint(null, [0, 1, 2, 3, 4]);
+    say("Four letters from here.", "idle");
   }
 
   function flyScore(n) {
@@ -1876,7 +2234,7 @@
       b.className = "card" + (picked[i] ? " is-picked" : "");
       b.dataset.card = i;
       b.setAttribute("aria-pressed", picked[i] ? "true" : "false");
-      b.setAttribute("aria-label", c.toUpperCase() + " card, worth " + letterValue(c) +
+      b.setAttribute("aria-label", worthLabel(c) + " card" +
         (picked[i] ? " — picked to redraw" : ""));
       b.innerHTML = c.toUpperCase() + pipHtml(c) +
         '<span class="card__tick"><svg viewBox="0 0 24 24"><path d="M4 12.5 9.5 18 20 6.5"></path></svg></span>';
@@ -1930,32 +2288,39 @@
   });
 
   // ---------- level flow ----------
-  function startLevel() {
-    var n = wordLen(S.level);
-    S.target = targetFor(S.level);
-    S.score = 0;
-    S.pool = POOL_START;
-    S.rerolls = REROLLS;
-    S.turns = 0;
-    S.staged = {};
-    S.armed = null;
-    S.levelWords = [];
-    S.turnMs = TURN_MS;
-
-    // Open somewhere with live moves, and give the hand a fair shot at one.
-    // Skip a word already banked this run: it is never scorable again, so
-    // opening on one would look like the game handing you a dead tile.
+  // A fresh board at the current word length. Opens somewhere with live moves,
+  // and skips a word already banked this run: it can never be scored again, so
+  // opening on one would look like the game handing you a dead tile.
+  function dealBoard() {
+    var n = wordLen();
     S.word = SEEDS[n][rnd(SEEDS[n].length)];
-    for (var t = 0; t < 60 && S.used[S.word]; t++) S.word = SEEDS[n][rnd(SEEDS[n].length)];
+    for (var t = 0; t < 60 && !S.K.repeats && S.used[S.word]; t++) {
+      S.word = SEEDS[n][rnd(SEEDS[n].length)];
+    }
     S.hand = [];
     for (var i = 0; i < HAND_SIZE; i++) S.hand.push(drawLetter());
     var all = [];
     for (var j = 0; j < HAND_SIZE; j++) all.push(j);
+    S.staged = {};
+    S.armed = null;
     refillHand(all);
-
     S.trail.push(S.word);
+  }
+
+  // Called once a session in the two structures without levels, and once a level
+  // in the one with them. Perks earned along the way are applied here, which is
+  // why they read as "every level from now on".
+  function startLevel() {
+    S.score = 0;
+    S.target = targetFor(S.level);
+    S.pool = metered() ? S.K.pool + S.perks.swaps : Infinity;
+    S.rerolls = REROLLS + S.perks.rerolls;
+    S.turnMs = S.K.timerMs + S.perks.time;
+    S.levelWords = [];
+
+    dealBoard();
     showScreen("play");
-    paint(null, all);
+    paint(null, [0, 1, 2, 3, 4]);
     say("Drag a card onto the word.", "idle");
     startClock();
   }
@@ -1976,8 +2341,60 @@
     return offer;
   }
 
+  // The run perks that stand in for a letter boost when letters have no value.
+  // Each is filtered by the knob it leans on, so a mode is never offered a
+  // reward it has switched off — and "Head start" applies under every setting,
+  // which is what guarantees the offer is never empty.
+  var PERKS = [
+    { id: "swaps", glyph: "+3", title: "Deeper pool",
+      body: "Three more swaps at the start of every level from here.",
+      when: function () { return metered(); },
+      take: function () { S.perks.swaps += 3; } },
+    { id: "time", glyph: "+4s", title: "More thinking time",
+      body: "Four more seconds on the turn clock, for the rest of the run.",
+      when: function () { return S.K.timerMs > 0; },
+      take: function () { S.perks.time += 4000; } },
+    { id: "reroll", glyph: "+1", title: "Spare reroll",
+      body: "One more reroll charge at the start of every level.",
+      when: function () { return canReroll(); },
+      take: function () { S.perks.rerolls += 1; } },
+    { id: "head", glyph: "−1", title: "Head start",
+      body: "Every level from here needs one word fewer to clear.",
+      when: function () { return true; },
+      take: function () { S.perks.head += 1; } }
+  ];
+
+  // One take each per run. A perk that could be taken every level would extend
+  // the pool faster than the target climbs, and a word-count run would never end
+  // — which is exactly what the first build of this did, for eighty-odd turns.
+  function offerPerks() {
+    var pool = PERKS.filter(function (p) { return !S.perks.taken[p.id] && p.when(); });
+    for (var i = pool.length - 1; i > 0; i--) {          // shuffle, then take three
+      var j = rnd(i + 1), t = pool[i]; pool[i] = pool[j]; pool[j] = t;
+    }
+    return pool.slice(0, 3);
+  }
+
+  function pickCard(glyph, perkTile, title, body, onTake) {
+    var b = document.createElement("button");
+    b.className = "pick";
+    b.innerHTML =
+      '<span class="pick__tile' + (perkTile ? " pick__tile--perk" : "") + '">' + glyph + "</span>" +
+      "<span class='pick__body'><b>" + title + "</b><span>" + body + "</span></span>";
+    b.addEventListener("click", onTake);
+    el.picks.appendChild(b);
+  }
+
   function levelCleared() {
     S.level += 1;
+
+    // Nothing to choose between: the level just advances. Skipping the screen is
+    // the point of the knob, so there is no empty reward screen to tap through.
+    if (S.K.reward === "none") {
+      startLevel();
+      say("Level " + S.level + ". Fresh pool.", "good");
+      return;
+    }
 
     el.clearedTitle.textContent = "Level " + (S.level - 1) + " cleared";
     el.statScore.textContent = S.score;
@@ -1985,21 +2402,33 @@
     el.statNext.textContent = targetFor(S.level);
 
     el.picks.innerHTML = "";
-    offerLetters().forEach(function (c) {
-      var now = letterValue(c);
-      var b = document.createElement("button");
-      b.className = "pick";
-      b.innerHTML =
-        '<span class="pick__tile">' + c.toUpperCase() + '<span class="pip is-boosted">' + now + "</span></span>" +
-        "<span class='pick__body'><b>" + c.toUpperCase() + " becomes worth " + (now + 1) + "</b>" +
-        "<span>" + now + " &rarr; " + (now + 1) + " points, every " + c.toUpperCase() +
-        " on the board and in your hand, for the rest of the run.</span></span>";
-      b.addEventListener("click", function () {
-        S.boosts[c] = (S.boosts[c] || 0) + 1;
-        startLevel();
+
+    if (countingWords()) {
+      // A boost of a letter's value is meaningless when a word is worth a flat
+      // one, so the reward beat keeps its shape and changes its currency.
+      var offer = offerPerks();
+      // every perk already taken: nothing to choose, so don't stage an empty
+      // screen — behave exactly as the "no reward" knob does
+      if (!offer.length) { startLevel(); say("Level " + S.level + ". Fresh pool.", "good"); return; }
+      el.pickLabel.textContent = offer.length === 1 ? "One perk left" : "Pick one perk";
+      offer.forEach(function (p) {
+        pickCard(p.glyph, true, p.title, p.body, function () {
+          S.perks.taken[p.id] = true;
+          p.take();
+          startLevel();
+        });
       });
-      el.picks.appendChild(b);
-    });
+    } else {
+      el.pickLabel.textContent = "Pick one to boost";
+      offerLetters().forEach(function (c) {
+        var now = letterValue(c);
+        pickCard(c.toUpperCase() + '<span class="pip is-boosted">' + now + "</span>", false,
+          c.toUpperCase() + " becomes worth " + (now + 1),
+          now + " &rarr; " + (now + 1) + " points, every " + c.toUpperCase() +
+          " on the board and in your hand, for the rest of the run.",
+          function () { S.boosts[c] = (S.boosts[c] || 0) + 1; startLevel(); });
+      });
+    }
 
     showScreen("cleared");
   }
@@ -2007,7 +2436,9 @@
   var REASONS = {
     swaps: "Out of swaps",
     time: "The clock ran out",
-    stuck: "No moves left"
+    stuck: "No moves left",
+    turns: "That was the last turn",
+    session: "Time’s up"
   };
 
   function endGame(reason) {
@@ -2015,12 +2446,25 @@
     closeDiscard();
     var daily = isDaily();
     var total = S.runScore;
-    var best = readBest();
+    // the daily is Classic's ladder on a fixed seed, so it is Classic's best
+    var bestId = daily ? "classic" : S.preset.id;
+    var best = readBest(bestId);
 
     el.overReason.textContent = REASONS[reason] || "Run over";
     el.finalScore.textContent = total;
-    el.overLevel.textContent = "Level " + S.level + " · " + (S.level - 1) +
-      (S.level - 1 === 1 ? " level cleared" : " levels cleared");
+    el.overLabel.textContent = (countingWords() ? "words" : "points") + " this run";
+    el.overMode.textContent = daily ? "Daily · Classic rules" : S.preset.name;
+
+    // whatever this mode actually tracked, rather than a level count it never kept
+    if (S.K.structure === "turns") {
+      el.overLevel.textContent = S.turnsUsed + " of " + S.K.turns + " turns played";
+    } else if (S.K.structure === "session") {
+      el.overLevel.textContent = S.turnsUsed +
+        (S.turnsUsed === 1 ? " word in " : " words in ") + (S.K.sessionMs / 1000) + " seconds";
+    } else {
+      el.overLevel.textContent = "Level " + S.level + " · " + (S.level - 1) +
+        (S.level - 1 === 1 ? " level cleared" : " levels cleared");
+    }
 
     if (daily) {
       // The attempt is spent the moment the run ends, exactly as the brief has
@@ -2035,7 +2479,8 @@
       el.dailyFinal.textContent = total;
     } else {
       el.newBest.hidden = !(total > best && total > 0);
-      if (total > best) writeBest(total);
+      if (total > best) writeBest(bestId, total);
+      el.overBestLabel.textContent = "Best · " + S.preset.name;
       el.overBest.textContent = Math.max(best, total);
       el.dailyLock.hidden = true;
       el.overFootRun.hidden = false;
@@ -2049,17 +2494,49 @@
     showScreen("over");
   }
 
-  // A loss wipes everything — level, accumulated score, boosts and the used-word
-  // list — so every run starts from the same place.
-  function startGame(mode) {
-    rng = mode === "daily" ? seededRng("shift-" + todayKey()) : Math.random;
+  // A loss wipes everything — level, accumulated score, boosts, perks and the
+  // used-word list — so every run of a mode starts from the same place.
+  function startGame(presetId, daily) {
+    var preset = presetById(presetId);
+    rng = daily ? seededRng("shift-" + todayKey()) : Math.random;
     S = {
-      mode: mode || "endless",
-      level: 1, score: 0, runScore: 0, target: targetFor(1), pool: POOL_START,
-      rerolls: REROLLS, turns: 0, word: "", hand: [], staged: {}, armed: null,
-      trail: [], levelWords: [], used: {}, boosts: {}, turnMs: TURN_MS
+      preset: preset,
+      K: knobsFor(preset),
+      daily: !!daily,
+      level: 1, score: 0, runScore: 0, target: 0, pool: 0, rerolls: 0,
+      turnsUsed: 0, tier: 3, word: "", hand: [], staged: {}, armed: null,
+      trail: [], levelWords: [], used: {}, boosts: {}, turnMs: 0,
+      perks: { swaps: 0, time: 0, rerolls: 0, head: 0, taken: {} }
     };
+    stopClock();
+    if (S.K.structure === "session") startSessionClock();
     startLevel();
+  }
+
+  // ---------- mode select ----------
+  function renderModes() {
+    el.modeList.innerHTML = "";
+    PRESETS.forEach(function (p) {
+      var best = readBest(p.id);
+      var b = document.createElement("button");
+      b.className = "mode" + (p.id === "classic" ? " mode--base" : "");
+      b.innerHTML =
+        '<span class="mode__top"><span class="mode__name">' + p.name + "</span>" +
+        (best ? '<span class="mode__best">Best ' + best + "</span>" : "") + "</span>" +
+        '<p class="mode__line">' + p.line + "</p>" +
+        '<span class="mode__chips">' + chipsFor(p).map(function (c) {
+          return '<span class="chip' + (c[1] ? " chip--on" : "") + '">' + c[0] + "</span>";
+        }).join("") + "</span>";
+      b.addEventListener("click", function () { startGame(p.id, false); });
+      el.modeList.appendChild(b);
+    });
+  }
+
+  function showModes() {
+    stopDemo();
+    renderModes();
+    showScreen("modes");
+    el.modeList.scrollTop = 0;
   }
 
   // ---------- home demo ----------
@@ -2105,7 +2582,7 @@
 
   // ---------- home ----------
   function renderHome() {
-    el.homeBest.textContent = readBest();
+    el.homeBest.textContent = readBest("classic");
     el.dailyDay.textContent = new Date().getDate();
 
     var done = readDaily();
@@ -2120,31 +2597,36 @@
   }
 
   // ---------- wiring ----------
-  el.btnStart.addEventListener("click", function () { stopDemo(); startGame("endless"); });
+  el.btnStart.addEventListener("click", showModes);
 
+  el.btnModesHome.addEventListener("click", function () {
+    showScreen("home");
+    renderHome();
+    startDemo();
+  });
+
+  // The daily is Classic's ruleset on a date-seeded stream — the one run in the
+  // build that is meant to be identical for everybody, so it takes no variant.
   el.btnDaily.addEventListener("click", function () {
     if (readDaily()) return;
     stopDemo();
-    startGame("daily");
+    startGame("classic", true);
   });
 
   el.btnConfirm.addEventListener("click", confirmTurn);
 
   el.btnReroll.addEventListener("click", function () {
-    if (S.rerolls <= 0) return;
+    if (!canReroll() || S.rerolls <= 0) return;
     S.rerolls -= 1;
     rerollHand(false);
     say("Fresh hand. " + S.rerolls + " reroll" + (S.rerolls === 1 ? "" : "s") + " left.", "idle");
   });
 
-  // Play Again is endless only — the daily's single attempt is already spent.
-  el.btnAgain.addEventListener("click", function () { startGame("endless"); });
+  // Play Again repeats the mode you just played — comparing a variant means
+  // several runs of it, not one. The daily's single attempt is already spent.
+  el.btnAgain.addEventListener("click", function () { startGame(S.preset.id, false); });
 
-  el.btnHome.addEventListener("click", function () {
-    showScreen("home");
-    renderHome();
-    startDemo();
-  });
+  el.btnHome.addEventListener("click", showModes);
 
   renderHome();
   startDemo();
