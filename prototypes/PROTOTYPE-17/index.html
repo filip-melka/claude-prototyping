@@ -305,6 +305,8 @@
     margin: 16px 0 0;
   }
 
+  .hint b { color: var(--ink); font-weight: 640; }
+
   .check {
     appearance: none;
     display: block;
@@ -321,6 +323,25 @@
   }
 
   .check:active { transform: scale(.95); }
+
+  /* the failed-set escape hatch — deliberately quieter than the check */
+  .fail {
+    appearance: none;
+    display: block;
+    margin: 14px auto 0;
+    min-height: 56px;
+    padding: 0 22px;
+    border-radius: 999px;
+    border: 1px dashed var(--faint);
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-size: 15px;
+    font-weight: 640;
+    cursor: pointer;
+  }
+
+  .fail:active { transform: scale(.97); opacity: .6; }
 
   .check::after {
     content: "";
@@ -430,6 +451,19 @@
     transform: rotate(-45deg);
   }
 
+  /* failed session: dashed ring (= not cleared) with a bar, never a tick */
+  .seal--fail { border-style: dashed; border-width: 3px; border-color: var(--faint); }
+
+  .seal--fail::after {
+    width: 38px;
+    height: 0;
+    margin: -3px 0 0 -19px;
+    border-left: 0;
+    border-bottom: 5px solid var(--ink);
+    border-radius: 999px;
+    transform: none;
+  }
+
   .done-title {
     font-size: 28px;
     font-weight: 680;
@@ -482,6 +516,43 @@
 
   .foot { margin-top: 20px; }
 
+  /* names the consequence under the cancel button, since there is no confirm step */
+  .foot__note {
+    font-size: 12px;
+    color: var(--faint);
+    text-align: center;
+    margin: 10px 0 0;
+  }
+
+  /* outcome banner on Home — the session says what it did or did not credit */
+  .notice {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border: 1px dashed var(--faint);
+    border-radius: 16px;
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    padding: 13px 15px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--muted);
+  }
+
+  .notice::before {
+    content: "";
+    flex: none;
+    width: 8px;
+    height: 8px;
+    margin-top: 6px;
+    border-radius: 999px;
+    background: var(--ink);
+  }
+
+  .notice b { color: var(--ink); font-weight: 660; }
+
   /* the 0:00 flash — visual only, no audio */
   .flash {
     position: fixed;
@@ -522,6 +593,7 @@
 
     <!-- Home -->
     <section class="view is-on" id="v-home">
+      <p class="notice" id="notice" hidden></p>
       <p class="eyebrow">Today</p>
       <div id="lifts"></div>
       <p class="hint" style="text-align:center;margin-top:auto;padding-top:24px">
@@ -541,6 +613,7 @@
           <p class="reps num" id="reps">&times; 5<span>reps</span></p>
           <button class="check" id="check" aria-label="Mark this set done"></button>
           <p class="hint">Tap when the set is done</p>
+          <button class="fail" id="fail">Couldn&rsquo;t finish the set</button>
         </div>
 
         <!-- rest state -->
@@ -561,20 +634,21 @@
       </div>
 
       <div class="foot">
-        <button class="btn btn--ghost" id="quit">End session</button>
+        <button class="btn btn--ghost" id="quit">Cancel Workout</button>
+        <p class="foot__note">Ends the session now &middot; nothing is saved</p>
       </div>
     </section>
 
     <!-- Complete -->
     <section class="view" id="v-done">
       <div class="card stage">
-        <div class="seal"></div>
-        <h2 class="done-title" id="done-lift">Weighted Pull-Up</h2>
-        <p class="hint" style="margin:0">Rung <span id="done-rung">4</span> of 9 cleared</p>
+        <div class="seal" id="seal"></div>
+        <h2 class="done-title" id="done-title">Weighted Pull-Up</h2>
+        <p class="hint" style="margin:0" id="done-note">Rung 4 of 9 cleared</p>
 
         <div class="stats">
-          <div class="stat"><b class="num" id="s-sets">4</b><span>Sets</span></div>
-          <div class="stat"><b class="num" id="s-reps">18</b><span>Reps</span></div>
+          <div class="stat"><b class="num" id="s-sets">4</b><span id="l-sets">Sets</span></div>
+          <div class="stat"><b class="num" id="s-reps">18</b><span id="l-reps">Reps</span></div>
           <div class="stat"><b class="num" id="s-weight">24<i>kg</i></b><span>Weight</span></div>
         </div>
       </div>
@@ -595,8 +669,8 @@
   // Two hardcoded lifts. A rung is a fixed set/rep prescription at one working
   // weight; the ladder runs 1..9 before the weight moves up.
   var LIFTS = [
-    { name: 'Weighted Pull-Up', weight: 24, unit: 'kg', rung: 4, sets: [5, 5, 4, 4] },
-    { name: 'Weighted Dip',     weight: 20, unit: 'kg', rung: 3, sets: [6, 5, 5] }
+    { name: 'Weighted Pull-Up', weight: 24, unit: 'kg', rung: 4, cycle: 1, sets: [5, 5, 4, 4] },
+    { name: 'Weighted Dip',     weight: 20, unit: 'kg', rung: 3, cycle: 1, sets: [6, 5, 5] }
   ];
 
   var REST = 150;            // 2:30, fixed
@@ -604,11 +678,14 @@
 
   var el = function (id) { return document.getElementById(id); };
 
+  var STEP = 2;              // the weight bump once all nine rungs are cleared
+
   var lift = null;           // the lift being worked
   var idx = 0;               // index of the current set
   var resting = false;
   var endsAt = 0;            // timestamp the rest ends at
   var ticker = null;
+  var homeNotice = '';       // outcome banner waiting to be shown on Home
 
   var ARC = 2 * Math.PI * 104;
   el('arc').style.strokeDasharray = ARC.toFixed(2);
@@ -631,7 +708,8 @@
       card.innerHTML =
         '<div class="lift__top">' +
           '<h2 class="lift__name">' + l.name + '</h2>' +
-          '<span class="rung num">Rung ' + l.rung + '/' + LADDER + '</span>' +
+          '<span class="rung num">Rung ' + l.rung + '/' + LADDER +
+            ' &middot; Cycle ' + l.cycle + '</span>' +
         '</div>' +
         '<p class="lift__meta num">' + l.weight + ' ' + l.unit + ' &middot; Set 1 of ' + l.sets.length +
           ' &middot; ' + l.sets.join('/') + ' reps</p>' +
@@ -662,6 +740,8 @@
     lift = LIFTS[i];
     idx = 0;
     resting = false;
+    homeNotice = '';
+    el('notice').hidden = true;
     show('v-session', lift.name);
     renderSet();
   }
@@ -698,11 +778,18 @@
 
     if (idx >= lift.sets.length - 1) {
       idx = lift.sets.length;
-      finish();
+      finish(true);
       return;
     }
 
     startRest();
+  }
+
+  // The alternative to the check: the set was missed. The session stops right
+  // there — no rest timer, no next set — and the ladder is left where it was.
+  function setFailed() {
+    if (resting) return;
+    finish(false);
   }
 
   function startRest() {
@@ -741,8 +828,7 @@
 
   // Skip and 0:00 land in the same place: the next set.
   function endRest() {
-    if (ticker) { clearInterval(ticker); ticker = null; }
-    resting = false;
+    stopTimer();
     idx++;
     renderSet();
   }
@@ -756,30 +842,90 @@
 
   /* ---------- complete ---------- */
 
-  function finish() {
+  function stopTimer() {
     if (ticker) { clearInterval(ticker); ticker = null; }
     resting = false;
+  }
 
-    var reps = lift.sets.reduce(function (a, b) { return a + b; }, 0);
-    el('done-lift').textContent = lift.name;
-    el('done-rung').textContent = lift.rung;
-    el('s-sets').textContent = lift.sets.length;
+  // Only a session finished to the last set moves the ladder: nine rungs at one
+  // working weight, then the weight goes up and the cycle ticks over.
+  function advance() {
+    lift.rung++;
+    if (lift.rung > LADDER) {
+      lift.rung = 1;
+      lift.cycle++;
+      lift.weight += STEP;
+    }
+  }
+
+  // One screen, two readings. `cleared` false means the run was cut short by a
+  // failed set, so the stats count only what was actually done and nothing on
+  // the lift is credited.
+  function finish(cleared) {
+    stopTimer();
+
+    var n = lift.sets.length;
+    var doneSets = cleared ? n : idx;            // idx is the set that was missed
+    var reps = lift.sets.slice(0, doneSets).reduce(function (a, b) { return a + b; }, 0);
+    var wasRung = lift.rung;
+
+    el('seal').classList.toggle('seal--fail', !cleared);
+    el('done-title').textContent = cleared ? lift.name : 'Session ended';
+    el('l-sets').textContent = cleared ? 'Sets' : 'Sets done';
+    el('l-reps').textContent = cleared ? 'Reps' : 'Reps done';
+    el('s-sets').textContent = doneSets;
     el('s-reps').textContent = reps;
     el('s-weight').innerHTML = lift.weight + '<i>' + lift.unit + '</i>';
 
-    show('v-done', 'Complete');
+    if (cleared) {
+      advance();
+      el('done-note').innerHTML =
+        'Rung ' + wasRung + ' of ' + LADDER + ' cleared &middot; next up <b>rung ' +
+        lift.rung + '</b> at ' + lift.weight + ' ' + lift.unit;
+      homeNotice =
+        '<b>Rung ' + wasRung + ' cleared.</b> ' + lift.name +
+        ' moves to rung ' + lift.rung + ' at ' + lift.weight + ' ' + lift.unit + '.';
+    } else {
+      el('done-note').innerHTML =
+        'Failed on <b>Set ' + (idx + 1) + ' of ' + n + '</b> &middot; rung ' + wasRung +
+        ' and ' + lift.weight + ' ' + lift.unit + ' unchanged';
+      homeNotice =
+        '<b>Session ended</b> &mdash; failed on set ' + (idx + 1) + ' of ' + n + '. ' +
+        lift.name + ' stays on rung ' + wasRung + ' at ' + lift.weight + ' ' +
+        lift.unit + ', no cycle counted.';
+    }
+
+    show('v-done', cleared ? 'Complete' : 'Ended');
+  }
+
+  // Cancel is unconditional and reachable from both session states: the run is
+  // dropped where it stands, with no rung, weight or cycle credited.
+  function cancelWorkout() {
+    homeNotice =
+      '<b>Workout cancelled</b> at set ' + (idx + 1) + ' of ' + lift.sets.length +
+      '. Nothing saved &mdash; ' + lift.name + ' stays on rung ' + lift.rung +
+      ' at ' + lift.weight + ' ' + lift.unit + '.';
+    toLifts();
   }
 
   function toLifts() {
-    if (ticker) { clearInterval(ticker); ticker = null; }
-    resting = false;
+    stopTimer();
     lift = null;
+
+    renderHome();                    // the ladder reflects whatever was credited
+
+    var note = el('notice');
+    note.innerHTML = homeNotice;
+    note.hidden = !homeNotice;
+    homeNotice = '';
+
     show('v-home', 'Lifts');
   }
 
   el('check').addEventListener('click', setDone);
+  el('fail').addEventListener('click', setFailed);
   el('skip').addEventListener('click', function () { if (resting) endRest(); });
-  el('quit').addEventListener('click', toLifts);
+  el('quit').addEventListener('click', cancelWorkout);
   el('back-lifts').addEventListener('click', toLifts);
 
   renderHome();

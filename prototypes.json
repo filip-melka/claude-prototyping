@@ -225,11 +225,12 @@
       "tagline": "The mid-set screen — weight, reps, one big checkbox, and a rest timer that starts itself.",
       "kind": "app",
       "path": "prototypes/PROTOTYPE-17/index.html",
-      "version": 1,
+      "version": 2,
       "createdAt": "2026-08-26",
-      "updatedAt": "2026-08-26",
+      "updatedAt": "2026-09-05",
       "changelog": [
-        "v1 — initial prototype"
+        "v1 — initial prototype",
+        "v2 — Cancel Workout in both session states, a failed-set option that ends the session, and a Complete screen that shows the failure"
       ]
     },
     {
